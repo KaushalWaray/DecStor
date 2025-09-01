@@ -118,7 +118,7 @@ apiRouter.post('/share', async (req, res) => {
         console.log(`[Backend] Shared CID ${cid} with ${recipientAddress}`);
         res.status(201).json({ message: 'File shared successfully.', share: newShare });
 
-    } catch (error)_ {
+    } catch (error) {
         console.error('[Backend] Error sharing file:', error);
         res.status(500).json({ error: 'Internal server error while sharing file.' });
     }
