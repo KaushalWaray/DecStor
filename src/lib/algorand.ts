@@ -87,7 +87,7 @@ export const shareFile = async (
     senderAccount.addr,
     params,
     MAILBOX_APP_ID,
-    appArgs,
+    appArgs
   );
 
   const signedTxn = txn.signTxn(senderAccount.sk);
