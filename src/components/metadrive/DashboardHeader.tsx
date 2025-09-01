@@ -5,15 +5,16 @@ import { Button } from '@/components/ui/button';
 import { getAccountBalance } from '@/lib/algorand';
 import { truncateAddress } from '@/lib/utils';
 import type { AlgorandAccount } from '@/types';
-import { LogOut, Shield, Copy, LoaderCircle } from 'lucide-react';
+import { LogOut, Shield, Copy, LoaderCircle, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface DashboardHeaderProps {
   account: AlgorandAccount;
   onLock: () => void;
+  onReset: () => void;
 }
 
-export default function DashboardHeader({ account, onLock }: DashboardHeaderProps) {
+export default function DashboardHeader({ account, onLock, onReset }: DashboardHeaderProps) {
   const [balance, setBalance] = useState<number | null>(null);
   const { toast } = useToast();
 
@@ -52,9 +53,14 @@ export default function DashboardHeader({ account, onLock }: DashboardHeaderProp
             )}
           </p>
         </div>
-        <Button onClick={onLock} variant="secondary">
-          <LogOut className="mr-2 h-4 w-4" /> Lock
-        </Button>
+        <div className="flex items-center gap-2">
+            <Button onClick={onLock} variant="secondary">
+              <LogOut className="mr-2 h-4 w-4" /> Lock
+            </Button>
+            <Button onClick={onReset} variant="destructive">
+                <RefreshCw className="mr-2 h-4 w-4" /> Reset
+            </Button>
+        </div>
       </div>
     </header>
   );

@@ -8,12 +8,13 @@ interface DashboardProps {
   account: AlgorandAccount;
   pin: string;
   onLock: () => void;
+  onReset: () => void;
 }
 
-export default function Dashboard({ account, pin, onLock }: DashboardProps) {
+export default function Dashboard({ account, pin, onLock, onReset }: DashboardProps) {
   return (
     <div className="w-full h-full flex flex-col gap-6 animate-fade-in">
-      <DashboardHeader account={account} onLock={onLock} />
+      <DashboardHeader account={account} onLock={onLock} onReset={onReset}/>
       <main className="flex-grow">
         <FileTabs account={account} pin={pin} />
       </main>

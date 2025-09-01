@@ -138,7 +138,7 @@ export default function Home() {
           handleLock();
           return null;
         }
-        return <Dashboard account={account} pin={pin} onLock={handleLock} />;
+        return <Dashboard account={account} pin={pin} onLock={handleLock} onReset={handleReset}/>;
       default:
         return null;
     }
