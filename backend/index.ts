@@ -50,7 +50,7 @@ apiRouter.post('/files/metadata', async (req, res) => {
         console.log(`[Backend] Saved metadata for CID: ${cid}`);
         res.status(201).json({ message: 'Metadata saved successfully.', file: newFile });
 
-    } catch (error) {
+    } catch (error) => {
         console.error('[Backend] Error saving metadata:', error);
         res.status(500).json({ error: 'Internal server error while saving metadata.' });
     }
