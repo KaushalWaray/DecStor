@@ -1,4 +1,4 @@
-import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, makeApplicationNoOpTxn, waitForConfirmation} from 'algosdk';
+import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, makeApplicationNoOpTxn, waitForConfirmation, decodeAddress} from 'algosdk';
 import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID, ALGO_NETWORK_FEE } from './constants';
 import type { AlgorandAccount, DecodedInbox } from '@/types';
 
@@ -69,15 +69,18 @@ export const shareFile = async (
   const params = await algodClient.getTransactionParams().do();
   const appArgs = [
     new TextEncoder().encode('post'),
-    new TextEncoder().encode(recipientAddress),
+    decodeAddress(recipientAddress).publicKey,
     new TextEncoder().encode(cid),
   ];
+  
+  const accounts = [recipientAddress]
 
   const txn = makeApplicationNoOpTxn(
     senderAccount.addr,
     params,
     MAILBOX_APP_ID,
-    appArgs
+    appArgs,
+    accounts
   );
 
   const signedTxn = txn.signTxn(senderAccount.sk);
