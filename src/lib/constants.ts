@@ -3,6 +3,6 @@ export const ALGOD_SERVER = "https://testnet-api.algonode.cloud";
 export const ALGOD_TOKEN = ""; // Empty token for public node
 export const ALGOD_PORT = 443;
 export const MAILBOX_APP_ID = 745160970; // IMPORTANT: This is your deployed smart contract App ID
-export const BACKEND_URL = "http://127.0.0.1:3001/api";
+export const BACKEND_URL = "/api";
 export const ALGO_NETWORK_FEE = 0.001;
 export const IPFS_GATEWAY_URL = "https://gateway.pinata.cloud/ipfs";
