@@ -42,12 +42,9 @@ def create_application(client, private_key, approval_program_source, clear_progr
     clear_program_compiled = compile_program(client, clear_source)
 
     # Define contract schema. 
-    # Our contract stores the CID map in the user's local state.
-    # We need to define how many key-value pairs a user can have.
-    # Let's allow for 16 files to be shared with a single user.
-    # Global state is not used in this contract.
+    # Our contract is now stateless, so we use empty schemas.
     global_schema = transaction.StateSchema(num_uints=0, num_byte_slices=0)
-    local_schema = transaction.StateSchema(num_uints=0, num_byte_slices=16) 
+    local_schema = transaction.StateSchema(num_uints=0, num_byte_slices=0) 
     
     # Create the unsigned transaction
     txn = transaction.ApplicationCreateTxn(
