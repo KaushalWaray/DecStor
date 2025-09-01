@@ -11,48 +11,19 @@ import algosdk from 'algosdk';
 import { mnemonicToAccount } from '@/lib/algorand';
 
 // --- Pre-compiled TEAL Programs ---
-// This TEAL code was generated from the drive_contract.py script.
+// This is a simple, standard "messenger" contract that allows for on-chain messages.
+// It approves any ApplicationCall transaction that has application arguments.
+// This is perfect for our use case of logging a share event.
 const APPROVAL_PROGRAM = `#pragma version 6
-// On creation, approve.
-txn ApplicationID
+// Approve any transaction that has arguments.
+txn NumAppArgs
 int 0
-==
-bnz main_logic
-int 1
-return
-
-main_logic:
-// This is not a creation call, so verify the transaction.
-// 1. Assert it's a NoOp call.
-txn OnCompletion
-int 0 // NoOp
-==
-assert
-
-// 2. Assert the first argument is "post_cid".
-txna ApplicationArgs 0
-byte "post_cid"
-==
-assert
-
-// 3. Assert there are exactly 2 arguments.
-txna ApplicationArgs length
-int 2
-==
-assert
-
-// 4. Assert there is exactly 1 account passed (the recipient).
-txn NumAccounts
-int 1
-==
-assert
-
-// If all checks pass, approve the transaction.
-int 1
+>
 return
 `;
 
 const CLEAR_STATE_PROGRAM = `#pragma version 6
+// On clear, just approve.
 int 1
 return`;
 // --- End of TEAL Programs ---
@@ -90,6 +61,7 @@ export default function DeployContractPage() {
       
       const params = await algodClient.getTransactionParams().do();
       
+      // We don't need any state for this simple contract
       const globalSchema = new algosdk.StateSchema(0, 0);
       const localSchema = new algosdk.StateSchema(0, 0);
 
