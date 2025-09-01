@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { AlgorandAccount, WalletState, WalletEntry } from '@/types';
-import { decryptMnemonic } from '@/lib/crypto';
+import { encryptMnemonic, decryptMnemonic } from '@/lib/crypto';
 import { mnemonicToAccount, isValidMnemonic } from '@/lib/algorand';
 import { useToast } from '@/hooks/use-toast';
 
@@ -41,17 +41,44 @@ export default function Home() {
     }
   }, []);
 
+  const saveWallet = useCallback(async (accountToSave: AlgorandAccount, pinToSave: string) => {
+    try {
+      const encryptedMnemonic = await encryptMnemonic(accountToSave.mnemonic, pinToSave);
+      const newWalletEntry: WalletEntry = { address: accountToSave.addr, encryptedMnemonic };
+
+      const storedWallets = localStorage.getItem('metadrive_wallets');
+      let currentWallets: WalletEntry[] = storedWallets ? JSON.parse(storedWallets) : [];
+      
+      const existingWalletIndex = currentWallets.findIndex(w => w.address === newWalletEntry.address);
+
+      if (existingWalletIndex > -1) {
+        currentWallets[existingWalletIndex] = newWalletEntry;
+      } else {
+        currentWallets.push(newWalletEntry);
+      }
+      
+      localStorage.setItem('metadrive_wallets', JSON.stringify(currentWallets));
+      setWallets(currentWallets);
+
+    } catch (error) {
+      console.error("Failed to save wallet", error);
+      toast({
+        variant: "destructive",
+        title: "Save Failed",
+        description: "Could not save wallet credentials securely."
+      });
+    }
+  }, [toast]);
+
+
   const handleCreateWallet = (mnemonic: string, newPin: string) => {
     try {
       const newAccount = mnemonicToAccount(mnemonic);
-      const newWalletEntry: WalletEntry = { address: newAccount.addr, encryptedMnemonic: '' }; // Will be updated below
-      
-      const updatedWallets = [...wallets, newWalletEntry];
-      setWallets(updatedWallets);
-
       setAccount(newAccount);
       setPin(newPin);
       setWalletState('unlocked');
+      // We will save the wallet inside the Dashboard component's useEffect
+      // to ensure all state is set correctly first.
     } catch (error) {
       console.error(error);
       toast({
@@ -80,14 +107,10 @@ export default function Home() {
         return;
       }
       
-      const newWalletEntry: WalletEntry = { address: newAccount.addr, encryptedMnemonic: '' }; // Will be updated below
-      
-      const updatedWallets = [...wallets, newWalletEntry];
-      setWallets(updatedWallets);
-
       setAccount(newAccount);
       setPin(newPin);
       setWalletState('unlocked');
+      // We will save the wallet inside the Dashboard component's useEffect
     } catch (error) {
       console.error(error);
       toast({
@@ -180,7 +203,7 @@ export default function Home() {
           handleLock();
           return null;
         }
-        return <Dashboard account={account} pin={pin} onLock={handleLock} onGoToManager={handleGoToManager}/>;
+        return <Dashboard account={account} pin={pin} onLock={handleLock} onGoToManager={handleGoToManager} onSaveWallet={saveWallet} />;
       default:
         return null;
     }

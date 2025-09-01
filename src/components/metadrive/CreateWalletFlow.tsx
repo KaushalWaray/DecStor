@@ -2,8 +2,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from 'react';
-import { generateAccount, mnemonicToAccount } from '@/lib/algorand';
-import { encryptMnemonic } from '@/lib/crypto';
+import { generateAccount } from '@/lib/algorand';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,9 +10,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Copy, ArrowLeft, Eye, EyeOff, LoaderCircle } from 'lucide-react';
-import type { WalletEntry } from '@/types';
-
-type Step = 'display' | 'confirm' | 'pin';
 
 interface CreateWalletFlowProps {
   onWalletCreated: (mnemonic: string, pin: string) => void;
@@ -61,32 +57,14 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
     }
 
     setIsLoading(true);
-    try {
-      const encryptedMnemonic = await encryptMnemonic(mnemonic, pin);
-      const newAccount = mnemonicToAccount(mnemonic);
-      
-      const storedWallets = localStorage.getItem('metadrive_wallets');
-      const wallets: WalletEntry[] = storedWallets ? JSON.parse(storedWallets) : [];
-      
-      if (wallets.some(w => w.address === newAccount.addr)) {
-        toast({ variant: 'destructive', title: 'Wallet Exists', description: 'This wallet has already been created or imported.' });
-        setIsLoading(false);
-        return;
-      }
-      
-      wallets.push({ address: newAccount.addr, encryptedMnemonic });
-      localStorage.setItem('metadrive_wallets', JSON.stringify(wallets));
-
-      onWalletCreated(mnemonic, pin);
-    } catch (error) {
-      console.error(error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to create wallet. Please try again.' });
-    } finally {
-      setIsLoading(false);
-    }
+    // No need to save here anymore, it will be handled on the main page
+    // This simplifies the flow and centralizes the save logic
+    onWalletCreated(mnemonic, pin);
+    setIsLoading(false);
   };
   
   const mnemonicWords = mnemonic.split(' ');
+  type Step = 'display' | 'confirm' | 'pin';
 
   const renderStep = () => {
     switch (step) {

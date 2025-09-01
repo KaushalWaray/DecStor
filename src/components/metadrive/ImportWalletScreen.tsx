@@ -9,9 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Eye, EyeOff, LoaderCircle } from 'lucide-react';
-import { isValidMnemonic, mnemonicToAccount } from '@/lib/algorand';
-import { encryptMnemonic } from '@/lib/crypto';
-import type { WalletEntry } from '@/types';
+import { isValidMnemonic } from '@/lib/algorand';
 
 interface ImportWalletScreenProps {
   onImport: (mnemonic: string, pin: string) => void;
@@ -36,29 +34,9 @@ export default function ImportWalletScreen({ onImport, onBack }: ImportWalletScr
       return;
     }
     setIsLoading(true);
-    try {
-      const newAccount = mnemonicToAccount(trimmedMnemonic);
-      const encryptedMnemonic = await encryptMnemonic(trimmedMnemonic, pin);
-      
-      const storedWallets = localStorage.getItem('metadrive_wallets');
-      const wallets: WalletEntry[] = storedWallets ? JSON.parse(storedWallets) : [];
-
-      if (wallets.some(w => w.address === newAccount.addr)) {
-        toast({ variant: 'destructive', title: 'Wallet Exists', description: 'This wallet has already been imported.' });
-        setIsLoading(false);
-        return;
-      }
-      
-      wallets.push({ address: newAccount.addr, encryptedMnemonic });
-      localStorage.setItem('metadrive_wallets', JSON.stringify(wallets));
-
-      onImport(trimmedMnemonic, pin);
-    } catch(error) {
-      console.error(error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to import wallet. Please try again.' });
-    } finally {
-        setIsLoading(false);
-    }
+    // No need to save here anymore, it will be handled on the main page
+    onImport(trimmedMnemonic, pin);
+    setIsLoading(false);
   };
 
   return (
