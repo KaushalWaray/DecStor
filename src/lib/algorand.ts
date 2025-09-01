@@ -1,8 +1,8 @@
 
 import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, waitForConfirmation, isValidAddress, makeApplicationNoOpTxnFromObject, assignGroupID, OnApplicationComplete} from 'algosdk';
 import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, ALGO_NETWORK_FEE, MAILBOX_APP_ID } from './constants';
-import type { AlgorandAccount } from '@/types';
-import { getFilesByOwner, shareFileWithUser as shareFileWithUserApi } from './api';
+import type { AlgorandAccount, FileMetadata } from '@/types';
+import { getFilesByCids, shareFileWithUser as shareFileWithUserApi } from './api';
 
 const algodClient = new Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
 
@@ -84,11 +84,10 @@ export const readInbox = async (address: string): Promise<FileMetadata[]> => {
             return [];
         }
         
-        // Fetch metadata for the CIDs from our backend
-        const files = await getFilesByOwner(address); // This still gets ALL files
-        // We filter to only include files that are actually in our on-chain inbox
-        const cidSet = new Set(cids);
-        return files.filter(f => cidSet.has(f.cid));
+        // This is inefficient. In a real app, you'd have a dedicated backend endpoint for this.
+        // For this demo, we fetch all files shared with the user and then filter.
+        const allSharedFiles = await getFilesByCids(cids);
+        return allSharedFiles;
 
     } catch (error) {
         console.error('Failed to read on-chain inbox:', error);
@@ -106,22 +105,17 @@ export const shareFile = async (
     throw new Error('Invalid recipient address');
   }
 
-  // First, we must ensure the recipient is opted-in.
-  // In a real DApp, the recipient would do this themselves.
-  // For this demo, we'll log a warning. A better solution is a separate flow for this.
   try {
     const recipientInfo = await algodClient.accountInformation(recipientAddress).do();
     const isOptedIn = recipientInfo['apps-local-state']?.some(
       (app: any) => app.id === MAILBOX_APP_ID
     );
     if (!isOptedIn) {
-      // In a real app you might have a different contract or flow to request an opt-in
-      throw new Error(`Recipient ${truncateAddress(recipientAddress)} has not opted into the Mailbox contract. They must open their wallet at least once to initialize it.`);
+      throw new Error(`Recipient has not yet activated their inbox. They must log into their wallet and visit the "Inbox" tab at least once before they can receive files.`);
     }
   } catch(e) {
-      // This error often means the account doesn't exist on-chain yet (0 ALGO)
       console.error(e);
-      throw new Error(`Could not verify recipient account ${truncateAddress(recipientAddress)}. They may need to receive ALGO to activate their account and then opt-in to the contract.`);
+      throw new Error(`Could not verify recipient's account on the blockchain. They may need to receive ALGO to activate their account and then visit their "Inbox" to initialize it.`);
   }
 
   console.log(`[Algorand] Sharing file ${cid} from ${sender.addr} to ${recipientAddress}`);
