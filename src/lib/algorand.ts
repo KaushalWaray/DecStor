@@ -71,15 +71,11 @@ export const shareFile = async (
     throw new Error('Invalid recipient address');
   }
 
-  // 1. First, update our backend database to record the share.
-  // This allows the recipient's inbox to work immediately.
-  await shareFileWithUserApi(cid, recipientAddress);
-
-  // 2. Ensure the SENDER has opted into the contract.
+  // 1. Ensure the SENDER has opted into the contract.
   // This is required for them to be able to call the contract.
   await ensureSenderOptedIn(sender);
   
-  // 3. Send the on-chain transaction to create a verifiable, immutable proof of the share.
+  // 2. Send the on-chain transaction to create a verifiable, immutable proof of the share.
   console.log(`[Algorand] Sending on-chain proof for sharing ${cid} to ${recipientAddress}`);
   
   const params = await algodClient.getTransactionParams().do();
@@ -102,10 +98,16 @@ export const shareFile = async (
   const txId = appCallTxn.txID().toString();
   
   // Send the transaction and wait for confirmation
-  await algodClient.sendRawTransaction(signedTxn).do();
-  const result = await waitForConfirmation(algodClient, txId, 4);
+  const result = await algodClient.sendRawTransaction(signedTxn).do();
+  await waitForConfirmation(algodClient, txId, 4);
 
   console.log(`[Algorand] On-chain proof transaction successful with ID: ${txId}`);
+
+  // 3. After on-chain success, update our backend database to record the share.
+  // This allows the recipient's inbox to work immediately.
+  await shareFileWithUserApi(cid, recipientAddress);
+
+
   return {
     message: "File shared and recorded on-chain successfully.",
     txId: txId,
