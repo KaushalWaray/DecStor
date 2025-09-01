@@ -17,6 +17,14 @@ export interface FileMetadata {
   createdAt: string;
 }
 
+export interface Share {
+  cid: string;
+  ownerAddress: string;
+  recipientAddress: string;
+  createdAt: string;
+}
+
+
 export interface DecodedInbox {
   [address: string]: string[];
 }

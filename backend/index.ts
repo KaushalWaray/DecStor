@@ -2,22 +2,16 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import mongoose from 'mongoose';
-import File from './models/File';
-import Share from './models/Share';
+import type { FileMetadata, Share } from '@/types';
+
+// --- IN-MEMORY DATA STORE (Replaces MongoDB) ---
+// This will reset every time the server restarts.
+let filesStore: FileMetadata[] = [];
+let sharesStore: Share[] = [];
+
 
 const app = express();
 const PORT = 3001;
-
-// --- DATABASE CONNECTION ---
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/metadrive';
-
-mongoose.connect(MONGO_URI)
-    .then(() => console.log('✅ MongoDB connected successfully.'))
-    .catch(err => {
-        console.error('❌ MongoDB connection error:', err.message);
-        process.exit(1);
-    });
 
 // --- MIDDLEWARE ---
 app.use(cors());
@@ -39,9 +33,19 @@ apiRouter.post('/files/metadata', async (req, res) => {
         if (!filename || !cid || !size || !fileType || !owner) {
             return res.status(400).json({ error: 'Missing required file metadata.' });
         }
+        
+        // Create a new file object for our in-memory store
+        const newFile: FileMetadata = {
+            _id: new Date().toISOString(), // Simple unique ID
+            filename,
+            cid,
+            size,
+            fileType,
+            owner,
+            createdAt: new Date().toISOString(),
+        };
 
-        const newFile = new File({ filename, cid, size, fileType, owner });
-        await newFile.save();
+        filesStore.push(newFile);
         
         console.log(`[Backend] Saved metadata for CID: ${cid}`);
         res.status(201).json({ message: 'Metadata saved successfully.', file: newFile });
@@ -58,12 +62,15 @@ apiRouter.get('/files/:ownerAddress', async (req, res) => {
         const { ownerAddress } = req.params;
 
         // Find files owned by the user
-        const ownedFiles = await File.find({ owner: ownerAddress });
+        const ownedFiles = filesStore.filter(file => file.owner === ownerAddress);
 
-        // Find files shared with the user
-        const shares = await Share.find({ recipientAddress: ownerAddress }).select('cid');
-        const sharedCids = shares.map(s => s.cid);
-        const sharedFiles = await File.find({ cid: { $in: sharedCids } });
+        // Find CIDs of files shared with the user
+        const sharedCids = sharesStore
+            .filter(s => s.recipientAddress === ownerAddress)
+            .map(s => s.cid);
+        
+        // Find the full file objects for those CIDs
+        const sharedFiles = filesStore.filter(file => sharedCids.includes(file.cid));
 
         // Combine and remove duplicates
         const allFilesMap = new Map();
@@ -90,22 +97,23 @@ apiRouter.post('/share', async (req, res) => {
             return res.status(400).json({ error: 'CID and recipient address are required.' });
         }
 
-        const file = await File.findOne({ cid });
+        const file = filesStore.find(f => f.cid === cid);
         if (!file) {
             return res.status(404).json({ error: 'File not found.' });
         }
 
-        const existingShare = await Share.findOne({ cid, recipientAddress });
+        const existingShare = sharesStore.find(s => s.cid === cid && s.recipientAddress === recipientAddress);
         if (existingShare) {
             return res.status(200).json({ message: 'File already shared with this user.' });
         }
 
-        const newShare = new Share({
+        const newShare: Share = {
             cid,
             ownerAddress: file.owner,
             recipientAddress,
-        });
-        await newShare.save();
+            createdAt: new Date().toISOString(),
+        };
+        sharesStore.push(newShare);
 
         console.log(`[Backend] Shared CID ${cid} with ${recipientAddress}`);
         res.status(201).json({ message: 'File shared successfully.', share: newShare });
