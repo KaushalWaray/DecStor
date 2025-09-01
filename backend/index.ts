@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import type { FileMetadata, Share } from '@/types';
+import type { FileMetadata, Share } from '../src/types';
 
 // --- IN-MEMORY DATA STORE (Replaces MongoDB) ---
 // This will reset every time the server restarts.
