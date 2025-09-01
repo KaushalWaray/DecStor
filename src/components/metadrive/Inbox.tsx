@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { AlgorandAccount, FileMetadata } from '@/types';
 import { Button } from '@/components/ui/button';
-import { readInbox, ensureOptedIn } from '@/lib/algorand';
+import { readInbox } from '@/lib/algorand';
 import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, RefreshCw } from 'lucide-react';
 import FileGrid from './FileGrid';
@@ -21,10 +21,9 @@ export default function Inbox({ account }: InboxProps) {
   const handleRefresh = useCallback(async (isInitialLoad = false) => {
     setIsLoading(true);
     try {
-      // First, ensure the user is opted-in to the contract.
-      // This will create their on-chain "mailbox" if it doesn't exist.
-      await ensureOptedIn(account);
-
+      // The readInbox function now gracefully handles accounts that are not yet opted in.
+      // The opt-in logic is now handled automatically when the user tries to SHARE a file.
+      // This is a better user experience as it doesn't require an extra transaction just to view the inbox.
       const inboxFiles = await readInbox(account.addr);
       setFiles(inboxFiles);
 
@@ -38,7 +37,7 @@ export default function Inbox({ account }: InboxProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [account, toast]);
+  }, [account.addr, toast]);
 
   // Fetch files on initial component load
   useEffect(() => {

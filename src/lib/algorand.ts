@@ -1,8 +1,8 @@
 
-import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, waitForConfirmation, isValidAddress, makeApplicationNoOpTxnFromObject, assignGroupID, OnApplicationComplete} from 'algosdk';
+import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, waitForConfirmation, isValidAddress, makeApplicationNoOpTxnFromObject, makeApplicationOptInTxn, assignGroupID, OnApplicationComplete} from 'algosdk';
 import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, ALGO_NETWORK_FEE, MAILBOX_APP_ID } from './constants';
 import type { AlgorandAccount, FileMetadata } from '@/types';
-import { getFilesByCids, shareFileWithUser as shareFileWithUserApi } from './api';
+import { getFilesByOwner, shareFileWithUser as shareFileWithUserApi } from './api';
 
 const algodClient = new Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
 
@@ -36,34 +36,6 @@ export const getAccountBalance = async (address: string): Promise<number> => {
   }
 };
 
-export const ensureOptedIn = async (account: AlgorandAccount): Promise<void> => {
-  try {
-    const accountInfo = await algodClient.accountInformation(account.addr).do();
-    const isOptedIn = accountInfo['apps-local-state'].some(
-      (app: any) => app.id === MAILBOX_APP_ID
-    );
-
-    if (!isOptedIn) {
-      console.log(`[Algorand] Account ${account.addr} is not opted in. Opting in now...`);
-      const params = await algodClient.getTransactionParams().do();
-      const optInTxn = algosdk.makeApplicationOptInTxn(
-        account.addr,
-        params,
-        MAILBOX_APP_ID
-      );
-      const signedTxn = optInTxn.signTxn(account.sk);
-      const txId = optInTxn.txID().toString();
-      await algodClient.sendRawTransaction(signedTxn).do();
-      await waitForConfirmation(algodClient, txId, 4);
-      console.log(`[Algorand] Account ${account.addr} successfully opted in.`);
-    }
-  } catch (error) {
-    console.error(`[Algorand] Failed to check/perform opt-in for ${account.addr}:`, error);
-    throw new Error('Failed to ensure wallet is opted into the smart contract.');
-  }
-};
-
-
 export const readInbox = async (address: string): Promise<FileMetadata[]> => {
     try {
         const accountInfo = await algodClient.accountInformation(address).do();
@@ -72,6 +44,9 @@ export const readInbox = async (address: string): Promise<FileMetadata[]> => {
         );
 
         if (!appLocalState || !appLocalState['key-value']) {
+             console.log(`[Algorand] User ${address} has not opted in or has an empty inbox.`);
+            // It's not an error to have no files, just return empty.
+            // The user must visit their inbox once to trigger the opt-in.
             return [];
         }
         
@@ -84,14 +59,36 @@ export const readInbox = async (address: string): Promise<FileMetadata[]> => {
             return [];
         }
         
-        // This is inefficient. In a real app, you'd have a dedicated backend endpoint for this.
-        // For this demo, we fetch all files shared with the user and then filter.
-        const allSharedFiles = await getFilesByCids(cids);
-        return allSharedFiles;
+        const allFiles = await getFilesByOwner(address);
+        const sharedFiles = allFiles.filter(f => cids.includes(f.cid));
+        return sharedFiles;
 
     } catch (error) {
-        console.error('Failed to read on-chain inbox:', error);
+        console.error(`[Algorand] Failed to read on-chain inbox for ${address}:`, error);
+        // This can happen if the account doesn't exist yet. It's not a critical error.
         return [];
+    }
+};
+
+const ensureAccountOptedIn = async (account: AlgorandAccount) => {
+    const accountInfo = await algodClient.accountInformation(account.addr).do();
+    const isOptedIn = accountInfo['apps-local-state']?.some(
+        (app: any) => app.id === MAILBOX_APP_ID
+    );
+
+    if (!isOptedIn) {
+        console.log(`[Algorand] Account ${account.addr} is not opted in. Opting in now...`);
+        const params = await algodClient.getTransactionParams().do();
+        const optInTxn = makeApplicationOptInTxn(
+            account.addr,
+            params,
+            MAILBOX_APP_ID
+        );
+        const signedTxn = optInTxn.signTxn(account.sk);
+        const txId = optInTxn.txID().toString();
+        await algodClient.sendRawTransaction(signedTxn).do();
+        await waitForConfirmation(algodClient, txId, 4);
+        console.log(`[Algorand] Account ${account.addr} successfully opted in.`);
     }
 };
 
@@ -105,6 +102,10 @@ export const shareFile = async (
     throw new Error('Invalid recipient address');
   }
 
+  // Ensure the sender is opted-in before trying to send.
+  await ensureAccountOptedIn(sender);
+  
+  // Verify the recipient's account exists and has opted in.
   try {
     const recipientInfo = await algodClient.accountInformation(recipientAddress).do();
     const isOptedIn = recipientInfo['apps-local-state']?.some(
@@ -152,9 +153,3 @@ export const shareFile = async (
     ...result
   };
 };
-
-// A helper function to truncate addresses for display
-function truncateAddress(address: string) {
-    if (!address) return "";
-    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
-}
