@@ -1,6 +1,7 @@
-import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, makeApplicationNoOpTxn, waitForConfirmation, decodeAddress} from 'algosdk';
-import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID, ALGO_NETWORK_FEE } from './constants';
-import type { AlgorandAccount, DecodedInbox } from '@/types';
+
+import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, makeApplicationNoOpTxn, waitForConfirmation, isValidAddress, decodeAddress} from 'algosdk';
+import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID } from './constants';
+import type { AlgorandAccount } from '@/types';
 
 const algodClient = new Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
 
@@ -17,6 +18,8 @@ export const mnemonicToAccount = (mnemonic: string): AlgorandAccount => {
 
 export const isValidMnemonic = (mnemonic: string): boolean => {
   try {
+    // A simple way to check validity is to try and convert it.
+    // The SDK will throw an error if it's invalid.
     mnemonicToSecretKey(mnemonic);
     return true;
   } catch (e) {
@@ -67,9 +70,12 @@ export const shareFile = async (
   }
 
   const params = await algodClient.getTransactionParams().do();
+  
+  // The first argument is the method selector.
+  // The second argument is the file's CID.
+  // The recipient's address is passed in the accounts array, not here.
   const appArgs = [
     new TextEncoder().encode('post'),
-    decodeAddress(recipientAddress).publicKey,
     new TextEncoder().encode(cid),
   ];
   
