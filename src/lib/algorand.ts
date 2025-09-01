@@ -1,6 +1,6 @@
 
-import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, makeApplicationNoOpTxn, waitForConfirmation, isValidAddress, decodeAddress} from 'algosdk';
-import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID } from './constants';
+import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, makeApplicationNoOpTxn, waitForConfirmation, isValidAddress} from 'algosdk';
+import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID, ALGO_NETWORK_FEE } from './constants';
 import type { AlgorandAccount } from '@/types';
 
 const algodClient = new Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
@@ -18,8 +18,6 @@ export const mnemonicToAccount = (mnemonic: string): AlgorandAccount => {
 
 export const isValidMnemonic = (mnemonic: string): boolean => {
   try {
-    // A simple way to check validity is to try and convert it.
-    // The SDK will throw an error if it's invalid.
     mnemonicToSecretKey(mnemonic);
     return true;
   } catch (e) {
@@ -45,11 +43,11 @@ export const readInbox = async (address: string): Promise<string[]> => {
     if (!globalState) return [];
 
     const userEntry = globalState.find(
-      (state) => atob(state.key) === address
+      (state) => Buffer.from(state.key, 'base64').toString('utf-8') === address
     );
 
     if (userEntry && userEntry.value.bytes) {
-      const decodedValue = atob(userEntry.value.bytes);
+      const decodedValue = Buffer.from(userEntry.value.bytes, 'base64').toString('utf-8');
       // CIDs are stored as a comma-separated string
       return decodedValue.split(',').filter(cid => cid);
     }
@@ -72,14 +70,16 @@ export const shareFile = async (
     throw new Error('Invalid recipient address');
   }
 
+  const senderBalance = await getAccountBalance(senderAccount.addr);
+  if (senderBalance < ALGO_NETWORK_FEE) {
+    throw new Error(`Insufficient balance. You need at least ${ALGO_NETWORK_FEE} ALGO to cover network fees.`);
+  }
+
   const params = await algodClient.getTransactionParams().do();
   
-  // The first argument is the method selector.
-  // The second is the recipient's address.
-  // The third is the file's CID.
   const appArgs = [
     new TextEncoder().encode('post'),
-    decodeAddress(recipientAddress).publicKey,
+    new TextEncoder().encode(recipientAddress),
     new TextEncoder().encode(cid),
   ];
   

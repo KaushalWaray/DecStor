@@ -12,6 +12,7 @@ import ShareFileModal from '../modals/ShareFileModal';
 import ApproveTransactionModal from '../modals/ApproveTransactionModal';
 import { shareFile } from '@/lib/algorand';
 import { ALGO_NETWORK_FEE } from '@/lib/constants';
+import { truncateAddress } from '@/lib/utils';
 
 interface MyVaultProps {
   account: AlgorandAccount;
@@ -67,9 +68,9 @@ export default function MyVault({ account, pin }: MyVaultProps) {
         title: 'File Shared!',
         description: `Transaction ID: ${truncateAddress(txId, 10, 10)}`,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast({ variant: 'destructive', title: 'Sharing Failed', description: 'Could not send the file sharing transaction.' });
+      toast({ variant: 'destructive', title: 'Sharing Failed', description: error.message || 'Could not send the file sharing transaction.' });
     } finally {
       setIsSharing(false);
       setIsApproveModalOpen(false);
@@ -78,11 +79,6 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     }
   };
   
-  const truncateAddress = (address: string, startLength = 6, endLength = 4) => {
-    if (!address) return "";
-    return `${address.substring(0, startLength)}...${address.substring(address.length - endLength)}`;
-  };
-
   return (
     <div className="space-y-6">
       <FileUploader ownerAddress={account.addr} onUploadSuccess={fetchFiles} />
