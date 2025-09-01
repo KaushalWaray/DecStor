@@ -11,6 +11,8 @@ import { LoaderCircle } from 'lucide-react';
 import ShareFileModal from '../modals/ShareFileModal';
 import { shareFile } from '@/lib/algorand';
 import { truncateAddress } from '@/lib/utils';
+import { mnemonicToAccount } from '@/lib/algorand';
+import { decryptMnemonic } from '@/lib/crypto';
 
 interface MyVaultProps {
   account: AlgorandAccount;
@@ -29,8 +31,10 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const fetchFiles = useCallback(async () => {
     setIsLoading(true);
     try {
-      const ownerFiles = await getFilesByOwner(account.addr);
-      setFiles(ownerFiles);
+      // Vault files are files owned by the current user
+      const allFiles = await getFilesByOwner(account.addr);
+      const vaultFiles = allFiles.filter(f => f.owner === account.addr);
+      setFiles(vaultFiles);
     } catch (error) {
       console.error(error);
       toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch your files.' });
@@ -53,8 +57,16 @@ export default function MyVault({ account, pin }: MyVaultProps) {
 
     setIsSharing(true);
     try {
-      // We no longer need an approval modal as there's no transaction fee.
-      const response = await shareFile(account.addr, recipientAddress, fileToShare.cid);
+        // We need the full sender account with private key to sign the transaction.
+        // We can reconstruct it from the encrypted mnemonic and PIN.
+        const storedWallets = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
+        const walletEntry = storedWallets.find((w: any) => w.address === account.addr);
+        if (!walletEntry) throw new Error("Could not find wallet credentials to sign transaction.");
+
+        const mnemonic = await decryptMnemonic(walletEntry.encryptedMnemonic, pin);
+        const senderAccount = mnemonicToAccount(mnemonic);
+
+      await shareFile(senderAccount, recipientAddress, fileToShare.cid);
       
       toast({
         title: 'File Shared!',

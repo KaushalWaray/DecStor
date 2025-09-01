@@ -1,8 +1,8 @@
 
-import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, waitForConfirmation, isValidAddress} from 'algosdk';
-import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, ALGO_NETWORK_FEE } from './constants';
+import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, waitForConfirmation, isValidAddress, makeApplicationNoOpTxnFromObject, assignGroupID, OnApplicationComplete} from 'algosdk';
+import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, ALGO_NETWORK_FEE, MAILBOX_APP_ID } from './constants';
 import type { AlgorandAccount } from '@/types';
-import { getFilesByOwner, shareFileWithUser } from './api';
+import { getFilesByOwner, shareFileWithUser as shareFileWithUserApi } from './api';
 
 const algodClient = new Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
 
@@ -36,40 +36,131 @@ export const getAccountBalance = async (address: string): Promise<number> => {
   }
 };
 
+export const ensureOptedIn = async (account: AlgorandAccount): Promise<void> => {
+  try {
+    const accountInfo = await algodClient.accountInformation(account.addr).do();
+    const isOptedIn = accountInfo['apps-local-state'].some(
+      (app: any) => app.id === MAILBOX_APP_ID
+    );
 
-export const readInbox = async (address: string): Promise<string[]> => {
-    try {
-        // This will eventually be replaced by a direct API call to get shared files.
-        const ownerFiles = await getFilesByOwner(address);
-        // In our new model, the backend determines what's in the inbox.
-        // For now, we simulate this by filtering files not owned by the user.
-        // This logic will be updated once the share endpoint is fully integrated.
-        return ownerFiles.filter(f => f.owner !== address).map(f => f.cid);
-    } catch (error) {
-        console.error('Failed to read inbox from API:', error);
+    if (!isOptedIn) {
+      console.log(`[Algorand] Account ${account.addr} is not opted in. Opting in now...`);
+      const params = await algodClient.getTransactionParams().do();
+      const optInTxn = algosdk.makeApplicationOptInTxn(
+        account.addr,
+        params,
+        MAILBOX_APP_ID
+      );
+      const signedTxn = optInTxn.signTxn(account.sk);
+      const txId = optInTxn.txID().toString();
+      await algodClient.sendRawTransaction(signedTxn).do();
+      await waitForConfirmation(algodClient, txId, 4);
+      console.log(`[Algorand] Account ${account.addr} successfully opted in.`);
     }
-    return [];
+  } catch (error) {
+    console.error(`[Algorand] Failed to check/perform opt-in for ${account.addr}:`, error);
+    throw new Error('Failed to ensure wallet is opted into the smart contract.');
+  }
+};
+
+
+export const readInbox = async (address: string): Promise<FileMetadata[]> => {
+    try {
+        const accountInfo = await algodClient.accountInformation(address).do();
+        const appLocalState = accountInfo['apps-local-state'].find(
+            (app: any) => app.id === MAILBOX_APP_ID
+        );
+
+        if (!appLocalState || !appLocalState['key-value']) {
+            return [];
+        }
+        
+        const cids = appLocalState['key-value'].map((kv: any) => {
+            // Keys (CIDs) are base64 encoded by the node, so we need to decode them.
+            return Buffer.from(kv.key, 'base64').toString();
+        });
+
+        if (cids.length === 0) {
+            return [];
+        }
+        
+        // Fetch metadata for the CIDs from our backend
+        const files = await getFilesByOwner(address); // This still gets ALL files
+        // We filter to only include files that are actually in our on-chain inbox
+        const cidSet = new Set(cids);
+        return files.filter(f => cidSet.has(f.cid));
+
+    } catch (error) {
+        console.error('Failed to read on-chain inbox:', error);
+        return [];
+    }
 };
 
 
 export const shareFile = async (
-  senderAddress: string,
+  sender: AlgorandAccount,
   recipientAddress: string,
   cid: string
 ): Promise<any> => {
   if (!isValidAddress(recipientAddress)) {
     throw new Error('Invalid recipient address');
   }
+
+  // First, we must ensure the recipient is opted-in.
+  // In a real DApp, the recipient would do this themselves.
+  // For this demo, we'll log a warning. A better solution is a separate flow for this.
+  try {
+    const recipientInfo = await algodClient.accountInformation(recipientAddress).do();
+    const isOptedIn = recipientInfo['apps-local-state']?.some(
+      (app: any) => app.id === MAILBOX_APP_ID
+    );
+    if (!isOptedIn) {
+      // In a real app you might have a different contract or flow to request an opt-in
+      throw new Error(`Recipient ${truncateAddress(recipientAddress)} has not opted into the Mailbox contract. They must open their wallet at least once to initialize it.`);
+    }
+  } catch(e) {
+      // This error often means the account doesn't exist on-chain yet (0 ALGO)
+      console.error(e);
+      throw new Error(`Could not verify recipient account ${truncateAddress(recipientAddress)}. They may need to receive ALGO to activate their account and then opt-in to the contract.`);
+  }
+
+  console.log(`[Algorand] Sharing file ${cid} from ${sender.addr} to ${recipientAddress}`);
   
-  // No more on-chain transaction. Just a simple API call.
-  console.log(`[Simulating Share] From: ${senderAddress}, To: ${recipientAddress}, CID: ${cid}`);
+  // 1. Save metadata to our backend so the recipient can find it after getting the CID
+  await shareFileWithUserApi(cid, recipientAddress);
+
+  // 2. Call the smart contract to store the CID in the recipient's local state
+  const params = await algodClient.getTransactionParams().do();
+  const appArgs = [
+      new Uint8Array(Buffer.from("share")),
+      new Uint8Array(Buffer.from(cid))
+  ];
+  const accounts = [recipientAddress];
+
+  const appCallTxn = makeApplicationNoOpTxnFromObject({
+      from: sender.addr,
+      suggestedParams: params,
+      appIndex: MAILBOX_APP_ID,
+      appArgs,
+      accounts,
+  });
+
+  const signedTxn = appCallTxn.signTxn(sender.sk);
+  const txId = appCallTxn.txID().toString();
   
-  // For now, we'll just log and return a simulated success message.
-  // In a real implementation, this would call the backend API.
-  await shareFileWithUser(cid, recipientAddress);
-  
+  await algodClient.sendRawTransaction(signedTxn).do();
+  const result = await waitForConfirmation(algodClient, txId, 4);
+
+  console.log(`[Algorand] Share transaction successful with ID: ${txId}`);
   return {
-    message: "File shared successfully via backend.",
-    txId: `SIMULATED_${Date.now()}`
+    message: "File shared successfully on-chain.",
+    txId: txId,
+    ...result
   };
 };
+
+// A helper function to truncate addresses for display
+function truncateAddress(address: string) {
+    if (!address) return "";
+    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+}

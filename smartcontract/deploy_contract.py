@@ -1,3 +1,4 @@
+
 import os
 import base64
 from algosdk.v2client import algod
@@ -40,9 +41,13 @@ def create_application(client, private_key, approval_program_source, clear_progr
     approval_program_compiled = compile_program(client, approval_source)
     clear_program_compiled = compile_program(client, clear_source)
 
-    # Define contract schema (0 global integers, 0 global byte slices, etc.)
+    # Define contract schema. 
+    # Our contract stores the CID map in the user's local state.
+    # We need to define how many key-value pairs a user can have.
+    # Let's allow for 16 files to be shared with a single user.
+    # Global state is not used in this contract.
     global_schema = transaction.StateSchema(num_uints=0, num_byte_slices=0)
-    local_schema = transaction.StateSchema(num_uints=0, num_byte_slices_s=0)
+    local_schema = transaction.StateSchema(num_uints=0, num_byte_slices=16) 
     
     # Create the unsigned transaction
     txn = transaction.ApplicationCreateTxn(
@@ -91,9 +96,10 @@ if __name__ == "__main__":
         approval_path = os.path.join(script_dir, "approval.teal")
         clear_path = os.path.join(script_dir, "clear.teal")
         
-        # Compile TEAL first if files don't exist
+        # Compile PyTeal to TEAL first if files don't exist
         if not os.path.exists(approval_path) or not os.path.exists(clear_path):
             print("Compiling PyTeal to TEAL...")
+            # This command assumes `python3` is available in the environment's path
             os.system(f"python3 {os.path.join(script_dir, 'drive_contract.py')}")
             print("Compilation complete.")
 
