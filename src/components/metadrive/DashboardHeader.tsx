@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -5,16 +6,16 @@ import { Button } from '@/components/ui/button';
 import { getAccountBalance } from '@/lib/algorand';
 import { truncateAddress } from '@/lib/utils';
 import type { AlgorandAccount } from '@/types';
-import { LogOut, Shield, Copy, LoaderCircle, RefreshCw } from 'lucide-react';
+import { LogOut, Shield, Copy, LoaderCircle, Users } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface DashboardHeaderProps {
   account: AlgorandAccount;
   onLock: () => void;
-  onReset: () => void;
+  onGoToManager: () => void;
 }
 
-export default function DashboardHeader({ account, onLock, onReset }: DashboardHeaderProps) {
+export default function DashboardHeader({ account, onLock, onGoToManager }: DashboardHeaderProps) {
   const [balance, setBalance] = useState<number | null>(null);
   const { toast } = useToast();
 
@@ -57,8 +58,8 @@ export default function DashboardHeader({ account, onLock, onReset }: DashboardH
             <Button onClick={onLock} variant="secondary">
               <LogOut className="mr-2 h-4 w-4" /> Lock
             </Button>
-            <Button onClick={onReset} variant="destructive">
-                <RefreshCw className="mr-2 h-4 w-4" /> Reset
+            <Button onClick={onGoToManager} variant="outline">
+                <Users className="mr-2 h-4 w-4" /> Manage Wallets
             </Button>
         </div>
       </div>

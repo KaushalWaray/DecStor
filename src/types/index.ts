@@ -1,3 +1,4 @@
+
 import type { Account } from 'algosdk';
 
 export type WalletState = 'loading' | 'no_wallet' | 'creating' | 'importing' | 'locked' | 'unlocked';
@@ -18,4 +19,9 @@ export interface FileMetadata {
 
 export interface DecodedInbox {
   [address: string]: string[];
+}
+
+export interface WalletEntry {
+  address: string;
+  encryptedMnemonic: string;
 }

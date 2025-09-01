@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useCallback } from 'react';
@@ -10,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Copy, ArrowLeft, Eye, EyeOff, LoaderCircle } from 'lucide-react';
+import type { WalletEntry } from '@/types';
 
 type Step = 'display' | 'confirm' | 'pin';
 
@@ -61,7 +63,14 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
     setIsLoading(true);
     try {
       const encryptedMnemonic = await encryptMnemonic(mnemonic, pin);
-      localStorage.setItem('metadrive_wallet', encryptedMnemonic);
+      const newAccount = generateAccount(); // We need the address
+      const newWalletEntry: WalletEntry = { address: newAccount.addr, encryptedMnemonic };
+      
+      const storedWallets = localStorage.getItem('metadrive_wallets');
+      const wallets = storedWallets ? JSON.parse(storedWallets) : [];
+      wallets.push({ address: newAccount.addr, encryptedMnemonic });
+      localStorage.setItem('metadrive_wallets', JSON.stringify(wallets));
+
       onWalletCreated(mnemonic, pin);
     } catch (error) {
       console.error(error);

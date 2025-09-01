@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import type { AlgorandAccount, WalletState } from '@/types';
+import type { AlgorandAccount, WalletState, WalletEntry } from '@/types';
 import { decryptMnemonic } from '@/lib/crypto';
 import { mnemonicToAccount, isValidMnemonic } from '@/lib/algorand';
 import { useToast } from '@/hooks/use-toast';
@@ -15,15 +16,27 @@ import { LoaderCircle } from 'lucide-react';
 
 export default function Home() {
   const [walletState, setWalletState] = useState<WalletState>('loading');
+  const [wallets, setWallets] = useState<WalletEntry[]>([]);
   const [account, setAccount] = useState<AlgorandAccount | null>(null);
   const [pin, setPin] = useState<string>('');
   const { toast } = useToast();
 
   useEffect(() => {
-    const encryptedMnemonic = localStorage.getItem('metadrive_wallet');
-    if (encryptedMnemonic) {
-      setWalletState('locked');
-    } else {
+    try {
+      const storedWallets = localStorage.getItem('metadrive_wallets');
+      if (storedWallets) {
+        const parsedWallets: WalletEntry[] = JSON.parse(storedWallets);
+        if (parsedWallets.length > 0) {
+          setWallets(parsedWallets);
+          setWalletState('locked');
+        } else {
+          setWalletState('no_wallet');
+        }
+      } else {
+        setWalletState('no_wallet');
+      }
+    } catch (error) {
+      console.error("Failed to parse wallets from localStorage", error);
       setWalletState('no_wallet');
     }
   }, []);
@@ -31,6 +44,11 @@ export default function Home() {
   const handleCreateWallet = (mnemonic: string, newPin: string) => {
     try {
       const newAccount = mnemonicToAccount(mnemonic);
+      const newWalletEntry: WalletEntry = { address: newAccount.addr, encryptedMnemonic: '' }; // Will be updated below
+      
+      const updatedWallets = [...wallets, newWalletEntry];
+      setWallets(updatedWallets);
+
       setAccount(newAccount);
       setPin(newPin);
       setWalletState('unlocked');
@@ -56,6 +74,17 @@ export default function Home() {
     }
     try {
       const newAccount = mnemonicToAccount(mnemonic);
+      
+      if (wallets.some(w => w.address === newAccount.addr)) {
+        toast({ variant: 'destructive', title: 'Wallet Exists', description: 'This wallet has already been imported.' });
+        return;
+      }
+      
+      const newWalletEntry: WalletEntry = { address: newAccount.addr, encryptedMnemonic: '' }; // Will be updated below
+      
+      const updatedWallets = [...wallets, newWalletEntry];
+      setWallets(updatedWallets);
+
       setAccount(newAccount);
       setPin(newPin);
       setWalletState('unlocked');
@@ -69,14 +98,16 @@ export default function Home() {
     }
   };
 
-  const handleUnlock = useCallback(async (unlockPin: string) => {
-    const encryptedMnemonic = localStorage.getItem('metadrive_wallet');
-    if (!encryptedMnemonic) {
-      setWalletState('no_wallet');
+  const handleUnlock = useCallback(async (address: string, unlockPin: string) => {
+    const walletToUnlock = wallets.find(w => w.address === address);
+
+    if (!walletToUnlock || !walletToUnlock.encryptedMnemonic) {
+      toast({ variant: 'destructive', title: 'Unlock Failed', description: 'Wallet data not found.' });
       return;
     }
+    
     try {
-      const mnemonic = await decryptMnemonic(encryptedMnemonic, unlockPin);
+      const mnemonic = await decryptMnemonic(walletToUnlock.encryptedMnemonic, unlockPin);
       if (!mnemonic || !isValidMnemonic(mnemonic)) {
          throw new Error('Decryption failed or invalid mnemonic');
       }
@@ -93,7 +124,7 @@ export default function Home() {
         description: 'Incorrect PIN. Please try again.',
       });
     }
-  }, [toast]);
+  }, [toast, wallets]);
   
   const handleLock = () => {
     setAccount(null);
@@ -101,13 +132,24 @@ export default function Home() {
     setWalletState('locked');
   };
 
+  const handleGoToManager = () => {
+    setAccount(null);
+    setPin('');
+    if (wallets.length > 0) {
+      setWalletState('locked');
+    } else {
+      setWalletState('no_wallet');
+    }
+  };
+
   const handleReset = () => {
-    if (window.confirm('Are you sure you want to reset? This will delete your encrypted wallet from this device. This action cannot be undone.')) {
-      localStorage.removeItem('metadrive_wallet');
+    if (window.confirm('Are you sure you want to delete all wallets? This action cannot be undone.')) {
+      localStorage.removeItem('metadrive_wallets');
+      setWallets([]);
       setAccount(null);
       setPin('');
       setWalletState('no_wallet');
-      toast({ title: 'Wallet Reset', description: 'You can now create or import a new wallet.' });
+      toast({ title: 'All Wallets Deleted', description: 'You can now create or import a new wallet.' });
     }
   };
 
@@ -127,18 +169,18 @@ export default function Home() {
           />
         );
       case 'creating':
-        return <CreateWalletFlow onWalletCreated={handleCreateWallet} onBack={() => setWalletState('no_wallet')} />;
+        return <CreateWalletFlow onWalletCreated={handleCreateWallet} onBack={() => wallets.length > 0 ? setWalletState('locked') : setWalletState('no_wallet')} />;
       case 'importing':
-        return <ImportWalletScreen onImport={handleImportWallet} onBack={() => setWalletState('no_wallet')} />;
+        return <ImportWalletScreen onImport={handleImportWallet} onBack={() => wallets.length > 0 ? setWalletState('locked') : setWalletState('no_wallet')} />;
       case 'locked':
-        return <LockScreen onUnlock={handleUnlock} onReset={handleReset} />;
+        return <LockScreen wallets={wallets} onUnlock={handleUnlock} onReset={handleReset} onAddNew={() => setWalletState('no_wallet')} />;
       case 'unlocked':
         if (!account || !pin) {
           // This should not happen, but as a fallback
           handleLock();
           return null;
         }
-        return <Dashboard account={account} pin={pin} onLock={handleLock} onReset={handleReset}/>;
+        return <Dashboard account={account} pin={pin} onLock={handleLock} onGoToManager={handleGoToManager}/>;
       default:
         return null;
     }

@@ -1,26 +1,36 @@
+
 "use client";
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { LockKeyhole, Eye, EyeOff, LoaderCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { LockKeyhole, Eye, EyeOff, LoaderCircle, PlusCircle, Trash2 } from 'lucide-react';
+import { truncateAddress } from '@/lib/utils';
+import type { WalletEntry } from '@/types';
 
 interface LockScreenProps {
-  onUnlock: (pin: string) => void;
+  wallets: WalletEntry[];
+  onUnlock: (address: string, pin: string) => void;
   onReset: () => void;
+  onAddNew: () => void;
 }
 
-export default function LockScreen({ onUnlock, onReset }: LockScreenProps) {
+export default function LockScreen({ wallets, onUnlock, onReset, onAddNew }: LockScreenProps) {
+  const [selectedWallet, setSelectedWallet] = useState<string>(wallets[0]?.address || '');
   const [pin, setPin] = useState('');
   const [isPinVisible, setIsPinVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleUnlock = async () => {
+    if (!selectedWallet) {
+        // This case should ideally not be hit if there are wallets
+        alert("Please select a wallet to unlock.");
+        return;
+    }
     setIsLoading(true);
-    await onUnlock(pin);
-    // If unlock fails, onUnlock in parent will show a toast.
-    // We can reset loading state regardless.
+    await onUnlock(selectedWallet, pin);
     setIsLoading(false);
   };
 
@@ -38,9 +48,21 @@ export default function LockScreen({ onUnlock, onReset }: LockScreenProps) {
             <LockKeyhole className="w-12 h-12 text-primary" />
           </div>
           <CardTitle className="text-3xl font-headline mt-4">Wallet Locked</CardTitle>
-          <CardDescription>Enter your PIN to unlock.</CardDescription>
+          <CardDescription>Select a wallet and enter the PIN to unlock.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Select value={selectedWallet} onValueChange={setSelectedWallet}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a wallet" />
+            </SelectTrigger>
+            <SelectContent>
+              {wallets.map((wallet) => (
+                <SelectItem key={wallet.address} value={wallet.address}>
+                  {truncateAddress(wallet.address)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <div className="relative">
             <Input
               id="pin"
@@ -50,20 +72,24 @@ export default function LockScreen({ onUnlock, onReset }: LockScreenProps) {
               onChange={(e) => setPin(e.target.value)}
               onKeyDown={handleKeyPress}
               className="pr-10"
+              disabled={!selectedWallet}
             />
             <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setIsPinVisible(!isPinVisible)}>
               {isPinVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
           </div>
-          <Button size="lg" className="w-full" onClick={handleUnlock} disabled={isLoading}>
+          <Button size="lg" className="w-full" onClick={handleUnlock} disabled={isLoading || !selectedWallet || pin.length < 6}>
             {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
             Unlock
           </Button>
         </CardContent>
-        <CardFooter className="flex justify-center">
-          <Button variant="link" className="text-sm text-muted-foreground" onClick={onReset}>
-            Forgot PIN? Reset Wallet
-          </Button>
+        <CardFooter className="flex flex-col gap-2">
+            <Button variant="secondary" className="w-full" onClick={onAddNew}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add New Wallet
+            </Button>
+            <Button variant="link" className="text-sm text-muted-foreground" onClick={onReset}>
+                <Trash2 className="mr-2 h-4 w-4" /> Delete All Wallets
+            </Button>
         </CardFooter>
       </Card>
     </div>

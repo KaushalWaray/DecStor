@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -8,8 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Eye, EyeOff, LoaderCircle } from 'lucide-react';
-import { isValidMnemonic } from '@/lib/algorand';
+import { isValidMnemonic, mnemonicToAccount } from '@/lib/algorand';
 import { encryptMnemonic } from '@/lib/crypto';
+import type { WalletEntry } from '@/types';
 
 interface ImportWalletScreenProps {
   onImport: (mnemonic: string, pin: string) => void;
@@ -24,7 +26,8 @@ export default function ImportWalletScreen({ onImport, onBack }: ImportWalletScr
   const { toast } = useToast();
 
   const handleImport = async () => {
-    if (!mnemonic.trim() || !isValidMnemonic(mnemonic.trim())) {
+    const trimmedMnemonic = mnemonic.trim();
+    if (!trimmedMnemonic || !isValidMnemonic(trimmedMnemonic)) {
       toast({ variant: 'destructive', title: 'Invalid Phrase', description: 'Please enter a valid 25-word recovery phrase.' });
       return;
     }
@@ -34,9 +37,21 @@ export default function ImportWalletScreen({ onImport, onBack }: ImportWalletScr
     }
     setIsLoading(true);
     try {
-      const trimmedMnemonic = mnemonic.trim();
+      const newAccount = mnemonicToAccount(trimmedMnemonic);
       const encryptedMnemonic = await encryptMnemonic(trimmedMnemonic, pin);
-      localStorage.setItem('metadrive_wallet', encryptedMnemonic);
+      
+      const storedWallets = localStorage.getItem('metadrive_wallets');
+      const wallets: WalletEntry[] = storedWallets ? JSON.parse(storedWallets) : [];
+
+      if (wallets.some(w => w.address === newAccount.addr)) {
+        toast({ variant: 'destructive', title: 'Wallet Exists', description: 'This wallet has already been imported.' });
+        setIsLoading(false);
+        return;
+      }
+      
+      wallets.push({ address: newAccount.addr, encryptedMnemonic });
+      localStorage.setItem('metadrive_wallets', JSON.stringify(wallets));
+
       onImport(trimmedMnemonic, pin);
     } catch(error) {
       console.error(error);
