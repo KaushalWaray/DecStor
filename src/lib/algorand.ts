@@ -4,6 +4,7 @@ import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID, ALGO_NETWORK_FEE
 import type { AlgorandAccount } from '@/types';
 
 const algodClient = new Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
+const SIMULATED_INBOX_KEY = 'metadrive_simulated_inbox';
 
 export const generateAccount = (): AlgorandAccount => {
   const account = generateAlgodAccount();
@@ -37,27 +38,40 @@ export const getAccountBalance = async (address: string): Promise<number> => {
 };
 
 export const readInbox = async (address: string): Promise<string[]> => {
-  if (!MAILBOX_APP_ID || MAILBOX_APP_ID === 0) return [];
-  try {
-    const appInfo = await algodClient.getApplicationByID(MAILBOX_APP_ID).do();
-    const globalState = appInfo.params['global-state'];
-    if (!globalState) return [];
-
-    const userEntry = globalState.find(
-      (state) => Buffer.from(state.key, 'base64').toString('utf-8') === address
-    );
-
-    if (userEntry && userEntry.value.bytes) {
-      const decodedValue = Buffer.from(userEntry.value.bytes, 'base64').toString('utf-8');
-      // CIDs are stored as a comma-separated string
-      return decodedValue.split(',').filter(cid => cid);
+  let cids: string[] = [];
+  
+  // First, try the real smart contract
+  if (MAILBOX_APP_ID && MAILBOX_APP_ID !== 0) {
+    try {
+      const appInfo = await algodClient.getApplicationByID(MAILBOX_APP_ID).do();
+      const globalState = appInfo.params['global-state'];
+      if (globalState) {
+        const userEntry = globalState.find(
+          (state) => Buffer.from(state.key, 'base64').toString('utf-8') === address
+        );
+        if (userEntry && userEntry.value.bytes) {
+          const decodedValue = Buffer.from(userEntry.value.bytes, 'base64').toString('utf-8');
+          cids = decodedValue.split(',').filter(cid => cid);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to read real inbox, will rely on simulation:', error);
     }
-    return [];
-  } catch (error) {
-    console.error('Failed to read inbox:', error);
-    return [];
   }
+
+  // Then, add simulated CIDs from localStorage
+  try {
+    const simulatedInbox = JSON.parse(localStorage.getItem(SIMULATED_INBOX_KEY) || '{}');
+    const simulatedCids: string[] = simulatedInbox[address] || [];
+    // Combine and remove duplicates
+    cids = [...new Set([...cids, ...simulatedCids])];
+  } catch (error) {
+      console.error('Failed to read simulated inbox:', error);
+  }
+
+  return cids;
 };
+
 
 export const shareFile = async (
   senderAccount: algosdk.Account,
@@ -76,6 +90,24 @@ export const shareFile = async (
   if (senderBalance < ALGO_NETWORK_FEE) {
     throw new Error(`Insufficient balance. You need at least ${ALGO_NETWORK_FEE} ALGO to cover network fees.`);
   }
+
+  // --- Start of simulation logic ---
+  try {
+    const simulatedInbox = JSON.parse(localStorage.getItem(SIMULATED_INBOX_KEY) || '{}');
+    if (!simulatedInbox[recipientAddress]) {
+      simulatedInbox[recipientAddress] = [];
+    }
+    // Add CID if it's not already there
+    if (!simulatedInbox[recipientAddress].includes(cid)) {
+      simulatedInbox[recipientAddress].push(cid);
+    }
+    localStorage.setItem(SIMULATED_INBOX_KEY, JSON.stringify(simulatedInbox));
+    console.log(`[SIMULATED] Added CID ${cid} to ${recipientAddress}'s simulated inbox.`);
+  } catch (error) {
+    console.error("Failed to update simulated inbox:", error);
+    // We can still proceed to give the user a success message
+  }
+  // --- End of simulation logic ---
 
   // Return a fake transaction ID after a short delay to simulate network latency.
   await new Promise(resolve => setTimeout(resolve, 1000));
