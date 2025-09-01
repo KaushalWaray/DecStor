@@ -3,7 +3,6 @@ import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMn
 import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, ALGO_NETWORK_FEE, MAILBOX_APP_ID } from './constants';
 import type { AlgorandAccount, FileMetadata } from '@/types';
 import { getFilesByOwner, shareFileWithUser as shareFileWithUserApi } from './api';
-import { truncateAddress } from './utils';
 
 const algodClient = new Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
 
@@ -37,37 +36,10 @@ export const getAccountBalance = async (address: string): Promise<number> => {
   }
 };
 
-export const readInbox = async (address: string): Promise<FileMetadata[]> => {
-    try {
-        const accountInfo = await algodClient.accountInformation(address).do();
-        const appLocalState = accountInfo['apps-local-state'].find(
-            (app: any) => app.id === MAILBOX_APP_ID
-        );
 
-        if (!appLocalState || !appLocalState['key-value']) {
-             console.log(`[Algorand] User ${address} has not opted in or has an empty inbox.`);
-            return [];
-        }
-        
-        const cids = appLocalState['key-value'].map((kv: any) => {
-            return Buffer.from(kv.key, 'base64').toString();
-        });
-
-        if (cids.length === 0) {
-            return [];
-        }
-        
-        const allFiles = await getFilesByOwner(address);
-        const sharedFiles = allFiles.filter(f => cids.includes(f.cid));
-        return sharedFiles;
-
-    } catch (error) {
-        console.error(`[Algorand] Failed to read on-chain inbox for ${address}:`, error);
-        return [];
-    }
-};
-
-const ensureAccountOptedIn = async (account: AlgorandAccount) => {
+// This function ensures the sender has opted into the contract to be able to send shares.
+// It is a required step before they can call the smart contract.
+const ensureSenderOptedIn = async (account: AlgorandAccount) => {
     const accountInfo = await algodClient.accountInformation(account.addr).do();
     const isOptedIn = accountInfo['apps-local-state']?.some(
         (app: any) => app.id === MAILBOX_APP_ID
@@ -85,7 +57,7 @@ const ensureAccountOptedIn = async (account: AlgorandAccount) => {
         const txId = optInTxn.txID().toString();
         await algodClient.sendRawTransaction(signedTxn).do();
         await waitForConfirmation(algodClient, txId, 4);
-        console.log(`[Algorand] Account ${account.addr} successfully opted in.`);
+        console.log(`[Algorand] Account ${account.addr} successfully opted in to send.`);
     }
 };
 
@@ -99,30 +71,23 @@ export const shareFile = async (
     throw new Error('Invalid recipient address');
   }
 
-  await ensureAccountOptedIn(sender);
-  
-  try {
-    const recipientInfo = await algodClient.accountInformation(recipientAddress).do();
-    const isOptedIn = recipientInfo['apps-local-state']?.some(
-      (app: any) => app.id === MAILBOX_APP_ID
-    );
-    if (!isOptedIn) {
-      throw new Error(`Recipient has not yet activated their inbox. They must log into their wallet and visit the "Inbox" tab at least once before they can receive files.`);
-    }
-  } catch(e) {
-      console.error(e);
-      throw new Error(`Could not verify recipient's account on the blockchain. They may need to receive ALGO to activate their account and then visit their "Inbox" to initialize it.`);
-  }
-
-  console.log(`[Algorand] Sharing file ${cid} from ${sender.addr} to ${recipientAddress}`);
-  
+  // 1. First, update our backend database to record the share.
+  // This allows the recipient's inbox to work immediately.
   await shareFileWithUserApi(cid, recipientAddress);
 
+  // 2. Ensure the SENDER has opted into the contract.
+  // This is required for them to be able to call the contract.
+  await ensureSenderOptedIn(sender);
+  
+  // 3. Send the on-chain transaction to create a verifiable, immutable proof of the share.
+  console.log(`[Algorand] Sending on-chain proof for sharing ${cid} to ${recipientAddress}`);
+  
   const params = await algodClient.getTransactionParams().do();
   const appArgs = [
       new Uint8Array(Buffer.from("share")),
       new Uint8Array(Buffer.from(cid))
   ];
+  // The recipient address is passed in the "accounts" array for the smart contract to read.
   const accounts = [recipientAddress];
 
   const appCallTxn = makeApplicationNoOpTxnFromObject({
@@ -136,13 +101,19 @@ export const shareFile = async (
   const signedTxn = appCallTxn.signTxn(sender.sk);
   const txId = appCallTxn.txID().toString();
   
+  // Send the transaction and wait for confirmation
   await algodClient.sendRawTransaction(signedTxn).do();
   const result = await waitForConfirmation(algodClient, txId, 4);
 
-  console.log(`[Algorand] Share transaction successful with ID: ${txId}`);
+  console.log(`[Algorand] On-chain proof transaction successful with ID: ${txId}`);
   return {
-    message: "File shared successfully on-chain.",
+    message: "File shared and recorded on-chain successfully.",
     txId: txId,
     ...result
   };
 };
+
+// This function is no longer needed, as the inbox is now powered by the API.
+// export const readInbox = async (address: string): Promise<FileMetadata[]> => {
+//     // ... old implementation
+// };

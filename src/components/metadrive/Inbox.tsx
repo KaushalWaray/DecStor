@@ -4,10 +4,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { AlgorandAccount, FileMetadata } from '@/types';
 import { Button } from '@/components/ui/button';
-import { readInbox } from '@/lib/algorand';
 import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, RefreshCw } from 'lucide-react';
 import FileGrid from './FileGrid';
+import { getFilesByOwner } from '@/lib/api';
 
 interface InboxProps {
   account: AlgorandAccount;
@@ -21,11 +21,14 @@ export default function Inbox({ account }: InboxProps) {
   const handleRefresh = useCallback(async (isInitialLoad = false) => {
     setIsLoading(true);
     try {
-      const inboxFiles = await readInbox(account.addr);
+      // The API now returns all files for the user, including owned and shared.
+      // We filter here to show only files not owned by the current user.
+      const allFiles = await getFilesByOwner(account.addr);
+      const inboxFiles = allFiles.filter(f => f.owner !== account.addr);
       setFiles(inboxFiles);
 
       if (!isInitialLoad) {
-        toast({ title: "Inbox refreshed!", description: `Found ${inboxFiles.length} files.` });
+        toast({ title: "Inbox refreshed!", description: `Found ${inboxFiles.length} received files.` });
       }
 
     } catch (error: any) {
@@ -40,7 +43,7 @@ export default function Inbox({ account }: InboxProps) {
   useEffect(() => {
     handleRefresh(true);
      // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [account.addr]);
 
   return (
     <div className="p-6 bg-card rounded-lg space-y-6">
