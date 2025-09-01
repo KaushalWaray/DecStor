@@ -23,15 +23,16 @@ mongoose.connect(MONGO_URI)
 app.use(cors());
 app.use(express.json());
 
-// --- API ROUTES ---
+// --- API ROUTER ---
+const apiRouter = express.Router();
 
 // 1. Health Check
-app.get('/api/', (req, res) => {
+apiRouter.get('/', (req, res) => {
     res.status(200).json({ message: 'Backend is running and connected!' });
 });
 
 // 2. Save File Metadata
-app.post('/api/files/metadata', async (req, res) => {
+apiRouter.post('/files/metadata', async (req, res) => {
     try {
         const { filename, cid, size, fileType, owner } = req.body;
 
@@ -52,7 +53,7 @@ app.post('/api/files/metadata', async (req, res) => {
 });
 
 // 3. Get Files by Owner (Vault) and Shared Files (Inbox)
-app.get('/api/files/:ownerAddress', async (req, res) => {
+apiRouter.get('/files/:ownerAddress', async (req, res) => {
     try {
         const { ownerAddress } = req.params;
 
@@ -80,9 +81,8 @@ app.get('/api/files/:ownerAddress', async (req, res) => {
     }
 });
 
-
 // 4. Share a file with another user
-app.post('/api/share', async (req, res) => {
+apiRouter.post('/share', async (req, res) => {
     try {
         const { cid, recipientAddress } = req.body;
 
@@ -115,6 +115,10 @@ app.post('/api/share', async (req, res) => {
         res.status(500).json({ error: 'Internal server error while sharing file.' });
     }
 });
+
+// Mount the API router
+app.use('/api', apiRouter);
+
 
 // --- SERVER STARTUP ---
 app.listen(PORT, () => {
