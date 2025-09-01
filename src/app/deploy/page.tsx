@@ -15,15 +15,14 @@ import { mnemonicToAccount } from '@/lib/algorand';
 // It approves any ApplicationCall transaction that has application arguments.
 // This is perfect for our use case of logging a share event.
 const APPROVAL_PROGRAM = `#pragma version 6
-// Approve any transaction that has arguments.
 txn NumAppArgs
 int 0
 >
-return
-`;
+assert
+int 1
+return`;
 
 const CLEAR_STATE_PROGRAM = `#pragma version 6
-// On clear, just approve.
 int 1
 return`;
 // --- End of TEAL Programs ---
@@ -62,8 +61,8 @@ export default function DeployContractPage() {
       const params = await algodClient.getTransactionParams().do();
       
       // We don't need any state for this simple contract
-      const globalSchema = new algosdk.StateSchema(0, 0);
-      const localSchema = new algosdk.StateSchema(0, 0);
+      const globalSchema = algosdk.StateSchema(0, 0);
+      const localSchema = algosdk.StateSchema(0, 0);
 
       const txn = algosdk.makeApplicationCreateTxn(
         creatorAccount.addr,
