@@ -35,7 +35,7 @@ export const getFilesByOwner = async (ownerAddress: string): Promise<FileMetadat
   return api.get(`/files/${ownerAddress}`);
 };
 
-export const shareFileWithUser = async (cid: string, recipientAddress: string) => {
+export const recordShareInDb = async (cid: string, recipientAddress: string) => {
     return api.post('/share', { cid, recipientAddress });
 };
 

@@ -1,8 +1,8 @@
 
-import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, waitForConfirmation, isValidAddress, makeApplicationNoOpTxnFromObject, assignGroupID, OnApplicationComplete} from 'algosdk';
+import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, waitForConfirmation, isValidAddress, makeApplicationNoOpTxnFromObject} from 'algosdk';
 import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID } from './constants';
 import type { AlgorandAccount } from '@/types';
-import { shareFileWithUser as shareFileWithUserApi } from './api';
+import { recordShareInDb } from './api';
 
 const algodClient = new Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
 
@@ -54,7 +54,6 @@ export const shareFile = async (
       new Uint8Array(Buffer.from(cid))
   ];
 
-  // The new contract does not need the recipient address, as it doesn't write to their state.
   const appCallTxn = makeApplicationNoOpTxnFromObject({
       from: sender.addr,
       suggestedParams: params,
@@ -73,8 +72,7 @@ export const shareFile = async (
 
   // 2. After on-chain success, update our backend database to record the share.
   // This allows the recipient's inbox to work immediately.
-  await shareFileWithUserApi(cid, recipientAddress);
-
+  await recordShareInDb(cid, recipientAddress);
 
   return {
     message: "File shared and recorded on-chain successfully.",

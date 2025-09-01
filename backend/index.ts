@@ -24,15 +24,14 @@ app.use(cors());
 app.use(express.json());
 
 // --- API ROUTES ---
-const apiRouter = express.Router();
 
 // 1. Health Check
-apiRouter.get('/', (req, res) => {
+app.get('/api/', (req, res) => {
     res.status(200).json({ message: 'Backend is running and connected!' });
 });
 
 // 2. Save File Metadata
-apiRouter.post('/files/metadata', async (req, res) => {
+app.post('/api/files/metadata', async (req, res) => {
     try {
         const { filename, cid, size, fileType, owner } = req.body;
 
@@ -53,7 +52,7 @@ apiRouter.post('/files/metadata', async (req, res) => {
 });
 
 // 3. Get Files by Owner (Vault) and Shared Files (Inbox)
-apiRouter.get('/files/:ownerAddress', async (req, res) => {
+app.get('/api/files/:ownerAddress', async (req, res) => {
     try {
         const { ownerAddress } = req.params;
 
@@ -83,7 +82,7 @@ apiRouter.get('/files/:ownerAddress', async (req, res) => {
 
 
 // 4. Share a file with another user
-apiRouter.post('/share', async (req, res) => {
+app.post('/api/share', async (req, res) => {
     try {
         const { cid, recipientAddress } = req.body;
 
@@ -116,9 +115,6 @@ apiRouter.post('/share', async (req, res) => {
         res.status(500).json({ error: 'Internal server error while sharing file.' });
     }
 });
-
-
-app.use('/api', apiRouter);
 
 // --- SERVER STARTUP ---
 app.listen(PORT, () => {
