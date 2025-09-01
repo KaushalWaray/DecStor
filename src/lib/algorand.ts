@@ -2,9 +2,9 @@
 import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, makeApplicationNoOpTxn, waitForConfirmation, isValidAddress} from 'algosdk';
 import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID, ALGO_NETWORK_FEE } from './constants';
 import type { AlgorandAccount } from '@/types';
+import { getFilesByOwner } from './api';
 
 const algodClient = new Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
-const RECIPIENT_PREFIX = "rcpt_"; // Prefix used in the smart contract
 
 export const generateAccount = (): AlgorandAccount => {
   const account = generateAlgodAccount();
@@ -19,7 +19,6 @@ export const mnemonicToAccount = (mnemonic: string): AlgorandAccount => {
 
 export const isValidMnemonic = (mnemonic: string): boolean => {
   try {
-    // The most reliable way to check a mnemonic is to try to convert it.
     mnemonicToSecretKey(mnemonic);
     return true;
   } catch (e) {
@@ -37,32 +36,21 @@ export const getAccountBalance = async (address: string): Promise<number> => {
   }
 };
 
+
 export const readInbox = async (address: string): Promise<string[]> => {
-  if (!MAILBOX_APP_ID || MAILBOX_APP_ID === 0) {
-    console.warn('Mailbox App ID is not configured. Cannot read inbox.');
-    return [];
-  }
-  try {
-    const appInfo = await algodClient.getApplicationByID(MAILBOX_APP_ID).do();
-    const globalState = appInfo.params['global-state'];
-    
-    if (globalState) {
-      const mailboxKey = RECIPIENT_PREFIX + address;
-      const encodedMailboxKey = Buffer.from(mailboxKey).toString('base64');
-      
-      const userEntry = globalState.find(
-        (state) => state.key === encodedMailboxKey
-      );
-      
-      if (userEntry && userEntry.value.bytes) {
-        const decodedValue = Buffer.from(userEntry.value.bytes, 'base64').toString('utf-8');
-        return decodedValue.split(',').filter(cid => cid);
-      }
+    if (!MAILBOX_APP_ID || MAILBOX_APP_ID === 0) {
+        console.warn('Mailbox App ID is not configured. Cannot read inbox.');
+        return [];
     }
-  } catch (error) {
-    console.error('Failed to read inbox from smart contract:', error);
-  }
-  return [];
+    try {
+        const ownerFiles = await getFilesByOwner(address);
+        // In a real app, you'd have a dedicated inbox table.
+        // For now, we'll just return all files not owned by the current user.
+        return ownerFiles.filter(f => f.owner !== address).map(f => f.cid);
+    } catch (error) {
+        console.error('Failed to read inbox from API:', error);
+    }
+    return [];
 };
 
 
@@ -88,16 +76,18 @@ export const shareFile = async (
   const params = await algodClient.getTransactionParams().do();
   
   const appArgs = [
-    new TextEncoder().encode("post"),
-    new TextEncoder().encode(recipientAddress),
+    new TextEncoder().encode("post_cid"),
     new TextEncoder().encode(cid)
   ];
+  
+  const accounts = [recipientAddress];
 
   const txn = makeApplicationNoOpTxn(
     senderAccount.addr,
     params,
     MAILBOX_APP_ID,
     appArgs,
+    accounts
   );
 
   const signedTxn = txn.signTxn(senderAccount.sk);
