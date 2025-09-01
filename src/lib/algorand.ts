@@ -48,7 +48,6 @@ export const readInbox = async (address: string): Promise<string[]> => {
     
     if (globalState) {
       const mailboxKey = RECIPIENT_PREFIX + address;
-      // The key in global state is base64 encoded. We need to encode our key to find it.
       const encodedMailboxKey = Buffer.from(mailboxKey).toString('base64');
       
       const userEntry = globalState.find(
@@ -57,14 +56,12 @@ export const readInbox = async (address: string): Promise<string[]> => {
       
       if (userEntry && userEntry.value.bytes) {
         const decodedValue = Buffer.from(userEntry.value.bytes, 'base64').toString('utf-8');
-        // Return an array of CIDs by splitting the string
         return decodedValue.split(',').filter(cid => cid);
       }
     }
   } catch (error) {
     console.error('Failed to read inbox from smart contract:', error);
   }
-  // Return empty array if no entry is found or an error occurs
   return [];
 };
 
