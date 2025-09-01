@@ -5,4 +5,4 @@ export const ALGOD_PORT = 443;
 export const MAILBOX_APP_ID = 744951480; // IMPORTANT: Replace with your deployed smart contract App ID
 export const BACKEND_URL = "http://localhost:3001/api";
 export const ALGO_NETWORK_FEE = 0.001;
-
+export const IPFS_GATEWAY_URL = "https://gateway.pinata.cloud/ipfs";
