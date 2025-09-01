@@ -1,7 +1,28 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import type { FileMetadata, Share } from '../src/types/index.js';
+
+// --- SELF-CONTAINED TYPE DEFINITIONS ---
+// These types are duplicated here to make the backend self-contained
+// and avoid complex build issues with path mapping.
+export interface FileMetadata {
+  _id: string;
+  filename: string;
+  cid: string;
+  size: number;
+  fileType: string;
+  owner: string;
+  createdAt: string;
+}
+
+export interface Share {
+  cid: string;
+  ownerAddress: string;
+  recipientAddress: string;
+  createdAt: string;
+}
+// --- END OF TYPE DEFINITIONS ---
+
 
 // --- IN-MEMORY DATA STORE (Replaces MongoDB) ---
 // This will reset every time the server restarts.
