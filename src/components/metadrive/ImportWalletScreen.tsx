@@ -56,7 +56,8 @@ export default function ImportWalletScreen({ onImport, onBack }: ImportWalletScr
     } catch(error) {
       console.error(error);
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to import wallet. Please try again.' });
-      setIsLoading(false);
+    } finally {
+        setIsLoading(false);
     }
   };
 

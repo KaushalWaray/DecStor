@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from 'react';
-import { generateAccount } from '@/lib/algorand';
+import { generateAccount, mnemonicToAccount } from '@/lib/algorand';
 import { encryptMnemonic } from '@/lib/crypto';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -63,11 +63,17 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
     setIsLoading(true);
     try {
       const encryptedMnemonic = await encryptMnemonic(mnemonic, pin);
-      const newAccount = generateAccount(); // We need the address
-      const newWalletEntry: WalletEntry = { address: newAccount.addr, encryptedMnemonic };
+      const newAccount = mnemonicToAccount(mnemonic);
       
       const storedWallets = localStorage.getItem('metadrive_wallets');
-      const wallets = storedWallets ? JSON.parse(storedWallets) : [];
+      const wallets: WalletEntry[] = storedWallets ? JSON.parse(storedWallets) : [];
+      
+      if (wallets.some(w => w.address === newAccount.addr)) {
+        toast({ variant: 'destructive', title: 'Wallet Exists', description: 'This wallet has already been created or imported.' });
+        setIsLoading(false);
+        return;
+      }
+      
       wallets.push({ address: newAccount.addr, encryptedMnemonic });
       localStorage.setItem('metadrive_wallets', JSON.stringify(wallets));
 
@@ -75,6 +81,7 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
     } catch (error) {
       console.error(error);
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to create wallet. Please try again.' });
+    } finally {
       setIsLoading(false);
     }
   };
