@@ -65,4 +65,3 @@ if __name__ == "__main__":
 
     with open(os.path.join(os.path.dirname(__file__), "clear.teal"), "w") as f:
         f.write(compileTeal(clear_state_program(), mode=Mode.Application, version=6))
-
