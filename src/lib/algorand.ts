@@ -18,6 +18,8 @@ export const mnemonicToAccount = (mnemonic: string): AlgorandAccount => {
 
 export const isValidMnemonic = (mnemonic: string): boolean => {
   try {
+    // The most reliable way to check a mnemonic is to try to convert it.
+    // isValidMnemonic is deprecated and was not a real export.
     mnemonicToSecretKey(mnemonic);
     return true;
   } catch (e) {
