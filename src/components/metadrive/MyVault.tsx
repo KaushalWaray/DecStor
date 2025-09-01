@@ -64,10 +64,20 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     setIsSharing(true);
     try {
       const txId = await shareFile(account, recipientAddress, fileToShare.cid);
-      toast({
-        title: 'File Shared!',
-        description: `Transaction ID: ${truncateAddress(txId, 10, 10)}`,
-      });
+      
+      const isSimulated = txId.startsWith('SIMULATED');
+      if (isSimulated) {
+        toast({
+          title: 'Share Simulated!',
+          description: `File sharing to ${truncateAddress(recipientAddress)} was simulated.`,
+        });
+      } else {
+         toast({
+          title: 'File Shared!',
+          description: `Transaction ID: ${truncateAddress(txId, 10, 10)}`,
+        });
+      }
+
     } catch (error: any) {
       console.error(error);
       toast({ variant: 'destructive', title: 'Sharing Failed', description: error.message || 'Could not send the file sharing transaction.' });
