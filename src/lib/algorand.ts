@@ -68,25 +68,26 @@ export const shareFile = async (
   if (!MAILBOX_APP_ID || MAILBOX_APP_ID === 0) {
     throw new Error('Mailbox App ID is not configured.');
   }
+   if (!isValidAddress(recipientAddress)) {
+    throw new Error('Invalid recipient address');
+  }
 
   const params = await algodClient.getTransactionParams().do();
   
   // The first argument is the method selector.
-  // The second argument is the file's CID.
-  // The recipient's address is passed in the accounts array, not here.
+  // The second is the recipient's address.
+  // The third is the file's CID.
   const appArgs = [
     new TextEncoder().encode('post'),
+    decodeAddress(recipientAddress).publicKey,
     new TextEncoder().encode(cid),
   ];
   
-  const accounts = [recipientAddress]
-
   const txn = makeApplicationNoOpTxn(
     senderAccount.addr,
     params,
     MAILBOX_APP_ID,
     appArgs,
-    accounts
   );
 
   const signedTxn = txn.signTxn(senderAccount.sk);
