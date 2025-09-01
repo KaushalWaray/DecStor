@@ -12,7 +12,8 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "backend:dev": "cd backend && npm run dev",
-    "backend:build": "cd backend && npm run build"
+    "backend:build": "cd backend && npm run build",
+    "contract:deploy": "python3 smartcontract/deploy_contract.py"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.14.1",
