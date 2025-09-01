@@ -21,9 +21,6 @@ export default function Inbox({ account }: InboxProps) {
   const handleRefresh = useCallback(async (isInitialLoad = false) => {
     setIsLoading(true);
     try {
-      // The readInbox function now gracefully handles accounts that are not yet opted in.
-      // The opt-in logic is now handled automatically when the user tries to SHARE a file.
-      // This is a better user experience as it doesn't require an extra transaction just to view the inbox.
       const inboxFiles = await readInbox(account.addr);
       setFiles(inboxFiles);
 

@@ -3,6 +3,7 @@ import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMn
 import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, ALGO_NETWORK_FEE, MAILBOX_APP_ID } from './constants';
 import type { AlgorandAccount, FileMetadata } from '@/types';
 import { getFilesByOwner, shareFileWithUser as shareFileWithUserApi } from './api';
+import { truncateAddress } from './utils';
 
 const algodClient = new Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
 
@@ -45,13 +46,10 @@ export const readInbox = async (address: string): Promise<FileMetadata[]> => {
 
         if (!appLocalState || !appLocalState['key-value']) {
              console.log(`[Algorand] User ${address} has not opted in or has an empty inbox.`);
-            // It's not an error to have no files, just return empty.
-            // The user must visit their inbox once to trigger the opt-in.
             return [];
         }
         
         const cids = appLocalState['key-value'].map((kv: any) => {
-            // Keys (CIDs) are base64 encoded by the node, so we need to decode them.
             return Buffer.from(kv.key, 'base64').toString();
         });
 
@@ -65,7 +63,6 @@ export const readInbox = async (address: string): Promise<FileMetadata[]> => {
 
     } catch (error) {
         console.error(`[Algorand] Failed to read on-chain inbox for ${address}:`, error);
-        // This can happen if the account doesn't exist yet. It's not a critical error.
         return [];
     }
 };
@@ -102,10 +99,8 @@ export const shareFile = async (
     throw new Error('Invalid recipient address');
   }
 
-  // Ensure the sender is opted-in before trying to send.
   await ensureAccountOptedIn(sender);
   
-  // Verify the recipient's account exists and has opted in.
   try {
     const recipientInfo = await algodClient.accountInformation(recipientAddress).do();
     const isOptedIn = recipientInfo['apps-local-state']?.some(
@@ -121,10 +116,8 @@ export const shareFile = async (
 
   console.log(`[Algorand] Sharing file ${cid} from ${sender.addr} to ${recipientAddress}`);
   
-  // 1. Save metadata to our backend so the recipient can find it after getting the CID
   await shareFileWithUserApi(cid, recipientAddress);
 
-  // 2. Call the smart contract to store the CID in the recipient's local state
   const params = await algodClient.getTransactionParams().do();
   const appArgs = [
       new Uint8Array(Buffer.from("share")),
