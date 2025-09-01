@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -12,16 +13,55 @@ import { mnemonicToAccount } from '@/lib/algorand';
 // --- Pre-compiled TEAL Programs ---
 // This TEAL code was generated from the drive_contract.py script.
 const APPROVAL_PROGRAM = `#pragma version 6
-txna ApplicationArgs 2
-txna Accounts 1
-&&
-txn ApplicationArgs 0
+// Assert group size is 1 (not part of a grouped transaction)
+txn GroupIndex
+int 0
+==
+assert
+
+// Main router
+txn ApplicationID
+int 0
+==
+bz main_logic
+
+// Handle App Creation
+int 1
+return
+
+main_logic:
+// Handle NoOp calls
+txn OnCompletion
+int 0 // NoOp
+==
+bz reject_all
+
+// Route based on first argument
+txna ApplicationArgs 0
 byte "post_cid"
+==
+bnz post_cid_route
+
+// If no route matches, reject
+err
+
+post_cid_route:
+// Assert number of arguments and accounts
+txn ApplicationArgs.length
+int 2
+==
+txn Accounts.length
+int 1
 ==
 &&
 assert
 int 1
-return`;
+return
+
+reject_all:
+int 0
+return
+`;
 
 const CLEAR_STATE_PROGRAM = `#pragma version 6
 int 1
