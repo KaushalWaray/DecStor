@@ -1,3 +1,4 @@
+
 // IMPORTANT: This is a placeholder for demonstration and is NOT secure.
 // For a production application, use a robust, standard cryptographic library like Web Crypto API.
 
