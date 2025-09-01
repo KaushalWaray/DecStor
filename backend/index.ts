@@ -116,7 +116,7 @@ apiRouter.post('/share', async (req, res) => {
     }
 });
 
-// Mount the API router
+// Mount the API router at the /api prefix
 app.use('/api', apiRouter);
 
 
