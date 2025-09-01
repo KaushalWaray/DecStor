@@ -18,7 +18,7 @@ ALGOD_TOKEN = ""
 
 # --- Your Wallet Mnemonic ---
 # IMPORTANT: REPLACE THIS WITH YOUR 25-WORD MNEMONIC PHRASE
-CREATOR_MNEMONIC = "PASTE_YOUR_25_WORD_MNEMONIC_HERE"
+CREATOR_MNEMONIC = "lamp drift old kitchen call good dove broom bright ghost execute dash smart video salon mixed brief future sister soda prize umbrella cool about cradle"
 
 # Initialize the Algorand client
 algod_client = algod.AlgodClient(ALGOD_TOKEN, ALGOD_ADDRESS)
