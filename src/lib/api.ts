@@ -1,4 +1,3 @@
-import fetch from 'isomorphic-unfetch';
 import { BACKEND_URL } from './constants';
 import type { FileMetadata } from '@/types';
 
