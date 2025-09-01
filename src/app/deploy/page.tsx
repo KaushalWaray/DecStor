@@ -13,53 +13,42 @@ import { mnemonicToAccount } from '@/lib/algorand';
 // --- Pre-compiled TEAL Programs ---
 // This TEAL code was generated from the drive_contract.py script.
 const APPROVAL_PROGRAM = `#pragma version 6
-// Assert group size is 1 (not part of a grouped transaction)
-txn GroupIndex
-int 0
-==
-assert
-
-// Main router
+// On creation, approve.
 txn ApplicationID
 int 0
 ==
-bz main_logic
-
-// Handle App Creation
+bnz main_logic
 int 1
 return
 
 main_logic:
-// Handle NoOp calls
+// This is not a creation call, so verify the transaction.
+// 1. Assert it's a NoOp call.
 txn OnCompletion
 int 0 // NoOp
 ==
-bz reject_all
+assert
 
-// Route based on first argument
+// 2. Assert the first argument is "post_cid".
 txna ApplicationArgs 0
 byte "post_cid"
 ==
-bnz post_cid_route
+assert
 
-// If no route matches, reject
-err
-
-post_cid_route:
-// Assert number of arguments and accounts
-txn ApplicationArgs.length
+// 3. Assert there are exactly 2 arguments.
+txna ApplicationArgs length
 int 2
 ==
-txn Accounts.length
+assert
+
+// 4. Assert there is exactly 1 account passed (the recipient).
+txn NumAccounts
 int 1
 ==
-&&
 assert
-int 1
-return
 
-reject_all:
-int 0
+// If all checks pass, approve the transaction.
+int 1
 return
 `;
 
