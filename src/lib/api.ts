@@ -1,13 +1,27 @@
-import axios from 'axios';
+import fetch from 'isomorphic-unfetch';
 import { BACKEND_URL } from './constants';
 import type { FileMetadata } from '@/types';
 
-const api = axios.create({
-  baseURL: BACKEND_URL,
-  headers: {
-    'Content-Type': 'application/json',
+const api = {
+  get: async (path: string) => {
+    const res = await fetch(`${BACKEND_URL}${path}`);
+    if (!res.ok) throw new Error(`API Error: ${res.statusText}`);
+    return res.json();
   },
-});
+  post: async (path: string, data: any) => {
+    const res = await fetch(`${BACKEND_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+        const errorBody = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(`API Error: ${errorBody.error || res.statusText}`);
+    }
+    return res.json();
+  }
+};
+
 
 export const checkApiHealth = async () => {
   return api.get('/');
@@ -18,13 +32,11 @@ export const postFileMetadata = async (metadata: Omit<FileMetadata, '_id' | 'cre
 };
 
 export const getFilesByOwner = async (ownerAddress: string): Promise<FileMetadata[]> => {
-  const response = await api.get(`/files/${ownerAddress}`);
-  return response.data;
+  return api.get(`/files/${ownerAddress}`);
 };
 
 export const getFilesByCids = async (cids: string[]): Promise<FileMetadata[]> => {
-  const response = await api.post('/files/by-cids', { cids });
-  return response.data;
+  return api.post('/files/by-cids', { cids });
 };
 
 export default api;

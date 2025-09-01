@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { PINATA_JWT } from './constants';
 
 export const uploadFileToPinata = async (file: File) => {
@@ -20,14 +19,21 @@ export const uploadFileToPinata = async (file: File) => {
   formData.append('pinataOptions', options);
 
   try {
-    const res = await axios.post("https://api.pinata.cloud/pinning/pinFileToIPFS", formData, {
-      maxBodyLength: Infinity,
+    const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+      method: 'POST',
       headers: {
-        'Content-Type': `multipart/form-data; boundary=${(formData as any)._boundary}`,
         Authorization: `Bearer ${PINATA_JWT}`,
-      }
+      },
+      body: formData,
     });
-    return res.data;
+
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(`Pinata API Error: ${errorBody.error || res.statusText}`);
+    }
+    
+    return res.json();
+
   } catch (error) {
     console.error("Error uploading to Pinata:", error);
     throw error;
