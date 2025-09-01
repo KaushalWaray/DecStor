@@ -1,22 +1,27 @@
-import algosdk from 'algosdk';
+import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, makeApplicationNoOpTxn, waitForConfirmation} from 'algosdk';
 import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID, ALGO_NETWORK_FEE } from './constants';
 import type { AlgorandAccount, DecodedInbox } from '@/types';
 
-const algodClient = new algosdk.Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
+const algodClient = new Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
 
 export const generateAccount = (): AlgorandAccount => {
-  const account = algosdk.generateAccount();
-  const mnemonic = algosdk.secretKeyToMnemonic(account.sk);
+  const account = generateAlgodAccount();
+  const mnemonic = secretKeyToMnemonic(account.sk);
   return { ...account, mnemonic };
 };
 
 export const mnemonicToAccount = (mnemonic: string): AlgorandAccount => {
-  const account = algosdk.mnemonicToSecretKey(mnemonic);
+  const account = mnemonicToSecretKey(mnemonic);
   return { ...account, mnemonic };
 };
 
 export const isValidMnemonic = (mnemonic: string): boolean => {
-  return algosdk.isValidMnemonic(mnemonic);
+  try {
+    mnemonicToSecretKey(mnemonic);
+    return true;
+  } catch (e) {
+    return false;
+  }
 };
 
 export const getAccountBalance = async (address: string): Promise<number> => {
@@ -68,7 +73,7 @@ export const shareFile = async (
     new TextEncoder().encode(cid),
   ];
 
-  const txn = algosdk.makeApplicationNoOpTxn(
+  const txn = makeApplicationNoOpTxn(
     senderAccount.addr,
     params,
     MAILBOX_APP_ID,
@@ -77,6 +82,6 @@ export const shareFile = async (
 
   const signedTxn = txn.signTxn(senderAccount.sk);
   const { txId } = await algodClient.sendRawTransaction(signedTxn).do();
-  await algosdk.waitForConfirmation(algodClient, txId, 4);
+  await waitForConfirmation(algodClient, txId, 4);
   return txId;
 };
