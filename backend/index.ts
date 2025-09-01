@@ -4,21 +4,19 @@ import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
 import File from './models/File';
+import Share from './models/Share';
 
 const app = express();
 const PORT = 3001;
 
 // --- DATABASE CONNECTION ---
-// Make sure you have a MongoDB server running.
-// You can use a local instance or a cloud service like MongoDB Atlas.
-// Update the connection string in your .env file.
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/metadrive';
 
 mongoose.connect(MONGO_URI)
     .then(() => console.log('✅ MongoDB connected successfully.'))
     .catch(err => {
         console.error('❌ MongoDB connection error:', err.message);
-        process.exit(1); // Exit if we can't connect to the database
+        process.exit(1);
     });
 
 // --- MIDDLEWARE ---
@@ -54,34 +52,71 @@ apiRouter.post('/files/metadata', async (req, res) => {
     }
 });
 
-// 3. Get Files by Owner (Vault)
-apiRouter.get('/files/:owner', async (req, res) => {
+// 3. Get Files by Owner (Vault) and Shared Files (Inbox)
+apiRouter.get('/files/:ownerAddress', async (req, res) => {
     try {
-        const { owner } = req.params;
-        const ownerFiles = await File.find({ owner: owner });
-        console.log(`[Backend] Found ${ownerFiles.length} files for owner ${owner.substring(0, 10)}...`);
-        res.status(200).json(ownerFiles);
+        const { ownerAddress } = req.params;
+
+        // Find files owned by the user
+        const ownedFiles = await File.find({ owner: ownerAddress });
+
+        // Find files shared with the user
+        const shares = await Share.find({ recipientAddress: ownerAddress }).select('cid');
+        const sharedCids = shares.map(s => s.cid);
+        const sharedFiles = await File.find({ cid: { $in: sharedCids } });
+
+        // Combine and remove duplicates
+        const allFilesMap = new Map();
+        [...ownedFiles, ...sharedFiles].forEach(file => {
+            allFilesMap.set(file.cid, file);
+        });
+        
+        const allFiles = Array.from(allFilesMap.values());
+        
+        console.log(`[Backend] Found ${allFiles.length} total files for owner ${ownerAddress.substring(0, 10)}...`);
+        res.status(200).json(allFiles);
     } catch(error) {
         console.error('[Backend] Error fetching files by owner:', error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 });
 
-// 4. Get Files by CIDs (Inbox)
-apiRouter.post('/files/by-cids', async (req, res) => {
+
+// 4. Share a file with another user
+apiRouter.post('/share', async (req, res) => {
     try {
-        const { cids } = req.body;
-        if (!cids || !Array.isArray(cids)) {
-            return res.status(400).json({ error: 'An array of CIDs is required.' });
+        const { cid, recipientAddress } = req.body;
+
+        if (!cid || !recipientAddress) {
+            return res.status(400).json({ error: 'CID and recipient address are required.' });
         }
-        const foundFiles = await File.find({ cid: { $in: cids } });
-        console.log(`[Backend] Found metadata for ${foundFiles.length} CIDs.`);
-        res.status(200).json(foundFiles);
+
+        const file = await File.findOne({ cid });
+        if (!file) {
+            return res.status(404).json({ error: 'File not found.' });
+        }
+
+        const existingShare = await Share.findOne({ cid, recipientAddress });
+        if (existingShare) {
+            return res.status(200).json({ message: 'File already shared with this user.' });
+        }
+
+        const newShare = new Share({
+            cid,
+            ownerAddress: file.owner,
+            recipientAddress,
+        });
+        await newShare.save();
+
+        console.log(`[Backend] Shared CID ${cid} with ${recipientAddress}`);
+        res.status(201).json({ message: 'File shared successfully.', share: newShare });
+
     } catch (error) {
-        console.error('[Backend] Error fetching files by CIDs:', error);
-        res.status(500).json({ error: 'Internal server error.' });
+        console.error('[Backend] Error sharing file:', error);
+        res.status(500).json({ error: 'Internal server error while sharing file.' });
     }
 });
+
 
 app.use('/api', apiRouter);
 

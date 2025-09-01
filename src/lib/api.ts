@@ -1,3 +1,4 @@
+
 import { BACKEND_URL } from './constants';
 import type { FileMetadata } from '@/types';
 
@@ -35,7 +36,15 @@ export const getFilesByOwner = async (ownerAddress: string): Promise<FileMetadat
 };
 
 export const getFilesByCids = async (cids: string[]): Promise<FileMetadata[]> => {
+  // This function is now deprecated by the new getFilesByOwner logic,
+  // but we keep it for now to avoid breaking the Inbox component immediately.
+  // It will be removed in a future refactor.
   return api.post('/files/by-cids', { cids });
 };
+
+export const shareFileWithUser = async (cid: string, recipientAddress: string) => {
+    return api.post('/share', { cid, recipientAddress });
+};
+
 
 export default api;

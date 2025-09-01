@@ -1,10 +1,10 @@
+
 "use client";
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { AlgorandAccount, FileMetadata } from '@/types';
 import { Button } from '@/components/ui/button';
-import { readInbox } from '@/lib/algorand';
-import { getFilesByCids } from '@/lib/api';
+import { getFilesByOwner } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, RefreshCw } from 'lucide-react';
 import FileGrid from './FileGrid';
@@ -21,22 +21,30 @@ export default function Inbox({ account }: InboxProps) {
   const handleRefresh = useCallback(async () => {
     setIsLoading(true);
     try {
-      const cids = await readInbox(account.addr);
-      if (cids.length > 0) {
-        const inboxFiles = await getFilesByCids(cids);
-        setFiles(inboxFiles);
-        toast({ title: "Inbox refreshed!", description: `Found ${inboxFiles.length} new file(s).` });
+      const allFiles = await getFilesByOwner(account.addr);
+      // The inbox contains files that are not owned by the current user
+      const inboxFiles = allFiles.filter(f => f.owner !== account.addr);
+      setFiles(inboxFiles);
+
+      if (inboxFiles.length > files.length) {
+         toast({ title: "Inbox refreshed!", description: `Found ${inboxFiles.length - files.length} new file(s).` });
       } else {
-        setFiles([]);
-        toast({ title: "Inbox is up to date." });
+         toast({ title: "Inbox is up to date." });
       }
+
     } catch (error) {
       console.error(error);
       toast({ variant: 'destructive', title: 'Error', description: 'Could not refresh your inbox.' });
     } finally {
       setIsLoading(false);
     }
-  }, [account.addr, toast]);
+  }, [account.addr, toast, files.length]);
+
+  // Fetch files on initial component load
+  useEffect(() => {
+    handleRefresh();
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="p-6 bg-card rounded-lg space-y-6">

@@ -9,9 +9,7 @@ import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
 import { LoaderCircle } from 'lucide-react';
 import ShareFileModal from '../modals/ShareFileModal';
-import ApproveTransactionModal from '../modals/ApproveTransactionModal';
 import { shareFile } from '@/lib/algorand';
-import { ALGO_NETWORK_FEE } from '@/lib/constants';
 import { truncateAddress } from '@/lib/utils';
 
 interface MyVaultProps {
@@ -23,9 +21,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const [files, setFiles] = useState<FileMetadata[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
   const [fileToShare, setFileToShare] = useState<FileMetadata | null>(null);
-  const [recipientAddress, setRecipientAddress] = useState('');
   const [isSharing, setIsSharing] = useState(false);
 
   const { toast } = useToast();
@@ -51,41 +47,27 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     setFileToShare(file);
     setIsShareModalOpen(true);
   };
-  
-  const handlePrepareShare = (recipient: string) => {
-    setRecipientAddress(recipient);
-    setIsShareModalOpen(false);
-    setIsApproveModalOpen(true);
-  };
 
-  const handleConfirmShare = async () => {
-    if (!fileToShare || !recipientAddress) return;
+  const handleConfirmShare = async (recipientAddress: string) => {
+    if (!fileToShare) return;
 
     setIsSharing(true);
     try {
-      const txId = await shareFile(account, recipientAddress, fileToShare.cid);
+      // We no longer need an approval modal as there's no transaction fee.
+      const response = await shareFile(account.addr, recipientAddress, fileToShare.cid);
       
-      const isSimulated = txId.startsWith('SIMULATED');
-      if (isSimulated) {
-        toast({
-          title: 'Share Simulated!',
-          description: `File sharing to ${truncateAddress(recipientAddress)} was simulated.`,
-        });
-      } else {
-         toast({
-          title: 'File Shared!',
-          description: `Transaction ID: ${truncateAddress(txId, 10, 10)}`,
-        });
-      }
+      toast({
+        title: 'File Shared!',
+        description: `Successfully shared ${fileToShare.filename} with ${truncateAddress(recipientAddress)}.`,
+      });
 
     } catch (error: any) {
       console.error(error);
-      toast({ variant: 'destructive', title: 'Sharing Failed', description: error.message || 'Could not send the file sharing transaction.' });
+      toast({ variant: 'destructive', title: 'Sharing Failed', description: error.message || 'Could not share the file.' });
     } finally {
       setIsSharing(false);
-      setIsApproveModalOpen(false);
+      setIsShareModalOpen(false);
       setFileToShare(null);
-      setRecipientAddress('');
     }
   };
   
@@ -107,17 +89,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
         <ShareFileModal
           isOpen={isShareModalOpen}
           onOpenChange={setIsShareModalOpen}
-          onConfirm={handlePrepareShare}
-        />
-      )}
-
-      {fileToShare && (
-        <ApproveTransactionModal
-          isOpen={isApproveModalOpen}
-          onOpenChange={setIsApproveModalOpen}
-          onApprove={handleConfirmShare}
-          recipientAddress={recipientAddress}
-          networkFee={ALGO_NETWORK_FEE}
+          onConfirm={handleConfirmShare}
           isLoading={isSharing}
         />
       )}

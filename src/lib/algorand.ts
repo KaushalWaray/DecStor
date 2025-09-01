@@ -1,8 +1,8 @@
 
-import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, makeApplicationNoOpTxn, waitForConfirmation, isValidAddress} from 'algosdk';
-import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID, ALGO_NETWORK_FEE } from './constants';
+import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, waitForConfirmation, isValidAddress} from 'algosdk';
+import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, ALGO_NETWORK_FEE } from './constants';
 import type { AlgorandAccount } from '@/types';
-import { getFilesByOwner } from './api';
+import { getFilesByOwner, shareFileWithUser } from './api';
 
 const algodClient = new Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
 
@@ -38,14 +38,12 @@ export const getAccountBalance = async (address: string): Promise<number> => {
 
 
 export const readInbox = async (address: string): Promise<string[]> => {
-    if (!MAILBOX_APP_ID || MAILBOX_APP_ID === 0) {
-        console.warn('Mailbox App ID is not configured. Cannot read inbox.');
-        return [];
-    }
     try {
+        // This will eventually be replaced by a direct API call to get shared files.
         const ownerFiles = await getFilesByOwner(address);
-        // In a real app, you'd have a dedicated inbox table.
-        // For now, we'll just return all files not owned by the current user.
+        // In our new model, the backend determines what's in the inbox.
+        // For now, we simulate this by filtering files not owned by the user.
+        // This logic will be updated once the share endpoint is fully integrated.
         return ownerFiles.filter(f => f.owner !== address).map(f => f.cid);
     } catch (error) {
         console.error('Failed to read inbox from API:', error);
@@ -55,43 +53,23 @@ export const readInbox = async (address: string): Promise<string[]> => {
 
 
 export const shareFile = async (
-  senderAccount: algosdk.Account,
+  senderAddress: string,
   recipientAddress: string,
   cid: string
-): Promise<string> => {
-
-  if (!MAILBOX_APP_ID || MAILBOX_APP_ID === 0) {
-    throw new Error('Mailbox App ID is not configured.');
-  }
-
+): Promise<any> => {
   if (!isValidAddress(recipientAddress)) {
     throw new Error('Invalid recipient address');
   }
-
-  const senderBalance = await getAccountBalance(senderAccount.addr);
-  if (senderBalance < ALGO_NETWORK_FEE) {
-    throw new Error(`Insufficient balance. You need at least ${ALGO_NETWORK_FEE} ALGO to cover network fees.`);
-  }
   
-  const params = await algodClient.getTransactionParams().do();
+  // No more on-chain transaction. Just a simple API call.
+  console.log(`[Simulating Share] From: ${senderAddress}, To: ${recipientAddress}, CID: ${cid}`);
   
-  const appArgs = [
-    new TextEncoder().encode("post_cid"),
-    new TextEncoder().encode(cid)
-  ];
+  // For now, we'll just log and return a simulated success message.
+  // In a real implementation, this would call the backend API.
+  await shareFileWithUser(cid, recipientAddress);
   
-  const accounts = [recipientAddress];
-
-  const txn = makeApplicationNoOpTxn(
-    senderAccount.addr,
-    params,
-    MAILBOX_APP_ID,
-    appArgs,
-    accounts
-  );
-
-  const signedTxn = txn.signTxn(senderAccount.sk);
-  const { txId } = await algodClient.sendRawTransaction(signedTxn).do();
-  await waitForConfirmation(algodClient, txId, 4);
-  return txId;
+  return {
+    message: "File shared successfully via backend.",
+    txId: `SIMULATED_${Date.now()}`
+  };
 };
