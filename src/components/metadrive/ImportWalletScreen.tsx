@@ -11,7 +11,7 @@ import { ArrowLeft, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { isValidMnemonic } from '@/lib/algorand';
 
 interface ImportWalletScreenProps {
-  onImport: (mnemonic: string, pin: string) => void;
+  onImport: (mnemonic: string, pin: string) => Promise<void>;
   onBack: () => void;
 }
 

@@ -56,7 +56,7 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
     }
 
     setIsLoading(true);
-    onWalletCreated(mnemonic, pin);
+    await onWalletCreated(mnemonic, pin);
     // No need to set loading to false, as the component will unmount
   };
   

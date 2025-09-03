@@ -1,4 +1,3 @@
-
 "use client";
 
 // This file implements strong, standard-based cryptography using the Web Crypto API.
