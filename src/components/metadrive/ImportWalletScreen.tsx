@@ -33,9 +33,8 @@ export default function ImportWalletScreen({ onImport, onBack }: ImportWalletScr
       return;
     }
     setIsLoading(true);
-    // No need to save here anymore, it will be handled on the main page
-    onImport(trimmedMnemonic, pin);
-    setIsLoading(false);
+    await onImport(trimmedMnemonic, pin);
+    // No need to set loading to false as the component will unmount or be replaced
   };
 
   return (

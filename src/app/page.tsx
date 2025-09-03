@@ -70,12 +70,12 @@ export default function Home() {
   }, [toast]);
 
 
-  const handleCreateWallet = (mnemonic: string, newPin: string) => {
+  const handleCreateWallet = async (mnemonic: string, newPin: string) => {
     try {
       const newAccount = mnemonicToAccount(mnemonic);
       setAccount(newAccount);
       setPin(newPin);
-      saveWallet(newAccount, newPin); // Save immediately
+      await saveWallet(newAccount, newPin); // Save immediately
       setWalletState('unlocked');
     } catch (error) {
       console.error(error);
@@ -88,7 +88,7 @@ export default function Home() {
     }
   };
   
-  const handleImportWallet = (mnemonic: string, newPin: string) => {
+  const handleImportWallet = async (mnemonic: string, newPin: string) => {
     if (!isValidMnemonic(mnemonic)) {
       toast({
         variant: 'destructive',
@@ -107,7 +107,7 @@ export default function Home() {
       
       setAccount(newAccount);
       setPin(newPin);
-      saveWallet(newAccount, newPin); // Save immediately
+      await saveWallet(newAccount, newPin); // Save immediately
       setWalletState('unlocked');
     } catch (error) {
       console.error(error);
