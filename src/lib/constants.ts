@@ -6,3 +6,16 @@ export const MAILBOX_APP_ID = 745160970; // IMPORTANT: This is your deployed sma
 export const BACKEND_URL = "/api";
 export const ALGO_NETWORK_FEE = 0.001;
 export const IPFS_GATEWAY_URL = "https://gateway.pinata.cloud/ipfs";
+
+// --- NEW: Storage Payment Simulation Constants ---
+
+// A placeholder wallet address to receive "payments" for storage upgrades.
+// In a real scenario, this would be a secure, company-owned wallet.
+export const STORAGE_SERVICE_WALLET_ADDRESS = "METADRIVEESTN5N67WJMJDO3J55J464K7JEL23Q33G22H5264323NBY34";
+
+// Storage limits in bytes
+export const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
+export const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
+
+// Cost in ALGOs to upgrade
+export const UPGRADE_COST_ALGOS = 0.1;

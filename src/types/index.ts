@@ -24,7 +24,6 @@ export interface Share {
   createdAt: string;
 }
 
-
 export interface DecodedInbox {
   [address: string]: string[];
 }
@@ -32,4 +31,9 @@ export interface DecodedInbox {
 export interface WalletEntry {
   address: string;
   encryptedMnemonic: string;
+}
+
+export interface StorageInfo {
+    storageUsed: number;
+    storageLimit: number;
 }
