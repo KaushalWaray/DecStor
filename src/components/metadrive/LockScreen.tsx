@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,30 +12,21 @@ import type { WalletEntry } from '@/types';
 
 interface LockScreenProps {
   wallets: WalletEntry[];
+  selectedWallet: string;
+  onSetSelectedWallet: (address: string) => void;
   onUnlock: (address: string, pin: string) => void;
   onReset: () => void;
   onAddNew: () => void;
   onDeleteWallet: (address: string) => void;
 }
 
-export default function LockScreen({ wallets, onUnlock, onReset, onAddNew, onDeleteWallet }: LockScreenProps) {
-  const [selectedWallet, setSelectedWallet] = useState<string>(wallets[0]?.address || '');
+export default function LockScreen({ wallets, selectedWallet, onSetSelectedWallet, onUnlock, onReset, onAddNew, onDeleteWallet }: LockScreenProps) {
   const [pin, setPin] = useState('');
   const [isPinVisible, setIsPinVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    if (wallets.length > 0 && !wallets.find(w => w.address === selectedWallet)) {
-      setSelectedWallet(wallets[0].address);
-    } else if (wallets.length === 0) {
-      setSelectedWallet('');
-    }
-  }, [wallets, selectedWallet]);
-
-
   const handleUnlock = async () => {
     if (!selectedWallet) {
-        // This case should ideally not be hit if there are wallets
         alert("Please select a wallet to unlock.");
         return;
     }
@@ -69,7 +60,7 @@ export default function LockScreen({ wallets, onUnlock, onReset, onAddNew, onDel
           <CardDescription>Select a wallet and enter the PIN to unlock.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Select value={selectedWallet} onValueChange={setSelectedWallet}>
+          <Select value={selectedWallet} onValueChange={onSetSelectedWallet}>
             <SelectTrigger>
               <SelectValue placeholder="Select a wallet" />
             </SelectTrigger>

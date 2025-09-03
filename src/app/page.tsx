@@ -19,6 +19,7 @@ export default function Home() {
   const [wallets, setWallets] = useState<WalletEntry[]>([]);
   const [account, setAccount] = useState<AlgorandAccount | null>(null);
   const [pin, setPin] = useState<string>('');
+  const [selectedWallet, setSelectedWallet] = useState<string>('');
   const { toast } = useToast();
 
   useEffect(() => {
@@ -28,6 +29,7 @@ export default function Home() {
         const parsedWallets: WalletEntry[] = JSON.parse(storedWallets);
         if (parsedWallets.length > 0) {
           setWallets(parsedWallets);
+          setSelectedWallet(parsedWallets[0].address);
           setWalletState('locked');
         } else {
           setWalletState('no_wallet');
@@ -59,6 +61,7 @@ export default function Home() {
       
       localStorage.setItem('metadrive_wallets', JSON.stringify(currentWallets));
       setWallets(currentWallets);
+      setSelectedWallet(newWalletEntry.address);
 
     } catch (error) {
       console.error("Failed to save wallet", error);
@@ -74,9 +77,9 @@ export default function Home() {
   const handleCreateWallet = async (mnemonic: string, newPin: string) => {
     try {
       const newAccount = mnemonicToAccount(mnemonic);
+      await saveWallet(newAccount, newPin);
       setAccount(newAccount);
       setPin(newPin);
-      await saveWallet(newAccount, newPin);
       setWalletState('unlocked');
     } catch (error) {
       console.error(error);
@@ -106,9 +109,9 @@ export default function Home() {
         return;
       }
       
+      await saveWallet(newAccount, newPin);
       setAccount(newAccount);
       setPin(newPin);
-      await saveWallet(newAccount, newPin);
       setWalletState('unlocked');
     } catch (error) {
       console.error(error);
@@ -170,6 +173,7 @@ export default function Home() {
       setWallets([]);
       setAccount(null);
       setPin('');
+      setSelectedWallet('');
       setWalletState('no_wallet');
       toast({ title: 'All Wallets Deleted', description: 'You can now create or import a new wallet.' });
     }
@@ -183,7 +187,10 @@ export default function Home() {
         toast({ title: 'Wallet Deleted' });
 
         if (newWallets.length === 0) {
+            setSelectedWallet('');
             setWalletState('no_wallet');
+        } else {
+            setSelectedWallet(newWallets[0].address);
         }
       }
   };
@@ -209,7 +216,15 @@ export default function Home() {
       case 'importing':
         return <ImportWalletScreen onImport={handleImportWallet} onBack={() => wallets.length > 0 ? setWalletState('locked') : setWalletState('no_wallet')} />;
       case 'locked':
-        return <LockScreen wallets={wallets} onUnlock={handleUnlock} onReset={handleReset} onAddNew={() => setWalletState('creating')} onDeleteWallet={handleDeleteWallet} />;
+        return <LockScreen 
+                    wallets={wallets} 
+                    selectedWallet={selectedWallet}
+                    onSetSelectedWallet={setSelectedWallet}
+                    onUnlock={handleUnlock} 
+                    onReset={handleReset} 
+                    onAddNew={() => setWalletState('creating')} 
+                    onDeleteWallet={handleDeleteWallet} 
+                />;
       case 'unlocked':
         if (!account || !pin) {
           handleLock();
