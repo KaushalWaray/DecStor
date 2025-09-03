@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,17 @@ export default function LockScreen({ wallets, selectedWallet, onSetSelectedWalle
   const [pin, setPin] = useState('');
   const [isPinVisible, setIsPinVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // When the list of wallets changes (e.g., one is deleted),
+  // ensure we're not trying to select a wallet that no longer exists.
+  useEffect(() => {
+    if (wallets.length > 0 && !wallets.find(w => w.address === selectedWallet)) {
+      onSetSelectedWallet(wallets[0].address);
+    } else if (wallets.length === 0) {
+      onSetSelectedWallet('');
+    }
+  }, [wallets, selectedWallet, onSetSelectedWallet]);
+
 
   const handleUnlock = async () => {
     if (!selectedWallet) {
