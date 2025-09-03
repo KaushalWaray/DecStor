@@ -14,9 +14,10 @@ interface LockScreenProps {
   onUnlock: (address: string, pin: string) => void;
   onReset: () => void;
   onAddNew: () => void;
+  onDeleteWallet: (address: string) => void;
 }
 
-export default function LockScreen({ wallets, onUnlock, onReset, onAddNew }: LockScreenProps) {
+export default function LockScreen({ wallets, onUnlock, onReset, onAddNew, onDeleteWallet }: LockScreenProps) {
   const [selectedWallet, setSelectedWallet] = useState<string>(wallets[0]?.address || '');
   const [pin, setPin] = useState('');
   const [isPinVisible, setIsPinVisible] = useState(false);
@@ -31,6 +32,8 @@ export default function LockScreen({ wallets, onUnlock, onReset, onAddNew }: Loc
     setIsLoading(true);
     await onUnlock(selectedWallet, pin);
     setIsLoading(false);
+    // Clear pin after unlock attempt
+    setPin('');
   };
 
   const handleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -38,6 +41,17 @@ export default function LockScreen({ wallets, onUnlock, onReset, onAddNew }: Loc
       handleUnlock();
     }
   };
+  
+  const handleDelete = () => {
+      if(selectedWallet) {
+          onDeleteWallet(selectedWallet);
+          // If we deleted the selected wallet, we should clear the selection
+          // to prevent trying to unlock a non-existent wallet.
+          // Find the next available wallet to select, or clear it.
+          const currentWallets = wallets.filter(w => w.address !== selectedWallet);
+          setSelectedWallet(currentWallets[0]?.address || '');
+      }
+  }
 
   return (
     <div className="flex flex-col items-center justify-center h-full">
@@ -77,10 +91,15 @@ export default function LockScreen({ wallets, onUnlock, onReset, onAddNew }: Loc
               {isPinVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
           </div>
-          <Button size="lg" className="w-full" onClick={handleUnlock} disabled={isLoading || !selectedWallet || pin.length < 6}>
-            {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-            Unlock
-          </Button>
+          <div className="flex gap-2">
+            <Button size="lg" className="w-full" onClick={handleUnlock} disabled={isLoading || !selectedWallet || pin.length < 6}>
+              {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+              Unlock
+            </Button>
+            <Button size="lg" variant="destructive" onClick={handleDelete} disabled={isLoading || !selectedWallet}>
+                <Trash2 />
+            </Button>
+          </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-2">
             <Button variant="secondary" className="w-full" onClick={onAddNew}>

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -176,6 +175,20 @@ export default function Home() {
     }
   };
 
+  const handleDeleteWallet = (address: string) => {
+    if (window.confirm('Are you sure you want to delete this wallet? This action cannot be undone.')) {
+      const newWallets = wallets.filter(w => w.address !== address);
+      localStorage.setItem('metadrive_wallets', JSON.stringify(newWallets));
+      setWallets(newWallets);
+      toast({ title: 'Wallet Deleted' });
+
+      if (newWallets.length === 0) {
+        setWalletState('no_wallet');
+      }
+    }
+  };
+
+
   const renderContent = () => {
     switch (walletState) {
       case 'loading':
@@ -196,7 +209,7 @@ export default function Home() {
       case 'importing':
         return <ImportWalletScreen onImport={handleImportWallet} onBack={() => wallets.length > 0 ? setWalletState('locked') : setWalletState('no_wallet')} />;
       case 'locked':
-        return <LockScreen wallets={wallets} onUnlock={handleUnlock} onReset={handleReset} onAddNew={() => setWalletState('no_wallet')} />;
+        return <LockScreen wallets={wallets} onUnlock={handleUnlock} onReset={handleReset} onAddNew={() => setWalletState('no_wallet')} onDeleteWallet={handleDeleteWallet} />;
       case 'unlocked':
         if (!account || !pin) {
           // This should not happen, but as a fallback
