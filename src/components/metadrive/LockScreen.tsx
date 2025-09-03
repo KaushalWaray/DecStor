@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -23,11 +24,13 @@ export default function LockScreen({ wallets, onUnlock, onReset, onAddNew, onDel
   const [isPinVisible, setIsPinVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // When the list of wallets changes (e.g., after deletion),
-  // update the selected wallet to the first one in the new list.
   useEffect(() => {
-    setSelectedWallet(wallets[0]?.address || '');
-  }, [wallets]);
+    if (wallets.length > 0 && !wallets.find(w => w.address === selectedWallet)) {
+      setSelectedWallet(wallets[0].address);
+    } else if (wallets.length === 0) {
+      setSelectedWallet('');
+    }
+  }, [wallets, selectedWallet]);
 
 
   const handleUnlock = async () => {

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -75,7 +76,7 @@ export default function Home() {
       const newAccount = mnemonicToAccount(mnemonic);
       setAccount(newAccount);
       setPin(newPin);
-      await saveWallet(newAccount, newPin); // Save immediately
+      await saveWallet(newAccount, newPin);
       setWalletState('unlocked');
     } catch (error) {
       console.error(error);
@@ -107,7 +108,7 @@ export default function Home() {
       
       setAccount(newAccount);
       setPin(newPin);
-      await saveWallet(newAccount, newPin); // Save immediately
+      await saveWallet(newAccount, newPin);
       setWalletState('unlocked');
     } catch (error) {
       console.error(error);
@@ -211,7 +212,6 @@ export default function Home() {
         return <LockScreen wallets={wallets} onUnlock={handleUnlock} onReset={handleReset} onAddNew={() => setWalletState('creating')} onDeleteWallet={handleDeleteWallet} />;
       case 'unlocked':
         if (!account || !pin) {
-          // This should not happen, but as a fallback
           handleLock();
           return null;
         }
