@@ -11,7 +11,7 @@ export const IPFS_GATEWAY_URL = "https://gateway.pinata.cloud/ipfs";
 
 // A placeholder wallet address to receive "payments" for storage upgrades.
 // In a real scenario, this would be a secure, company-owned wallet.
-export const STORAGE_SERVICE_WALLET_ADDRESS = "METADRIVEESTN5N67WJMJDO3J55J464K7JEL23Q33G22H5264323NBY34";
+export const STORAGE_SERVICE_WALLET_ADDRESS = "MDDSI44G22SEYX2NA3TNNT4ON6MXLUM33Y3WG25JGR35T5LTAQO6K3EWYU";
 
 // Storage limits in bytes
 export const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
