@@ -63,8 +63,14 @@ export async function encryptMnemonic(mnemonic: string, pin: string): Promise<st
     const combinedBuffer = new Uint8Array(iv.length + encryptedBuffer.byteLength);
     combinedBuffer.set(iv, 0);
     combinedBuffer.set(new Uint8Array(encryptedBuffer), iv.length);
-
-    return btoa(String.fromCharCode.apply(null, Array.from(combinedBuffer)));
+    
+    // Convert buffer to base64
+    let binary = '';
+    const bytes = new Uint8Array(combinedBuffer);
+    for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
 }
 
 /**
@@ -76,10 +82,17 @@ export async function encryptMnemonic(mnemonic: string, pin: string): Promise<st
 export async function decryptMnemonic(encryptedDataB64: string, pin: string): Promise<string> {
     const key = await getKey(pin);
     
-    // Decode from base64 and split the IV from the ciphertext
-    const combinedBuffer = new Uint8Array(Array.from(atob(encryptedDataB64)).map(char => char.charCodeAt(0)));
-    const iv = combinedBuffer.slice(0, IV_LENGTH);
-    const ciphertext = combinedBuffer.slice(IV_LENGTH);
+    // Decode from base64
+    const binary_string = atob(encryptedDataB64);
+    const len = binary_string.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binary_string.charCodeAt(i);
+    }
+    const combinedBuffer = bytes.buffer;
+
+    const iv = new Uint8Array(combinedBuffer.slice(0, IV_LENGTH));
+    const ciphertext = new Uint8Array(combinedBuffer.slice(IV_LENGTH));
 
     const decryptedBuffer = await crypto.subtle.decrypt(
         { name: "AES-GCM", iv: iv },

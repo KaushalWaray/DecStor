@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { generateAccount } from '@/lib/algorand';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Copy, ArrowLeft, Eye, EyeOff, LoaderCircle } from 'lucide-react';
+import { Copy, ArrowLeft, Eye, EyeOff, LoaderCircle, ArrowRight } from 'lucide-react';
 
 interface CreateWalletFlowProps {
   onWalletCreated: (mnemonic: string, pin: string) => void;
@@ -57,10 +57,8 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
     }
 
     setIsLoading(true);
-    // No need to save here anymore, it will be handled on the main page
-    // This simplifies the flow and centralizes the save logic
     onWalletCreated(mnemonic, pin);
-    setIsLoading(false);
+    // No need to set loading to false, as the component will unmount
   };
   
   const mnemonicWords = mnemonic.split(' ');
@@ -93,7 +91,7 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
               <Button variant="ghost" onClick={onBack}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>
               <div className="flex gap-2">
                  <Button variant="secondary" onClick={handleCopyToClipboard}><Copy className="mr-2 h-4 w-4" />Copy</Button>
-                <Button onClick={() => setStep('confirm')}>Next <ArrowLeft className="mr-2 h-4 w-4 rotate-180" /></Button>
+                <Button onClick={() => setStep('confirm')}>Next <ArrowRight className="ml-2 h-4 w-4" /></Button>
               </div>
             </CardFooter>
           </Card>
@@ -123,7 +121,7 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
 
       case 'pin':
         return (
-          <Card className="w-full max-w-lg">
+          <Card className="w-full max-w-sm">
             <CardHeader>
               <CardTitle className="font-headline text-2xl">Create a PIN</CardTitle>
               <CardDescription>This PIN will be used to unlock your wallet on this device.</CardDescription>
