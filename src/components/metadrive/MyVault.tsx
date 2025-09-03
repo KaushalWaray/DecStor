@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
@@ -68,6 +69,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
         if (!walletEntry) throw new Error("Could not find wallet credentials to sign transaction.");
 
         const mnemonic = await decryptMnemonic(walletEntry.encryptedMnemonic, pin);
+        if (!mnemonic) throw new Error("Decryption failed");
         const senderAccount = mnemonicToAccount(mnemonic);
 
       await shareFile(senderAccount, recipientAddress, fileToShare.cid);
@@ -98,6 +100,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
         if (!walletEntry) throw new Error("Could not find wallet credentials to sign transaction.");
 
         const mnemonic = await decryptMnemonic(walletEntry.encryptedMnemonic, pin);
+        if (!mnemonic) throw new Error("Decryption failed");
         const senderAccount = mnemonicToAccount(mnemonic);
         
         // 1. Send the payment transaction
