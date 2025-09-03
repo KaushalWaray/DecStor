@@ -7,6 +7,33 @@
 const SALT = "metadrive-salt"; // A constant salt for key derivation
 const IV_LENGTH = 12; // 12 bytes for GCM is recommended
 
+
+// --- NEW: Robust Base64 conversion for ArrayBuffers ---
+// The old btoa/atob method can corrupt binary data. These functions are safe.
+
+function bufferToBase64(buffer: ArrayBuffer): string {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+}
+
+function base64ToBuffer(base64: string): ArrayBuffer {
+    const binaryString = atob(base64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes.buffer;
+}
+
+// --- END of new helpers ---
+
+
 /**
  * Derives a 256-bit AES key from a user's PIN using PBKDF2.
  * The salt is hardcoded for this application's scope.
@@ -59,18 +86,14 @@ export async function encryptMnemonic(mnemonic: string, pin: string): Promise<st
         mnemonicBuffer
     );
 
-    // Combine IV and ciphertext for storage, then base64-encode
-    const combinedBuffer = new Uint8Array(iv.length + encryptedBuffer.byteLength);
-    combinedBuffer.set(iv, 0);
-    combinedBuffer.set(new Uint8Array(encryptedBuffer), iv.length);
+    // Combine IV and ciphertext for storage
+    const combinedBuffer = new ArrayBuffer(iv.length + encryptedBuffer.byteLength);
+    const combinedView = new Uint8Array(combinedBuffer);
+    combinedView.set(iv, 0);
+    combinedView.set(new Uint8Array(encryptedBuffer), iv.length);
     
-    // Convert buffer to base64
-    let binary = '';
-    const bytes = new Uint8Array(combinedBuffer);
-    for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
+    // Use the robust function to convert the combined buffer to a Base64 string
+    return bufferToBase64(combinedBuffer);
 }
 
 /**
@@ -80,25 +103,25 @@ export async function encryptMnemonic(mnemonic: string, pin: string): Promise<st
  * @returns {Promise<string>} The original mnemonic phrase.
  */
 export async function decryptMnemonic(encryptedDataB64: string, pin: string): Promise<string> {
-    const key = await getKey(pin);
-    
-    // Decode from base64
-    const binary_string = atob(encryptedDataB64);
-    const len = binary_string.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binary_string.charCodeAt(i);
+    try {
+        const key = await getKey(pin);
+        
+        // Use the robust function to convert Base64 string back to a buffer
+        const combinedBuffer = base64ToBuffer(encryptedDataB64);
+
+        const iv = new Uint8Array(combinedBuffer.slice(0, IV_LENGTH));
+        const ciphertext = new Uint8Array(combinedBuffer.slice(IV_LENGTH));
+
+        const decryptedBuffer = await crypto.subtle.decrypt(
+            { name: "AES-GCM", iv: iv },
+            key,
+            ciphertext
+        );
+
+        return new TextDecoder().decode(decryptedBuffer);
+    } catch (error) {
+        console.error("Decryption failed:", error);
+        // Throw a specific error to be caught by the UI
+        throw new Error("Decryption failed. The PIN may be incorrect or the data may be corrupt.");
     }
-    const combinedBuffer = bytes.buffer;
-
-    const iv = new Uint8Array(combinedBuffer.slice(0, IV_LENGTH));
-    const ciphertext = new Uint8Array(combinedBuffer.slice(IV_LENGTH));
-
-    const decryptedBuffer = await crypto.subtle.decrypt(
-        { name: "AES-GCM", iv: iv },
-        key,
-        ciphertext
-    );
-
-    return new TextDecoder().decode(decryptedBuffer);
 }
