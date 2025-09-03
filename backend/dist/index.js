@@ -6,11 +6,37 @@ import cors from 'cors';
 // This will reset every time the server restarts.
 let filesStore = [];
 let sharesStore = [];
+let usersStore = []; // New store for user data
+// --- CONSTANTS (Mirrored from frontend for consistency) ---
+const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
+const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 const app = express();
 const PORT = 3001;
 // --- MIDDLEWARE ---
 app.use(cors());
 app.use(express.json());
+// --- HELPER FUNCTIONS ---
+const findOrCreateUser = (address) => {
+    let user = usersStore.find(u => u.address === address);
+    if (!user) {
+        // User doesn't exist, create them with the free tier plan
+        const ownedFiles = filesStore.filter(file => file.owner === address);
+        const storageUsed = ownedFiles.reduce((acc, file) => acc + file.size, 0);
+        user = {
+            address,
+            storageLimit: FREE_TIER_LIMIT,
+            storageUsed,
+        };
+        usersStore.push(user);
+        console.log(`[Backend] Created new user ${address.substring(0, 10)}... with free tier.`);
+    }
+    else {
+        // Recalculate storage used just in case
+        const ownedFiles = filesStore.filter(file => file.owner === address);
+        user.storageUsed = ownedFiles.reduce((acc, file) => acc + file.size, 0);
+    }
+    return user;
+};
 // --- API ROUTER ---
 const apiRouter = express.Router();
 // 1. Health Check
@@ -24,6 +50,15 @@ apiRouter.post('/files/metadata', async (req, res) => {
         if (!filename || !cid || !size || !fileType || !owner) {
             return res.status(400).json({ error: 'Missing required file metadata.' });
         }
+        // --- NEW: Check user's storage quota ---
+        const user = findOrCreateUser(owner);
+        if (user.storageUsed + size > user.storageLimit) {
+            console.log(`[Backend] Quota exceeded for ${owner.substring(0, 10)}...`);
+            return res.status(413).json({
+                error: 'Storage quota exceeded.',
+                details: `You have used ${user.storageUsed} of ${user.storageLimit} bytes.`
+            });
+        }
         // Create a new file object for our in-memory store
         const newFile = {
             _id: new Date().toISOString(), // Simple unique ID
@@ -35,6 +70,7 @@ apiRouter.post('/files/metadata', async (req, res) => {
             createdAt: new Date().toISOString(),
         };
         filesStore.push(newFile);
+        user.storageUsed += size; // Update user's storage used
         console.log(`[Backend] Saved metadata for CID: ${cid}`);
         res.status(201).json({ message: 'Metadata saved successfully.', file: newFile });
     }
@@ -43,7 +79,7 @@ apiRouter.post('/files/metadata', async (req, res) => {
         res.status(500).json({ error: 'Internal server error while saving metadata.' });
     }
 });
-// 3. Get Files by Owner (Vault) and Shared Files (Inbox)
+// 3. Get Files and User Storage Info
 apiRouter.get('/files/:ownerAddress', async (req, res) => {
     try {
         const { ownerAddress } = req.params;
@@ -61,8 +97,16 @@ apiRouter.get('/files/:ownerAddress', async (req, res) => {
             allFilesMap.set(file.cid, file);
         });
         const allFiles = Array.from(allFilesMap.values());
+        // --- NEW: Return user storage info along with files ---
+        const user = findOrCreateUser(ownerAddress);
         console.log(`[Backend] Found ${allFiles.length} total files for owner ${ownerAddress.substring(0, 10)}...`);
-        res.status(200).json(allFiles);
+        res.status(200).json({
+            files: allFiles,
+            storageInfo: {
+                storageUsed: user.storageUsed,
+                storageLimit: user.storageLimit
+            }
+        });
     }
     catch (error) {
         console.error('[Backend] Error fetching files by owner:', error);
@@ -97,6 +141,36 @@ apiRouter.post('/share', async (req, res) => {
     catch (error) {
         console.error('[Backend] Error sharing file:', error);
         res.status(500).json({ error: 'Internal server error while sharing file.' });
+    }
+});
+// 5. NEW: Confirm a payment and upgrade user's storage
+apiRouter.post('/payment/confirm', async (req, res) => {
+    try {
+        const { senderAddress, txId } = req.body;
+        if (!senderAddress || !txId) {
+            return res.status(400).json({ error: 'Sender address and transaction ID are required.' });
+        }
+        // In a real application, you would use the Algorand SDK here to:
+        // 1. Look up the transaction `txId` on the TestNet.
+        // 2. Verify that the sender was `senderAddress`.
+        // 3. Verify that the recipient was the `STORAGE_SERVICE_WALLET_ADDRESS`.
+        // 4. Verify that the amount was `UPGRADE_COST_ALGOS`.
+        // For this demo, we will trust the client and proceed.
+        console.log(`[Backend] Received payment confirmation for tx: ${txId.substring(0, 10)}... from ${senderAddress.substring(0, 10)}...`);
+        const user = findOrCreateUser(senderAddress);
+        user.storageLimit = PRO_TIER_LIMIT; // Upgrade the user's storage
+        console.log(`[Backend] Upgraded ${user.address.substring(0, 10)}... to Pro tier.`);
+        res.status(200).json({
+            message: "Payment confirmed and storage upgraded successfully!",
+            storageInfo: {
+                storageUsed: user.storageUsed,
+                storageLimit: user.storageLimit,
+            }
+        });
+    }
+    catch (error) {
+        console.error('[Backend] Error confirming payment:', error);
+        res.status(500).json({ error: 'Internal server error while confirming payment.' });
     }
 });
 // Mount the API router at the /api prefix

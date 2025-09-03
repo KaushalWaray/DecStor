@@ -37,3 +37,8 @@ export interface StorageInfo {
     storageUsed: number;
     storageLimit: number;
 }
+
+export interface FilesAndStorageInfo {
+    files: FileMetadata[];
+    storageInfo: StorageInfo;
+}

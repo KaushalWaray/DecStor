@@ -1,8 +1,7 @@
-
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import type { AlgorandAccount, FileMetadata } from '@/types';
+import type { AlgorandAccount, FileMetadata, FilesAndStorageInfo } from '@/types';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, RefreshCw } from 'lucide-react';
@@ -21,9 +20,11 @@ export default function Inbox({ account }: InboxProps) {
   const handleRefresh = useCallback(async (isInitialLoad = false) => {
     setIsLoading(true);
     try {
-      // The API now returns all files for the user, including owned and shared.
-      // We filter here to show only files not owned by the current user.
-      const allFiles = await getFilesByOwner(account.addr);
+      // The API now returns an object with `files` and `storageInfo`.
+      // We need to unpack it.
+      const response: FilesAndStorageInfo = await getFilesByOwner(account.addr);
+      const allFiles = response.files;
+
       const inboxFiles = allFiles.filter(f => f.owner !== account.addr);
       setFiles(inboxFiles);
 

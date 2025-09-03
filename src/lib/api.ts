@@ -1,6 +1,6 @@
 
 import { BACKEND_URL } from './constants';
-import type { FileMetadata } from '@/types';
+import type { FileMetadata, FilesAndStorageInfo, StorageInfo } from '@/types';
 
 const api = {
   get: async (path: string) => {
@@ -31,13 +31,18 @@ export const postFileMetadata = async (metadata: Omit<FileMetadata, '_id' | 'cre
   return api.post('/files/metadata', metadata);
 };
 
-export const getFilesByOwner = async (ownerAddress: string): Promise<FileMetadata[]> => {
+export const getFilesByOwner = async (ownerAddress: string): Promise<FilesAndStorageInfo> => {
   return api.get(`/files/${ownerAddress}`);
 };
 
 export const recordShareInDb = async (cid: string, recipientAddress: string) => {
     return api.post('/share', { cid, recipientAddress });
 };
+
+export const confirmPayment = async (senderAddress: string, txId: string): Promise<StorageInfo> => {
+    const res = await api.post('/payment/confirm', { senderAddress, txId });
+    return res.storageInfo;
+}
 
 
 export default api;

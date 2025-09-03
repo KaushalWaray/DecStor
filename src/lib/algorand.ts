@@ -1,6 +1,6 @@
 
-import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, waitForConfirmation, isValidAddress, makeApplicationNoOpTxnFromObject} from 'algosdk';
-import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID } from './constants';
+import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, waitForConfirmation, isValidAddress, makeApplicationNoOpTxnFromObject, makePaymentTxnWithSuggestedParamsFromObject, OnApplicationComplete} from 'algosdk';
+import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID, STORAGE_SERVICE_WALLET_ADDRESS, UPGRADE_COST_ALGOS } from './constants';
 import type { AlgorandAccount } from '@/types';
 import { recordShareInDb } from './api';
 
@@ -45,7 +45,6 @@ export const shareFile = async (
     throw new Error('Invalid recipient address');
   }
   
-  // 1. Send the on-chain transaction to create a verifiable, immutable proof of the share.
   console.log(`[Algorand] Sending on-chain proof for sharing ${cid} with ${recipientAddress}`);
   
   const params = await algodClient.getTransactionParams().do();
@@ -64,14 +63,11 @@ export const shareFile = async (
   const signedTxn = appCallTxn.signTxn(sender.sk);
   const txId = appCallTxn.txID().toString();
   
-  // Send the transaction and wait for confirmation
   const result = await algodClient.sendRawTransaction(signedTxn).do();
   await waitForConfirmation(algodClient, txId, 4);
 
   console.log(`[Algorand] On-chain proof transaction successful with ID: ${txId}`);
 
-  // 2. After on-chain success, update our backend database to record the share.
-  // This allows the recipient's inbox to work immediately.
   await recordShareInDb(cid, recipientAddress);
 
   return {
@@ -79,4 +75,27 @@ export const shareFile = async (
     txId: txId,
     ...result
   };
+};
+
+export const payForStorageUpgrade = async (sender: AlgorandAccount) => {
+    console.log(`[Algorand] Sending payment for storage upgrade from ${sender.addr}`);
+    
+    const params = await algodClient.getTransactionParams().do();
+    const amount = UPGRADE_COST_ALGOS * 1_000_000; // to microAlgos
+
+    const paymentTxn = makePaymentTxnWithSuggestedParamsFromObject({
+        from: sender.addr,
+        to: STORAGE_SERVICE_WALLET_ADDRESS,
+        amount,
+        suggestedParams: params,
+    });
+
+    const signedTxn = paymentTxn.signTxn(sender.sk);
+    const txId = paymentTxn.txID().toString();
+
+    await algodClient.sendRawTransaction(signedTxn).do();
+    await waitForConfirmation(algodClient, txId, 4);
+
+    console.log(`[Algorand] Payment transaction successful with ID: ${txId}`);
+    return { txId };
 };
