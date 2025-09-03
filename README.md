@@ -18,6 +18,35 @@ The core principle of MetaDrive is to separate file ownership and access from th
 
 ---
 
+## The Storage Model: Cost, Limits & The Path to True Decentralization
+
+A critical aspect of any storage system is its limits and cost. Here’s how MetaDrive's storage model works now and how it's designed to evolve into a truly competitive, decentralized system.
+
+### Current Model: IPFS + Centralized Pinning Service
+
+Currently, MetaDrive uses a hybrid model for simplicity and reliability.
+
+-   **How it Works:** Files are uploaded to the IPFS network. To ensure they remain permanently available, a centralized "pinning service" (specifically, **Pinata**) is used. Pinata runs highly available IPFS nodes and "pins" our users' files, acting as a reliable custodian for the data on the network.
+-   **Limits & Cost:** The storage limit is defined by the plan associated with the Pinata account whose API key is used in this application. Free tiers typically offer around 1GB of storage. To store more, the owner of the Pinata account must upgrade to a paid plan.
+-   **Payment:** Payments are handled "off-chain" on Pinata's website using traditional methods like a credit card. **This is a centralized dependency we aim to remove.**
+
+### The Vision: Decentralized Storage Marketplace (Filecoin/Arweave)
+
+To become a truly robust, scalable, and low-cost system, MetaDrive is designed to integrate directly with a decentralized storage marketplace like **Filecoin**.
+
+-   **How it Works:** Instead of relying on a single company like Pinata, the app would allow users to pay for storage directly on an open, global marketplace.
+    1.  A user's file (already encrypted client-side) is offered to the Filecoin network.
+    2.  The user makes a "deal," offering a small amount of cryptocurrency for multiple storage providers (miners) around the world to store their data for a set duration (e.g., one year).
+    3.  These providers must cryptographically prove they are continuously and correctly storing the data to receive their payment. This creates a resilient, self-healing network for the user's files.
+-   **Limits & Cost:**
+    -   **Limitless Storage:** There is no theoretical limit. You can store petabytes of data if you are willing to pay the storage providers for it.
+    -   **Drastically Lower Cost:** Because of the intense global competition between storage providers, the cost of storage on these networks is often orders of magnitude cheaper than on centralized services like AWS S3 or Google Drive.
+-   **Payment with Algorand:** The user experience would remain seamless. A user would keep ALGO in their MetaDrive wallet. When they need to pay for storage, the application could use an integrated decentralized exchange to instantly swap the required amount of ALGO for Filecoin's native token (FIL) to complete the storage deal. The user never has to leave the app or manually manage different cryptocurrencies.
+
+This evolutionary path allows MetaDrive to compete directly with centralized storage systems by offering a more secure, resilient, and cost-effective solution, all while keeping the user in complete control of their data and funds.
+
+---
+
 ## Technology Stack
 
 MetaDrive is built with a modern, full-stack TypeScript architecture.
