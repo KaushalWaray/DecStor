@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -44,12 +44,12 @@ export default function CreateFolderModal({ isOpen, onOpenChange, onConfirm }: C
   };
 
   // Reset state when modal opens/closes
-  useState(() => {
+  useEffect(() => {
     if (!isOpen) {
         setFolderName('');
         setIsLoading(false);
     }
-  });
+  }, [isOpen]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -90,3 +90,4 @@ export default function CreateFolderModal({ isOpen, onOpenChange, onConfirm }: C
     </Dialog>
   );
 }
+
