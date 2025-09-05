@@ -1,15 +1,16 @@
+
 import { PINATA_JWT } from './constants';
 
-export const uploadFileToPinata = async (file: File) => {
+export const uploadFileToPinata = async (file: File, filename?: string) => {
   if (PINATA_JWT === "PASTE_YOUR_JWT_HERE") {
     throw new Error("Pinata JWT is not configured. Please paste your JWT in src/lib/constants.ts");
   }
 
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', file, filename || file.name);
 
   const metadata = JSON.stringify({
-    name: file.name,
+    name: filename || file.name,
   });
   formData.append('pinataMetadata', metadata);
 

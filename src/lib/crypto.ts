@@ -125,3 +125,62 @@ export async function decryptMnemonic(encryptedDataB64: string, pin: string): Pr
         throw new Error("Decryption failed. The PIN may be incorrect or the data may be corrupt.");
     }
 }
+
+
+/**
+ * Encrypts a file using the user's PIN.
+ * @param {File} file The file to encrypt.
+ * @param {string} pin The user's PIN.
+ * @returns {Promise<File>} A new File object with encrypted content.
+ */
+export async function encryptFile(file: File, pin: string): Promise<File> {
+    const key = await getKey(pin);
+    const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
+    const fileBuffer = await file.arrayBuffer();
+
+    const encryptedBuffer = await crypto.subtle.encrypt(
+        { name: "AES-GCM", iv: iv },
+        key,
+        fileBuffer
+    );
+
+    // Combine IV and ciphertext
+    const combinedBuffer = new ArrayBuffer(iv.length + encryptedBuffer.byteLength);
+    const combinedView = new Uint8Array(combinedBuffer);
+    combinedView.set(iv, 0);
+    combinedView.set(new Uint8Array(encryptedBuffer), iv.length);
+
+    // Return a new File object with the encrypted content
+    return new File([combinedBuffer], file.name, { type: 'application/octet-stream' });
+}
+
+
+/**
+ * Decrypts a file using the user's PIN.
+ * @param {Blob} encryptedBlob The encrypted file content as a Blob.
+ * @param {string} pin The user's PIN.
+ * @returns {Promise<Blob>} The decrypted file content as a Blob.
+ */
+export async function decryptFile(encryptedBlob: Blob, pin: string): Promise<Blob> {
+    try {
+        const key = await getKey(pin);
+        const combinedBuffer = await encryptedBlob.arrayBuffer();
+
+        const iv = new Uint8Array(combinedBuffer.slice(0, IV_LENGTH));
+        const ciphertext = new Uint8Array(combinedBuffer.slice(IV_LENGTH));
+
+        const decryptedBuffer = await crypto.subtle.decrypt(
+            { name: "AES-GCM", iv: iv },
+            key,
+            ciphertext
+        );
+        
+        // The original file type isn't stored with the encrypted data, so we return a generic blob.
+        // The browser can often infer the type from the filename extension upon download.
+        return new Blob([decryptedBuffer]);
+
+    } catch (error) {
+        console.error("File decryption failed:", error);
+        throw new Error("File decryption failed. The PIN may be incorrect or the data is corrupt.");
+    }
+}

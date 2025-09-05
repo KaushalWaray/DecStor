@@ -12,9 +12,10 @@ import { getFilesByOwner } from '@/lib/api';
 
 interface InboxProps {
   account: AlgorandAccount;
+  pin: string;
 }
 
-export default function Inbox({ account }: InboxProps) {
+export default function Inbox({ account, pin }: InboxProps) {
   const [allFiles, setAllFiles] = useState<FileMetadata[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -102,6 +103,7 @@ export default function Inbox({ account }: InboxProps) {
             files={filteredFiles}
             folders={[]} // Inbox doesn't show folders
             account={account}
+            pin={pin}
             onShare={noOp}
             onDetails={noOp}
             onDelete={noOp}

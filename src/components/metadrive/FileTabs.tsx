@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,7 +22,7 @@ export default function FileTabs({ account, pin }: FileTabsProps) {
         <MyVault account={account} pin={pin} />
       </TabsContent>
       <TabsContent value="inbox">
-        <Inbox account={account} />
+        <Inbox account={account} pin={pin} />
       </TabsContent>
     </Tabs>
   );

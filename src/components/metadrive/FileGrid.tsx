@@ -11,6 +11,7 @@ interface FileGridProps {
   files: FileMetadata[];
   folders: Folder[];
   account: AlgorandAccount;
+  pin: string; // Add pin for decryption
   onShare: (file: FileMetadata) => void;
   onDetails: (file: FileMetadata) => void;
   onDelete: (file: FileMetadata) => void;
@@ -22,7 +23,7 @@ interface FileGridProps {
   };
 }
 
-export default function FileGrid({ files = [], folders = [], account, onShare, onDetails, onDelete, onFolderClick, emptyState }: FileGridProps) {
+export default function FileGrid({ files = [], folders = [], account, pin, onShare, onDetails, onDelete, onFolderClick, emptyState }: FileGridProps) {
   if (files.length === 0 && folders.length === 0) {
     const Icon = emptyState.icon;
     return (
@@ -49,6 +50,7 @@ export default function FileGrid({ files = [], folders = [], account, onShare, o
         <FileCard 
             key={file.cid} 
             file={file} 
+            pin={pin}
             isOwner={file.owner === account.addr}
             onShare={onShare}
             onDetails={onDetails}

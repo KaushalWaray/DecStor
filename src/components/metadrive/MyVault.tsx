@@ -217,7 +217,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   
   return (
     <div className="space-y-6">
-      <FileUploader ownerAddress={account.addr} onUploadSuccess={fetchFilesAndStorage} currentPath={currentPath}/>
+      <FileUploader ownerAddress={account.addr} pin={pin} onUploadSuccess={fetchFilesAndStorage} currentPath={currentPath}/>
       
       {storageInfo && (
         <StorageManager 
@@ -255,6 +255,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
             files={filteredFiles}
             folders={filteredFolders}
             account={account}
+            pin={pin}
             onShare={handleOpenShareModal}
             onDetails={handleOpenDetailsModal}
             onDelete={handleOpenDeleteModal}
