@@ -56,6 +56,7 @@ export interface FilesAndStorageInfo {
 }
 
 export interface User {
+  _id?: any; // Allow for MongoDB's ObjectId
   address: string;
   storageUsed: number;
   storageTier: 'free' | 'pro';
