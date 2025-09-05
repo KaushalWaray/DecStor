@@ -112,7 +112,7 @@ export const payForStorageUpgrade = async (account: AlgorandAccount, pin: string
     console.log(`[Algorand] Initiating payment for storage upgrade from ${account.addr}`);
 
     // This function now requires the PIN to re-derive the secret key for signing.
-    const storedWallets: WalletEntry[] = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
+    const storedWallets: WalletEntry[] = JSON.parse(localStorage.getItem('decstor_wallets') || '[]');
     const walletEntry = storedWallets.find(w => w.address === account.addr);
     if (!walletEntry) throw new Error("Could not find wallet credentials. Please try re-importing your wallet.");
 

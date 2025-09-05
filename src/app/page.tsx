@@ -25,7 +25,7 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      const storedWallets = localStorage.getItem('metadrive_wallets');
+      const storedWallets = localStorage.getItem('decstor_wallets');
       if (storedWallets) {
         const parsedWallets: WalletEntry[] = JSON.parse(storedWallets);
         if (parsedWallets.length > 0) {
@@ -49,7 +49,7 @@ export default function Home() {
       const encryptedMnemonic = await encryptMnemonic(accountToSave.mnemonic, pinToSave);
       const newWalletEntry: WalletEntry = { address: accountToSave.addr, encryptedMnemonic };
 
-      const storedWallets = localStorage.getItem('metadrive_wallets');
+      const storedWallets = localStorage.getItem('decstor_wallets');
       let currentWallets: WalletEntry[] = storedWallets ? JSON.parse(storedWallets) : [];
       
       const existingWalletIndex = currentWallets.findIndex(w => w.address === newWalletEntry.address);
@@ -60,7 +60,7 @@ export default function Home() {
         currentWallets.push(newWalletEntry);
       }
       
-      localStorage.setItem('metadrive_wallets', JSON.stringify(currentWallets));
+      localStorage.setItem('decstor_wallets', JSON.stringify(currentWallets));
       setWallets(currentWallets);
       setSelectedWallet(newWalletEntry.address);
 
@@ -170,7 +170,7 @@ export default function Home() {
 
   const handleReset = () => {
     if (window.confirm('Are you sure you want to delete all wallets? This action cannot be undone.')) {
-      localStorage.removeItem('metadrive_wallets');
+      localStorage.removeItem('decstor_wallets');
       setWallets([]);
       setAccount(null);
       setPin('');
@@ -183,7 +183,7 @@ export default function Home() {
   const handleDeleteWallet = (address: string) => {
     if (window.confirm('Are you sure you want to delete this wallet? This action cannot be undone.')) {
       const newWallets = wallets.filter(w => w.address !== address);
-      localStorage.setItem('metadrive_wallets', JSON.stringify(newWallets));
+      localStorage.setItem('decstor_wallets', JSON.stringify(newWallets));
       setWallets(newWallets);
       toast({ title: 'Wallet Deleted' });
 
@@ -200,7 +200,7 @@ export default function Home() {
   const getSenderAccount = useCallback(async (): Promise<AlgorandAccount> => {
     if (!account) throw new Error("Wallet not unlocked.");
 
-    const storedWallets: WalletEntry[] = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
+    const storedWallets: WalletEntry[] = JSON.parse(localStorage.getItem('decstor_wallets') || '[]');
     const walletEntry = storedWallets.find(w => w.address === account.addr);
     
     if (!walletEntry) throw new Error("Could not find wallet credentials.");
@@ -299,5 +299,3 @@ export default function Home() {
     </main>
   );
 }
-
-    

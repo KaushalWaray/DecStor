@@ -57,7 +57,7 @@ export interface FilesAndStorageInfo {
 
 export interface Activity {
   _id: string;
-  type: 'UPLOAD' | 'SHARE' | 'DELETE';
+  type: 'UPLOAD' | 'SHARE' | 'DELETE' | 'SEND_ALGO' | 'RECEIVE_ALGO';
   owner: string;
   timestamp: string;
   details: {
@@ -66,6 +66,8 @@ export interface Activity {
     cid?: string;
     recipient?: string;
     itemCount?: number;
+    amount?: number;
+    sender?: string;
     senderAddress?: string; // Added for received shares
   };
   isRead: boolean;

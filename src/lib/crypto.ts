@@ -6,7 +6,7 @@ import algosdk from 'algosdk';
 // This file implements strong, standard-based cryptography using the Web Crypto API.
 // It uses AES-GCM, a widely recommended authenticated encryption cipher.
 
-const SALT = "metadrive-salt"; // A constant salt for key derivation
+const SALT = "decstor-salt"; // A constant salt for key derivation
 const IV_LENGTH = 12; // 12 bytes for GCM is recommended
 
 

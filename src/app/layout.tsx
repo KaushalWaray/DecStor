@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'MetaDrive Wallet',
+  title: 'DecStor Wallet',
   description: 'A Decentralized File Storage and Sharing Wallet',
 };
 

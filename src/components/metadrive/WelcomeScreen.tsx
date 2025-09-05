@@ -17,7 +17,7 @@ export default function WelcomeScreen({ onCreate, onImport }: WelcomeScreenProps
           <div className="mx-auto bg-primary/10 p-4 rounded-full w-fit">
             <Shield className="w-12 h-12 text-primary" />
           </div>
-          <CardTitle className="text-3xl font-headline mt-4">Welcome to MetaDrive</CardTitle>
+          <CardTitle className="text-3xl font-headline mt-4">Welcome to DecStor</CardTitle>
           <CardDescription className="text-lg">Your secure, decentralized vault.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

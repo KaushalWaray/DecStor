@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getNotifications, markNotificationsAsRead } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { LoaderCircle, RefreshCw, Upload, Share2, Trash2, History, Bell, BellOff } from 'lucide-react';
+import { LoaderCircle, RefreshCw, Upload, Share2, Trash2, History, Bell, BellOff, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { truncateAddress } from '@/lib/utils';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,8 @@ const ICONS: { [key in Activity['type']]: React.ElementType } = {
     UPLOAD: Upload,
     SHARE: Share2,
     DELETE: Trash2,
+    SEND_ALGO: ArrowUpRight,
+    RECEIVE_ALGO: ArrowDownLeft,
 };
 
 const getActionText = (activity: Activity) => {
@@ -36,6 +38,10 @@ const getActionText = (activity: Activity) => {
         case 'DELETE':
             const count = activity.details.itemCount || 1;
             return <>deleted {count} {count > 1 ? 'items' : 'item'}.</>;
+        case 'SEND_ALGO':
+            return <>sent <span className="font-semibold text-primary">{activity.details.amount} ALGO</span> to <span className="font-code text-xs text-accent">{truncateAddress(activity.details.recipient!)}</span></>
+        case 'RECEIVE_ALGO':
+            return <>received <span className="font-semibold text-primary">{activity.details.amount} ALGO</span> from <span className="font-code text-xs text-accent">{truncateAddress(activity.details.sender!)}</span></>
         default:
             return 'performed an action.';
     }
@@ -44,6 +50,9 @@ const getActionText = (activity: Activity) => {
 const getSubjectText = (activity: Activity) => {
     if (activity.type === 'SHARE' && activity.details.recipient === 'You') {
         return <span className="font-mono text-xs text-accent">{activity.details.senderAddress ? truncateAddress(activity.details.senderAddress) : 'An unknown user'}</span>;
+    }
+    if(activity.type === 'RECEIVE_ALGO') {
+        return "You";
     }
     return "You";
 }
