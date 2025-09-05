@@ -52,6 +52,7 @@ export interface Activity {
     itemCount?: number;
     amount?: number;
     sender?: string;
+    senderAddress?: string; // Explicitly adding for consistency
   };
   isRead: boolean;
 }
@@ -63,6 +64,7 @@ const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
 const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 const PORT = 3001;
 const MONGO_URI = process.env.MONGO_URI;
+const DB_NAME = 'decstor';
 
 // --- DATABASE CONNECTION ---
 if (!MONGO_URI) {
@@ -82,7 +84,7 @@ let activitiesCollection: Collection<Activity>;
 async function connectToDatabase() {
     try {
         await mongoClient.connect();
-        db = mongoClient.db(); // The database name is specified in the connection string
+        db = mongoClient.db(DB_NAME);
         
         usersCollection = db.collection<User>('users');
         filesCollection = db.collection<FileMetadata>('files');
@@ -594,7 +596,14 @@ app.use('/api', apiRouter);
 
 
 // --- SERVER STARTUP ---
-app.listen(PORT, async () => {
+const startServer = async () => {
     await connectToDatabase();
-    console.log(`✅ Backend service listening at http://localhost:${PORT}`);
-});
+    app.listen(PORT, () => {
+        console.log(`✅ Backend service listening at http://localhost:${PORT}`);
+    });
+};
+
+startServer();
+    
+
+    
