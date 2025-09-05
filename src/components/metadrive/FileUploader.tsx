@@ -123,7 +123,7 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
                 <ShieldCheck className="text-primary"/> 
                 Upload Encrypted Files
             </CardTitle>
-            <CardDescription>Drag & drop files here, or click to browse. Files are encrypted before upload.</CardDescription>
+            <CardDescription>Drag & drop files here, or click to browse. Files are encrypted with the current folder's PIN before upload.</CardDescription>
         </CardHeader>
         <CardContent>
             {isUploading ? (

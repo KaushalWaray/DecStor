@@ -76,7 +76,7 @@ export default function MediaPreviewModal({ isOpen, onOpenChange, file, pin }: M
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, file.cid, pin]); // Rerun if the file or PIN changes while modal is open
 
   // Clean up the object URL when the component unmounts or the modal closes
   useEffect(() => {
