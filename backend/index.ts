@@ -64,7 +64,7 @@ const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
 const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 const PORT = 3001;
 const MONGO_URI = process.env.MONGO_URI;
-const DB_NAME = 'decstor';
+const DB_NAME = 'DecStor';
 
 // --- DATABASE CONNECTION ---
 if (!MONGO_URI) {
@@ -86,7 +86,7 @@ async function connectToDatabase() {
         await mongoClient.connect();
         db = mongoClient.db(DB_NAME);
         
-        usersCollection = db.collection<User>('users');
+        usersCollection = db.collection<User>('Wallets');
         filesCollection = db.collection<FileMetadata>('files');
         sharesCollection = db.collection<Share>('shares');
         foldersCollection = db.collection<Folder>('folders');
@@ -604,6 +604,8 @@ const startServer = async () => {
 };
 
 startServer();
+    
+
     
 
     
