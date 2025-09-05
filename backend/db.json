@@ -19,6 +19,11 @@
       "address": "2KXPIJJF3GRTJO35RKIMYAJK5LYLG7L6YQZ36WYYZVVYMCQYY2QBP7FDL4",
       "storageLimit": 1048576,
       "storageUsed": 35335
+    },
+    {
+      "address": "3EW6RFFIDWSSQ4ST72OXTYWR5KMF56FT337XPZBUNKQQ6Z7KRX6RWLGED4",
+      "storageLimit": 1048576,
+      "storageUsed": 0
     }
   ],
   "files": [
