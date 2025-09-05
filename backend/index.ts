@@ -70,10 +70,31 @@ const __filename = fileURLToPath(import.meta.url);
 const DB_FILE_PATH = path.join(path.dirname(__filename), '..', 'db.json');
 
 
-// --- DYNAMICALLY GENERATED SERVICE WALLET ---
-const storageServiceAccount = algosdk.generateAccount();
-console.log(`[Backend] Storage Service Wallet generated: ${storageServiceAccount.addr}`);
-console.log(`[Backend] This address will receive payments for storage upgrades.`);
+// --- PERSISTENT SERVICE WALLET ---
+let storageServiceAccount: algosdk.Account;
+
+try {
+    const mnemonic = process.env.SERVICE_WALLET_MNEMONIC;
+    if (!mnemonic) {
+        const newAccount = algosdk.generateAccount();
+        console.error("\n[Backend] FATAL: SERVICE_WALLET_MNEMONIC not set in environment.");
+        console.error("="*60)
+        console.error("A new wallet has been generated for you. Please take action:")
+        console.error("1. Create a file named .env in the /backend directory.");
+        console.error("2. Add the following line to the .env file:");
+        console.error(`\n   SERVICE_WALLET_MNEMONIC="${algosdk.secretKeyToMnemonic(newAccount.sk)}"\n`);
+        console.error("3. Restart the backend server.");
+        console.error("="*60)
+        process.exit(1); // Exit if the mnemonic isn't set.
+    }
+    storageServiceAccount = algosdk.mnemonicToSecretKey(mnemonic);
+    console.log(`[Backend] Storage Service Wallet loaded: ${storageServiceAccount.addr}`);
+    console.log(`[Backend] This address will receive payments for storage upgrades.`);
+} catch (error) {
+    console.error("\n[Backend] FATAL: Could not create account from SERVICE_WALLET_MNEMONIC.");
+    console.error("Please ensure the mnemonic in your .env file is a valid 25-word phrase.");
+    process.exit(1);
+}
 
 
 // --- FILE-BASED PERSISTENT DATABASE ---

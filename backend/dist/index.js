@@ -42,7 +42,8 @@ const loadDatabase = () => {
             files = db.files || [];
             shares = db.shares || [];
             folders = db.folders || [];
-            activities = db.activities || []; // NEW: Load activities
+            // Load activities, ensuring isRead defaults to true for old records
+            activities = (db.activities || []).map((a) => ({ ...a, isRead: a.isRead !== undefined ? a.isRead : true }));
             console.log(`[Backend] Database loaded successfully from ${DB_FILE_PATH}.`);
         }
         else {
@@ -62,13 +63,14 @@ const loadDatabase = () => {
     }
 };
 // NEW: Helper to create an activity log
-const createActivity = (owner, type, details) => {
+const createActivity = (owner, type, details, isRead = false) => {
     const newActivity = {
         _id: new Date().toISOString() + Math.random(),
         owner,
         type,
         details,
         timestamp: new Date().toISOString(),
+        isRead,
     };
     activities.unshift(newActivity); // Add to the beginning of the list
 };
@@ -139,8 +141,8 @@ apiRouter.post('/files/metadata', async (req, res) => {
         };
         files.push(newFile);
         user.storageUsed += size;
-        // Log activity
-        createActivity(owner, 'UPLOAD', { filename, cid });
+        // Log activity for the uploader (marked as read)
+        createActivity(owner, 'UPLOAD', { filename, cid }, true);
         saveDatabase();
         console.log(`[Backend] Saved metadata for CID: ${cid} at path ${path}`);
         res.status(201).json({ message: 'Metadata saved successfully.', file: newFile });
@@ -203,8 +205,10 @@ apiRouter.post('/share', async (req, res) => {
             createdAt: new Date().toISOString(),
         };
         shares.push(newShare);
-        // Log activity for both sender and recipient
-        createActivity(file.owner, 'SHARE', { filename: file.filename, cid, recipient: recipientAddress });
+        // Log activity for the SENDER (marked as read)
+        createActivity(file.owner, 'SHARE', { filename: file.filename, cid, recipient: recipientAddress }, true);
+        // Log activity for the RECIPIENT (marked as unread)
+        createActivity(recipientAddress, 'SHARE', { filename: file.filename, cid, recipient: 'You' }, false);
         saveDatabase();
         console.log(`[Backend] Shared CID ${cid} with ${recipientAddress}`);
         res.status(201).json({ message: 'File shared successfully.', share: newShare });
@@ -258,7 +262,7 @@ apiRouter.delete('/files/:fileId', (req, res) => {
             user.storageUsed = 0;
         files.splice(fileIndex, 1);
         shares = shares.filter(s => s.cid !== fileToDelete.cid);
-        createActivity(ownerAddress, 'DELETE', { filename: fileToDelete.filename });
+        createActivity(ownerAddress, 'DELETE', { filename: fileToDelete.filename }, true);
         saveDatabase();
         console.log(`[Backend] Deleted file with CID: ${fileToDelete.cid}`);
         res.status(200).json({ message: 'File deleted successfully.' });
@@ -347,7 +351,7 @@ apiRouter.delete('/folders/:folderId', (req, res) => {
         user.storageUsed -= totalSizeDeleted;
         if (user.storageUsed < 0)
             user.storageUsed = 0;
-        createActivity(ownerAddress, 'DELETE', { folderName: folderToDelete.name });
+        createActivity(ownerAddress, 'DELETE', { folderName: folderToDelete.name }, true);
         saveDatabase();
         console.log(`[Backend] Deleted folder '${folderToDelete.name}' and its contents for owner ${ownerAddress.substring(0, 10)}...`);
         res.status(200).json({ message: 'Folder and its contents deleted successfully.' });
@@ -509,19 +513,22 @@ apiRouter.post('/items/delete', (req, res) => {
             const filesInFolder = files.filter(f => f.path.startsWith(currentPath));
             filesInFolder.forEach(file => itemsToDelete.files.add(file._id));
         }
+        const deletedFilenames = [];
         files = files.filter(f => {
             if (itemsToDelete.files.has(f._id)) {
                 totalSizeDeleted += f.size;
                 shares = shares.filter(s => s.cid !== f.cid);
+                deletedFilenames.push(f.filename);
                 return false;
             }
             return true;
         });
+        const deletedFolderNames = folders.filter(f => itemsToDelete.folders.has(f._id)).map(f => f.name);
         folders = folders.filter(f => !itemsToDelete.folders.has(f._id));
         user.storageUsed -= totalSizeDeleted;
         if (user.storageUsed < 0)
             user.storageUsed = 0;
-        createActivity(ownerAddress, 'DELETE', { itemCount: itemsToDelete.files.size + itemsToDelete.folders.size });
+        createActivity(ownerAddress, 'DELETE', { itemCount: deletedFilenames.length + deletedFolderNames.length }, true);
         saveDatabase();
         res.status(200).json({ message: 'Items deleted successfully.' });
     }
@@ -534,31 +541,50 @@ apiRouter.post('/items/delete', (req, res) => {
 apiRouter.get('/activity/:ownerAddress', (req, res) => {
     try {
         const { ownerAddress } = req.params;
-        const userActivities = activities.filter(a => a.owner === ownerAddress);
-        // Also find shares where the user is the recipient
-        const receivedShareCids = shares.filter(s => s.recipientAddress === ownerAddress).map(s => s.cid);
-        const receivedShareFiles = files.filter(f => receivedShareCids.includes(f.cid));
-        const receivedShareActivities = receivedShareFiles.map(file => {
-            const shareInfo = shares.find(s => s.cid === file.cid && s.recipientAddress === ownerAddress);
-            return {
-                _id: `${file._id}-share-receipt`,
-                owner: ownerAddress,
-                type: 'SHARE',
-                timestamp: shareInfo.createdAt,
-                details: {
-                    filename: file.filename,
-                    cid: file.cid,
-                    recipient: 'You', // This indicates a received share
-                    // We need the sender info here. Let's add it.
-                    // The frontend will need the full share list to resolve sender.
-                }
-            };
+        let userActivities = activities.filter(a => a.owner === ownerAddress);
+        userActivities = userActivities.map(activity => {
+            if (activity.type === 'SHARE' && activity.details.recipient === 'You') {
+                const shareInfo = shares.find(s => s.cid === activity.details.cid && s.recipientAddress === ownerAddress);
+                return {
+                    ...activity,
+                    details: {
+                        ...activity.details,
+                        senderAddress: shareInfo?.senderAddress
+                    }
+                };
+            }
+            return activity;
         });
-        const allUserActivities = [...userActivities, ...receivedShareActivities].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        res.status(200).json({ activities: allUserActivities, shares: shares });
+        const allUserActivities = userActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        res.status(200).json({ activities: allUserActivities });
     }
     catch (error) {
         console.error('[Backend] Error fetching activity:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+// 15. NEW: Mark activities as read for a user
+apiRouter.post('/activity/mark-read', (req, res) => {
+    try {
+        const { ownerAddress } = req.body;
+        if (!ownerAddress) {
+            return res.status(400).json({ error: 'Owner address is required.' });
+        }
+        let markedAsReadCount = 0;
+        activities.forEach(activity => {
+            if (activity.owner === ownerAddress && !activity.isRead) {
+                activity.isRead = true;
+                markedAsReadCount++;
+            }
+        });
+        if (markedAsReadCount > 0) {
+            saveDatabase();
+        }
+        console.log(`[Backend] Marked ${markedAsReadCount} notifications as read for ${ownerAddress.substring(0, 10)}...`);
+        res.status(200).json({ message: 'Notifications marked as read.' });
+    }
+    catch (error) {
+        console.error('[Backend] Error marking notifications as read:', error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 });
