@@ -195,7 +195,7 @@ apiRouter.get('/files/:ownerAddress', async (req, res) => {
         let ownedFoldersQuery = recursive ? { owner: ownerAddress } : { owner: ownerAddress, path: req.query.path || '/' };
         const ownedFiles = await filesCollection.find(ownedFilesQuery).toArray();
         const ownedFolders = await foldersCollection.find(ownedFoldersQuery).toArray();
-        const sharedCids = await sharesCollection.find({ recipientAddress: ownerAddress }).map(s => s.cid).toArray();
+        const sharedCids = await sharesCollection.find({ recipientAddress: ownerAddress }).map((s) => s.cid).toArray();
         const sharedFiles = await filesCollection.find({ cid: { $in: sharedCids } }).toArray();
         const user = await findOrCreateUser(ownerAddress);
         console.log(`[Backend] Found ${ownedFiles.length} files and ${ownedFolders.length} folders for owner ${ownerAddress.substring(0, 10)}... at path ${ownedFilesQuery.path || '(recursive)'}`);
@@ -339,7 +339,7 @@ apiRouter.put('/files/:fileId/rename', async (req, res) => {
         if (!fileId || !ownerAddress || !newName) {
             return res.status(400).json({ error: 'File ID, owner address, and new name are required.' });
         }
-        const fileToRename = await filesCollection.findOne({ _id: fileId, owner: ownerAddress });
+        const fileToRename = await filesCollection.findOne({ _id: new ObjectId(fileId), owner: ownerAddress });
         if (!fileToRename) {
             return res.status(404).json({ error: 'File not found or you do not have permission to rename it.' });
         }
@@ -363,8 +363,8 @@ apiRouter.put('/items/move', async (req, res) => {
         if (!ownerAddress || !itemIds || !itemTypes || newPath === undefined) {
             return res.status(400).json({ error: 'Owner, item IDs, item types, and new path are required.' });
         }
-        const fileIds = itemIds.filter((id, i) => itemTypes[i] === 'file').map(id => new ObjectId(id));
-        const folderIds = itemIds.filter((id, i) => itemTypes[i] === 'folder').map(id => new ObjectId(id));
+        const fileIds = itemIds.filter((id, i) => itemTypes[i] === 'file').map((id) => new ObjectId(id));
+        const folderIds = itemIds.filter((id, i) => itemTypes[i] === 'folder').map((id) => new ObjectId(id));
         await filesCollection.updateMany({ _id: { $in: fileIds } }, { $set: { path: newPath } });
         const foldersToMove = await foldersCollection.find({ _id: { $in: folderIds } }).toArray();
         for (const folderToMove of foldersToMove) {
@@ -394,8 +394,8 @@ apiRouter.post('/items/delete', async (req, res) => {
         const foldersToDeleteIds = new Set();
         const initialFiles = await filesCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
         const initialFolders = await foldersCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
-        initialFiles.forEach(f => filesToDeleteIds.add(f._id.toString()));
-        initialFolders.forEach(f => foldersToDeleteIds.add(f._id.toString()));
+        initialFiles.forEach((f) => filesToDeleteIds.add(f._id.toString()));
+        initialFolders.forEach((f) => foldersToDeleteIds.add(f._id.toString()));
         const foldersToScan = [...initialFolders];
         while (foldersToScan.length > 0) {
             const currentFolder = foldersToScan.pop();
@@ -410,13 +410,13 @@ apiRouter.post('/items/delete', async (req, res) => {
                 }
             }
             const filesInFolder = await filesCollection.find({ path: { $regex: `^${currentPath}` }, owner: ownerAddress }).toArray();
-            filesInFolder.forEach(file => filesToDeleteIds.add(file._id.toString()));
+            filesInFolder.forEach((file) => filesToDeleteIds.add(file._id.toString()));
         }
         const finalFileIdsToDelete = Array.from(filesToDeleteIds).map(id => new ObjectId(id));
         const finalFolderIdsToDelete = Array.from(foldersToDeleteIds).map(id => new ObjectId(id));
         const filesToDeleteResult = await filesCollection.find({ _id: { $in: finalFileIdsToDelete } }).toArray();
         let totalSizeDeleted = filesToDeleteResult.reduce((sum, file) => sum + file.size, 0);
-        const cidsToDelete = filesToDeleteResult.map(f => f.cid);
+        const cidsToDelete = filesToDeleteResult.map((f) => f.cid);
         await filesCollection.deleteMany({ _id: { $in: finalFileIdsToDelete } });
         await foldersCollection.deleteMany({ _id: { $in: finalFolderIdsToDelete } });
         await sharesCollection.deleteMany({ cid: { $in: cidsToDelete } });
