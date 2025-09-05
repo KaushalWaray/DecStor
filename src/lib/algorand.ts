@@ -78,9 +78,11 @@ export const shareFile = async (
 };
 
 export const payForStorageUpgrade = async (sender: AlgorandAccount) => {
-    console.log(`[Algorand] Sending payment for storage upgrade from ${sender.addr}`);
+    console.log(`[Algorand] Initiating payment for storage upgrade from ${sender.addr}`);
     
     const params = await algodClient.getTransactionParams().do();
+    console.log('[Algorand] Got transaction params.');
+
     const amount = UPGRADE_COST_ALGOS * 1_000_000; // to microAlgos
 
     const paymentTxn = makePaymentTxnWithSuggestedParamsFromObject({
@@ -89,13 +91,17 @@ export const payForStorageUpgrade = async (sender: AlgorandAccount) => {
         amount,
         suggestedParams: params,
     });
+    console.log('[Algorand] Created payment transaction object.');
 
     const signedTxn = paymentTxn.signTxn(sender.sk);
     const txId = paymentTxn.txID().toString();
+    console.log(`[Algorand] Signed transaction with ID: ${txId}`);
 
     await algodClient.sendRawTransaction(signedTxn).do();
+    console.log('[Algorand] Sent raw transaction to the network.');
+    
     await waitForConfirmation(algodClient, txId, 4);
+    console.log(`[Algorand] Payment transaction confirmed on-chain.`);
 
-    console.log(`[Algorand] Payment transaction successful with ID: ${txId}`);
     return { txId };
 };

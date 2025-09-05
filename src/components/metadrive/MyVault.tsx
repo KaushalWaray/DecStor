@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import type { AlgorandAccount, FileMetadata, StorageInfo, FilesAndStorageInfo } from '@/types';
+import type { AlgorandAccount, FileMetadata, StorageInfo, FilesAndStorageInfo, WalletEntry } from '@/types';
 import { getFilesByOwner, confirmPayment } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
@@ -92,26 +92,29 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const handleUpgrade = async () => {
       setIsUpgrading(true);
       try {
-        toast({ title: "Action Required", description: "Please approve the payment transaction in your wallet." });
+        toast({ title: "Preparing Upgrade...", description: "Please approve the payment transaction." });
         
-        // We need the full account with private key to sign
-        const storedWallets = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
-        const walletEntry = storedWallets.find((w: any) => w.address === account.addr);
-        if (!walletEntry) throw new Error("Could not find wallet credentials to sign transaction.");
+        const storedWallets: WalletEntry[] = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
+        const walletEntry = storedWallets.find(w => w.address === account.addr);
+        
+        if (!walletEntry) {
+          throw new Error("Could not find wallet credentials. Please try re-importing your wallet.");
+        }
 
         const mnemonic = await decryptMnemonic(walletEntry.encryptedMnemonic, pin);
-        if (!mnemonic) throw new Error("Decryption failed");
+        if (!mnemonic) {
+          throw new Error("Decryption failed. Please check your PIN and try again.");
+        }
+        
         const senderAccount = mnemonicToAccount(mnemonic);
         
-        // 1. Send the payment transaction
         const { txId } = await payForStorageUpgrade(senderAccount);
-        toast({ title: "Payment Sent!", description: "Waiting for network confirmation..." });
+        toast({ title: "Payment Sent!", description: `Transaction ${truncateAddress(txId, 6, 4)} confirmed. Finalizing upgrade...` });
 
-        // 2. Confirm payment with the backend
         const updatedStorageInfo = await confirmPayment(senderAccount.addr, txId);
         setStorageInfo(updatedStorageInfo);
 
-        toast({ title: "Upgrade Complete!", description: "Your storage has been successfully upgraded." });
+        toast({ title: "Upgrade Complete!", description: "Your storage has been successfully upgraded to 100MB." });
 
       } catch (error: any) {
           console.error("Upgrade failed:", error);
