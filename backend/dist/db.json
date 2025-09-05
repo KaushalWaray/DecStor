@@ -1,0 +1,17 @@
+{
+  "users": [
+    {
+      "address": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
+      "storageLimit": 1048576,
+      "storageUsed": 0
+    },
+    {
+      "address": "CQHBYCZEFV5HEGXHBVJILW7N3LJMB2LDNZMA7AAYOMG6S3DOV3LUBGYK64",
+      "storageLimit": 1048576,
+      "storageUsed": 0
+    }
+  ],
+  "files": [],
+  "shares": [],
+  "folders": []
+}
