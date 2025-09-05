@@ -186,6 +186,22 @@ apiRouter.get('/service-address', (req, res) => {
     res.status(200).json({ address: storageServiceAccount.addr });
 });
 
+// NEW: Endpoint to ensure a user exists upon wallet import/creation
+apiRouter.post('/users/find-or-create', async (req, res) => {
+    try {
+        const { address } = req.body;
+        if (!address) {
+            return res.status(400).json({ error: 'Address is required.' });
+        }
+        const user = await findOrCreateUser(address);
+        res.status(200).json({ user });
+    } catch (error) {
+        console.error('[Backend] Error finding or creating user:', error);
+        res.status(500).json({ error: 'Internal server error while finding or creating user.' });
+    }
+});
+
+
 // 2. Save File Metadata
 apiRouter.post('/files/metadata', async (req, res) => {
     try {

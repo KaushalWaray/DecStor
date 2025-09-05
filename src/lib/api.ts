@@ -109,6 +109,10 @@ export const recordShareInDb = async (cid: string, recipientAddress: string) => 
     return api.post('/share', { cid, recipientAddress });
 };
 
+export const findOrCreateUserInDb = async (address: string) => {
+    return api.post('/users/find-or-create', { address });
+};
+
 export const confirmPayment = async (senderAddress: string, txId: string): Promise<StorageInfo> => {
     const res = await api.post('/payment/confirm', { senderAddress, txId });
     return res.storageInfo;

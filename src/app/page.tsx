@@ -7,6 +7,7 @@ import { encryptMnemonic, decryptMnemonic } from '@/lib/crypto';
 import { mnemonicToAccount, isValidMnemonic, sendPayment, sendFile } from '@/lib/algorand';
 import { useToast } from '@/hooks/use-toast';
 import { truncateAddress } from '@/lib/utils';
+import { findOrCreateUserInDb } from '@/lib/api';
 
 import WelcomeScreen from '@/components/metadrive/WelcomeScreen';
 import CreateWalletFlow from '@/components/metadrive/CreateWalletFlow';
@@ -79,6 +80,8 @@ export default function Home() {
     try {
       const newAccount = mnemonicToAccount(mnemonic);
       await saveWallet(newAccount, newPin);
+      // Also ensure user exists in DB
+      await findOrCreateUserInDb(newAccount.addr);
       setAccount(newAccount);
       setPin(newPin);
       setWalletState('unlocked');
@@ -111,15 +114,18 @@ export default function Home() {
       }
       
       await saveWallet(newAccount, newPin);
+      // Ensure user exists in the database on import
+      await findOrCreateUserInDb(newAccount.addr);
+
       setAccount(newAccount);
       setPin(newPin);
       setWalletState('unlocked');
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
       toast({
         variant: 'destructive',
         title: 'Import Failed',
-        description: 'Could not import the wallet. Please check the phrase and try again.',
+        description: error.message || 'Could not import the wallet. Please check the phrase and try again.',
       });
     }
   };
