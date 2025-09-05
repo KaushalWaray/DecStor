@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Folder, MoreVertical, Trash2, Edit, FolderLock } from "lucide-react";
+import { Folder, MoreVertical, Trash2, Edit, FolderLock, ArrowRight } from "lucide-react";
 import type { Folder as FolderType } from "@/types";
 import { format } from "date-fns";
 import { Button } from "../ui/button";
@@ -16,11 +16,12 @@ interface FolderCardProps {
   onFolderClick: (folder: FolderType) => void;
   onDelete: (folder: FolderType) => void;
   onRename: (folder: FolderType) => void;
+  onMove: (folder: FolderType) => void;
   isSelected: boolean;
   onSelectionChange: (checked: boolean) => void;
 }
 
-export default function FolderCard({ folder, onFolderClick, onDelete, onRename, isSelected, onSelectionChange }: FolderCardProps) {
+export default function FolderCard({ folder, onFolderClick, onDelete, onRename, onMove, isSelected, onSelectionChange }: FolderCardProps) {
   const Icon = folder.isLocked ? FolderLock : Folder;
 
   return (
@@ -58,6 +59,9 @@ export default function FolderCard({ folder, onFolderClick, onDelete, onRename, 
               <DropdownMenuItem onClick={() => onRename(folder)}>
                 <Edit className="mr-2 h-4 w-4" /> Rename
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onMove(folder)}>
+                <ArrowRight className="mr-2 h-4 w-4" /> Move
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => onDelete(folder)} className="text-destructive focus:text-destructive-foreground focus:bg-destructive">
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
@@ -75,5 +79,3 @@ export default function FolderCard({ folder, onFolderClick, onDelete, onRename, 
     </Card>
   );
 }
-
-    

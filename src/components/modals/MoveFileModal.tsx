@@ -21,13 +21,13 @@ interface MoveFileModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onConfirm: (newPath: string) => Promise<void>;
+  isLoading: boolean;
   itemsToMove: (FileMetadata | FolderType)[];
   allFolders: FolderType[];
 }
 
-export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, itemsToMove, allFolders }: MoveFileModalProps) {
+export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, isLoading, itemsToMove, allFolders }: MoveFileModalProps) {
   const [destinationPath, setDestinationPath] = useState<string | undefined>(undefined);
-  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   const handleConfirm = async () => {
@@ -35,9 +35,7 @@ export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, itemsTo
       toast({ variant: 'destructive', title: 'No Destination', description: 'Please select a destination folder.' });
       return;
     }
-    setIsLoading(true);
     await onConfirm(destinationPath);
-    setIsLoading(false);
     onOpenChange(false);
   };
 
@@ -45,35 +43,40 @@ export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, itemsTo
   useEffect(() => {
     if (!isOpen) {
         setDestinationPath(undefined);
-        setIsLoading(false);
     }
   }, [isOpen]);
 
   const availableFolders = useMemo(() => {
-    // Paths of the folders being moved
+    // Paths of the folders being moved, e.g., ["/Work/", "/Personal/Photos/"]
     const movingFolderPaths = itemsToMove
-        .filter(item => !('cid' in item))
+        .filter((item): item is FolderType => !('cid' in item))
         .map(folder => `${folder.path}${folder.name}/`);
 
-    // We can't move items to themselves or their own subfolders.
-    const isInvalidDestination = (destFolder: {name: string, path: string}) => {
-        // Can't move to a folder that is currently selected for moving.
-        if (itemsToMove.some(item => !('cid' in item) && `${item.path}${item.name}/` === destFolder.path)) {
-            return true;
-        }
-        // Can't move a folder into its own subfolder.
-        if (movingFolderPaths.some(movingPath => destFolder.path.startsWith(movingPath))) {
-            return true;
-        }
-        return false;
-    }
-
+    // Paths of the parent folders of files being moved. We can't move a file to its current location.
+    const currentFilePaths = itemsToMove
+        .filter((item): item is FileMetadata => 'cid' in item)
+        .map(file => file.path);
+        
     const allPossibleFolders = [
       { name: 'My Vault (Root)', path: '/' },
       ...allFolders.map(f => ({ name: f.path + f.name, path: `${f.path}${f.name}/` }))
     ];
 
-    return allPossibleFolders.filter(f => !isInvalidDestination(f));
+    return allPossibleFolders.filter(destFolder => {
+        // Can't move a folder into itself or one of its own children.
+        if (movingFolderPaths.some(movingPath => destFolder.path.startsWith(movingPath))) {
+            return false;
+        }
+
+        // If we are ONLY moving files (no folders), we can't move them to their current directory.
+        if (movingFolderPaths.length === 0 && itemsToMove.length > 0) {
+            if (currentFilePaths.every(path => path === destFolder.path)) {
+                return false;
+            }
+        }
+        
+        return true;
+    });
   }, [allFolders, itemsToMove]);
 
   if (!itemsToMove.length) return null;

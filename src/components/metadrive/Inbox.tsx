@@ -6,7 +6,7 @@ import type { AlgorandAccount, FileMetadata, Folder } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, RefreshCw, Inbox as InboxIcon, FileSearch, Search } from 'lucide-react';
+import { LoaderCircle, RefreshCw, Inbox as InboxIcon, FileSearch, Search, List, LayoutGrid } from 'lucide-react';
 import FileGrid from './FileGrid';
 import { getFilesByOwner } from '@/lib/api';
 
@@ -19,6 +19,7 @@ export default function Inbox({ account, pin }: InboxProps) {
   const [allFiles, setAllFiles] = useState<FileMetadata[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [view, setView] = useState<'grid' | 'list'>('grid');
   const { toast } = useToast();
 
   // The inbox will show all files shared with the user, regardless of folder structure for now.
@@ -88,10 +89,13 @@ export default function Inbox({ account, pin }: InboxProps) {
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
-          <Button onClick={() => handleRefresh(false)} disabled={isLoading} className="flex-shrink-0">
-            {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            Refresh
-          </Button>
+            <Button variant="outline" size="icon" onClick={() => setView(v => v === 'grid' ? 'list' : 'grid')} title={view === 'grid' ? 'Switch to List View' : 'Switch to Grid View'}>
+                {view === 'grid' ? <List /> : <LayoutGrid />}
+            </Button>
+            <Button onClick={() => handleRefresh(false)} disabled={isLoading} className="flex-shrink-0">
+                {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                Refresh
+            </Button>
         </div>
       </div>
       {isLoading && filteredFiles.length === 0 ? (
@@ -104,12 +108,16 @@ export default function Inbox({ account, pin }: InboxProps) {
             folders={[]} // Inbox doesn't show folders
             account={account}
             pin={pin}
-            onShare={noOp}
+            onSend={noOp}
             onDetails={noOp}
             onDelete={noOp}
             onMove={noOp}
+            onRename={noOp}
             onFolderClick={noOp}
             emptyState={getEmptyState()}
+            view={view}
+            selectedItems={[]} // No bulk actions in inbox for now
+            onSelectionChange={noOp}
         />
       )}
     </div>

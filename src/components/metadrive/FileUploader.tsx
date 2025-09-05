@@ -71,7 +71,7 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
     
     toast({ 
         title: 'Uploads Complete!', 
-        description: `${uploadProgress.completed} of ${filesToUpload.length} files saved to your vault.`,
+        description: `${filesToUpload.length} of ${filesToUpload.length} files saved to your vault.`,
         className: 'bg-green-500 text-white',
         duration: 5000,
     });
@@ -79,7 +79,7 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
     setFilesToUpload([]);
     onUploadSuccess();
     setIsUploading(false);
-  }, [filesToUpload, ownerAddress, pin, currentPath, onUploadSuccess, toast, uploadProgress.completed]);
+  }, [filesToUpload, ownerAddress, pin, currentPath, onUploadSuccess, toast]);
 
   const onDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();

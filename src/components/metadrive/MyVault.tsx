@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { AlgorandAccount, FileMetadata, Folder, StorageInfo, WalletEntry } from '@/types';
-import { getFilesByOwner, confirmPayment, getStorageServiceAddress, deleteFileFromDb, createFolder as apiCreateFolder, moveFile as apiMoveFile, getAllFolders, deleteFolder as apiDeleteFolder, renameFolder as apiRenameFolder, renameFile as apiRenameFile, moveItems as apiMoveItems, deleteItems as apiDeleteItems } from '@/lib/api';
+import { getFilesByOwner, confirmPayment, getStorageServiceAddress, createFolder as apiCreateFolder, renameFolder as apiRenameFolder, renameFile as apiRenameFile, moveItems as apiMoveItems, deleteItems as apiDeleteItems } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
@@ -371,7 +371,7 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                 <Button variant="outline" size="icon" onClick={() => setView(v => v === 'grid' ? 'list' : 'grid')}>
+                 <Button variant="outline" size="icon" onClick={() => setView(v => v === 'grid' ? 'list' : 'grid')} title={view === 'grid' ? 'Switch to List View' : 'Switch to Grid View'}>
                     {view === 'grid' ? <List /> : <LayoutGrid />}
                 </Button>
                 <Button onClick={() => setIsCreateFolderModalOpen(true)}>
@@ -473,6 +473,7 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
                 isOpen={isMoveModalOpen}
                 onOpenChange={setIsMoveModalOpen}
                 onConfirm={handleConfirmMove}
+                isLoading={isMoving}
                 itemsToMove={itemsToMove}
                 allFolders={allFolders}
              />

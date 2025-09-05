@@ -103,14 +103,6 @@ export const getFilesByOwner = async (ownerAddress: string, path: string, recurs
   };
 };
 
-
-export const getAllFolders = async (ownerAddress: string): Promise<{folders: Folder[]}> => {
-    const response = await getFilesByOwner(ownerAddress, '/', true);
-    return {
-        folders: response.folders || [],
-    }
-}
-
 export const recordShareInDb = async (cid: string, recipientAddress: string) => {
     return api.post('/share', { cid, recipientAddress });
 };
@@ -124,21 +116,9 @@ export const getStorageServiceAddress = async (): Promise<{address: string}> => 
     return api.get('/service-address');
 }
 
-export const deleteFileFromDb = async (cid: string, ownerAddress: string) => {
-    return api.delete(`/files/${cid}`, { ownerAddress });
-}
-
 export const createFolder = async (folder: Omit<Folder, '_id' | 'createdAt'>): Promise<{folder: Folder}> => {
     return api.post('/folders', folder);
 }
-
-export const moveFile = async (cid: string, ownerAddress: string, newPath: string) => {
-    return api.put(`/files/${cid}/move`, { ownerAddress, newPath });
-};
-
-export const deleteFolder = async (folderId: string, ownerAddress: string) => {
-    return api.delete(`/folders/${folderId}`, { ownerAddress });
-};
 
 export const renameFolder = async (folderId: string, ownerAddress: string, newName: string) => {
     return api.put(`/folders/${folderId}/rename`, { ownerAddress, newName });

@@ -68,6 +68,7 @@ export default function FileGrid({
           <FileListView
               files={files}
               folders={folders}
+              pin={pin}
               onFolderClick={onFolderClick}
               onSelectionChange={onSelectionChange}
               selectedItems={selectedItems}
@@ -88,6 +89,7 @@ export default function FileGrid({
           folder={folder}
           onFolderClick={onFolderClick}
           onDelete={() => onDelete(folder)}
+          onMove={() => onMove([folder])}
           onRename={() => onRename(folder)}
           isSelected={isSelected(folder)}
           onSelectionChange={(checked) => onSelectionChange(folder, checked)}
