@@ -6,8 +6,11 @@
     "moduleResolution": "NodeNext",
     "outDir": "./dist",
     "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
     "strict": true,
-    "sourceMap": true
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "resolveJsonModule": true
   },
   "include": ["index.ts"],
   "exclude": ["node_modules"]
