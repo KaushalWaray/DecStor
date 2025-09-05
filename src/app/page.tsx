@@ -180,19 +180,19 @@ export default function Home() {
   };
 
   const handleDeleteWallet = (address: string) => {
-      if (window.confirm('Are you sure you want to delete this wallet? This action cannot be undone.')) {
-        const newWallets = wallets.filter(w => w.address !== address);
-        localStorage.setItem('metadrive_wallets', JSON.stringify(newWallets));
-        setWallets(newWallets);
-        toast({ title: 'Wallet Deleted' });
+    if (window.confirm('Are you sure you want to delete this wallet? This action cannot be undone.')) {
+      const newWallets = wallets.filter(w => w.address !== address);
+      localStorage.setItem('metadrive_wallets', JSON.stringify(newWallets));
+      setWallets(newWallets);
+      toast({ title: 'Wallet Deleted' });
 
-        if (newWallets.length === 0) {
-            setSelectedWallet('');
-            setWalletState('no_wallet');
-        } else {
-            setSelectedWallet(newWallets[0].address);
-        }
+      if (newWallets.length === 0) {
+          setSelectedWallet('');
+          setWalletState('no_wallet');
+      } else {
+          setSelectedWallet(newWallets[0].address);
       }
+    }
   };
 
 
