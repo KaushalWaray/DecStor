@@ -377,7 +377,7 @@ apiRouter.post('/folders', (req, res) => {
     }
 });
 
-// 8. Move a file to a new path
+// 8. Move a file to a new path (Legacy - kept for reference, but /items/move is primary)
 apiRouter.put('/files/:fileId/move', (req, res) => {
     try {
         const { fileId } = req.params;
@@ -403,7 +403,7 @@ apiRouter.put('/files/:fileId/move', (req, res) => {
     }
 });
 
-// 9. Delete a folder (and its contents)
+// 9. Delete a folder (and its contents) - (Legacy, replaced by /items/delete)
 apiRouter.delete('/folders/:folderId', (req, res) => {
     try {
         const { folderId } = req.params;
@@ -539,26 +539,60 @@ apiRouter.put('/files/:fileId/rename', (req, res) => {
     }
 });
 
-// 12. Move multiple items
+// 12. Move multiple items (NEW, ROBUST IMPLEMENTATION)
 apiRouter.put('/items/move', (req, res) => {
     try {
         const { ownerAddress, itemIds, itemTypes, newPath } = req.body;
         if (!ownerAddress || !itemIds || !itemTypes || newPath === undefined) {
             return res.status(400).json({ error: 'Owner, item IDs, item types, and new path are required.' });
         }
-
+        
+        // Separate files and folders to be moved
+        const filesToMove: FileMetadata[] = [];
+        const foldersToMove: Folder[] = [];
         itemIds.forEach((id: string, index: number) => {
             if (itemTypes[index] === 'file') {
                 const file = files.find(f => f._id === id && f.owner === ownerAddress);
-                if (file) file.path = newPath;
+                if (file) filesToMove.push(file);
             } else if (itemTypes[index] === 'folder') {
                 const folder = folders.find(f => f._id === id && f.owner === ownerAddress);
-                if(folder) folder.path = newPath;
+                if (folder) foldersToMove.push(folder);
             }
+        });
+        
+        // Move top-level files
+        filesToMove.forEach(file => {
+            file.path = newPath;
+        });
+
+        // Move top-level folders and all their descendants
+        foldersToMove.forEach(folderToMove => {
+            const oldPathPrefix = `${folderToMove.path}${folderToMove.name}/`;
+            const newName = folderToMove.name; // Name stays the same, only path changes
+            const newPathPrefix = `${newPath}${newName}/`;
+
+            // Update all descendant files
+            files.forEach(file => {
+                if (file.owner === ownerAddress && file.path.startsWith(oldPathPrefix)) {
+                    // Replace the old prefix with the new one
+                    file.path = file.path.replace(oldPathPrefix, newPathPrefix);
+                }
+            });
+
+            // Update all descendant folders
+            folders.forEach(folder => {
+                if (folder.owner === ownerAddress && folder.path.startsWith(oldPathPrefix)) {
+                    folder.path = folder.path.replace(oldPathPrefix, newPathPrefix);
+                }
+            });
+            
+            // Finally, move the folder itself
+            folderToMove.path = newPath;
         });
 
         saveDatabase();
         res.status(200).json({ message: 'Items moved successfully.' });
+        
     } catch(error) {
         console.error('[Backend] Error moving items:', error);
         res.status(500).json({ error: 'Internal server error while moving items.' });
@@ -582,43 +616,37 @@ apiRouter.post('/items/delete', (req, res) => {
             folders: new Set<string>()
         };
 
-        // First, find all initial items to delete
-        itemIds.forEach((id: string) => {
-            if (files.some(f => f._id === id && f.owner === ownerAddress)) {
-                itemsToDelete.files.add(id);
-            } else if (folders.some(f => f._id === id && f.owner === ownerAddress)) {
-                itemsToDelete.folders.add(id);
-            }
+        const initialFolders = folders.filter(f => itemIds.includes(f._id));
+
+        // Add initial selections
+        itemIds.forEach(id => {
+            if (files.some(f => f._id === id)) itemsToDelete.files.add(id);
+            if (folders.some(f => f._id === id)) itemsToDelete.folders.add(id);
         });
 
-        // Recursively find all sub-items for deletion
-        let changed = true;
-        while(changed) {
-            changed = false;
-            folders.forEach(folder => {
-                if (itemsToDelete.folders.has(folder._id)) return; // Already marked
-                
-                const parentPath = folder.path.slice(0, -1);
-                const parentFolder = folders.find(f => `${f.path}${f.name}` === parentPath);
+        // Recursively find all sub-folders and files
+        const foldersToScan = [...initialFolders];
+        while(foldersToScan.length > 0) {
+            const currentFolder = foldersToScan.pop();
+            if (!currentFolder) continue;
 
-                if (parentFolder && itemsToDelete.folders.has(parentFolder._id)) {
-                    itemsToDelete.folders.add(folder._id);
-                    changed = true;
+            const currentPath = `${currentFolder.path}${currentFolder.name}/`;
+            
+            // Find direct subfolders and add them to be scanned
+            const subFolders = folders.filter(f => f.path === currentPath);
+            subFolders.forEach(sub => {
+                if (!itemsToDelete.folders.has(sub._id)) {
+                    itemsToDelete.folders.add(sub._id);
+                    foldersToScan.push(sub);
                 }
             });
+
+            // Find files in the current folder and its subfolders
+             const filesInFolder = files.filter(f => f.path.startsWith(currentPath));
+             filesInFolder.forEach(file => itemsToDelete.files.add(file._id));
         }
 
-        // Add all files within folders marked for deletion
-        files.forEach(file => {
-            if (itemsToDelete.files.has(file._id)) return;
-            const parentFolder = folders.find(f => `${f.path}${f.name}/` === file.path);
-            if (parentFolder && itemsToDelete.folders.has(parentFolder._id)) {
-                itemsToDelete.files.add(file._id);
-            }
-        });
-
-
-        // Perform deletion
+        // Perform deletion and calculate size
         files = files.filter(f => {
             if (itemsToDelete.files.has(f._id)) {
                 totalSizeDeleted += f.size;
@@ -653,3 +681,5 @@ app.listen(PORT, () => {
     loadDatabase(); // Load the database from file on server start
     console.log(`✅ Backend service listening at http://localhost:${PORT}`);
 });
+
+    
