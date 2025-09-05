@@ -141,23 +141,22 @@ apiRouter.get('/files/:ownerAddress', async (req, res) => {
         const { ownerAddress } = req.params;
         const currentPath = req.query.path || '/';
         const recursive = req.query.recursive === 'true';
-        // Get owned files and folders for the current path
-        const ownedFiles = files.filter(f => f.owner === ownerAddress && f.path === currentPath);
-        // Get folders. If recursive, get all folders for the user.
-        const ownedFolders = recursive
-            ? folders.filter(f => f.owner === ownerAddress)
-            : folders.filter(f => f.owner === ownerAddress && f.path === currentPath);
-        // Get shared files (for inbox functionality - path independent for simplicity for now)
+        let ownedFiles = files.filter(f => f.owner === ownerAddress);
+        let ownedFolders = folders.filter(f => f.owner === ownerAddress);
+        // If not recursive, filter by the current path.
+        if (!recursive) {
+            ownedFiles = ownedFiles.filter(f => f.path === currentPath);
+            ownedFolders = ownedFolders.filter(f => f.path === currentPath);
+        }
+        // Get shared files (for inbox functionality - path independent)
         const sharedCids = shares.filter(s => s.recipientAddress === ownerAddress).map(s => s.cid);
         const sharedFiles = files.filter(f => sharedCids.includes(f.cid));
-        // For the main vault view, we only want owned items.
-        // For a more complex "Shared with me" section, we'd handle shared folders separately.
         const user = findOrCreateUser(ownerAddress);
         console.log(`[Backend] Found ${ownedFiles.length} files and ${ownedFolders.length} folders for owner ${ownerAddress.substring(0, 10)}... at path ${currentPath}`);
         res.status(200).json({
             files: ownedFiles,
             folders: ownedFolders,
-            sharedFiles: sharedFiles, // Keep sending all shared files for the inbox
+            sharedFiles: sharedFiles,
             storageInfo: {
                 storageUsed: user.storageUsed,
                 storageLimit: user.storageLimit
@@ -225,14 +224,14 @@ apiRouter.post('/payment/confirm', async (req, res) => {
     }
 });
 // 6. Delete a file
-apiRouter.delete('/files/:cid', (req, res) => {
+apiRouter.delete('/files/:fileId', (req, res) => {
     try {
-        const { cid } = req.params;
+        const { fileId } = req.params;
         const { ownerAddress } = req.body;
-        if (!cid || !ownerAddress) {
-            return res.status(400).json({ error: 'File CID and owner address are required.' });
+        if (!fileId || !ownerAddress) {
+            return res.status(400).json({ error: 'File ID and owner address are required.' });
         }
-        const fileIndex = files.findIndex(f => f.cid === cid && f.owner === ownerAddress);
+        const fileIndex = files.findIndex(f => f._id === fileId && f.owner === ownerAddress);
         if (fileIndex === -1) {
             return res.status(404).json({ error: 'File not found or you do not have permission to delete it.' });
         }
@@ -246,9 +245,9 @@ apiRouter.delete('/files/:cid', (req, res) => {
         // Remove the file from the database
         files.splice(fileIndex, 1);
         // Also remove any shares associated with this file
-        shares = shares.filter(s => s.cid !== cid);
+        shares = shares.filter(s => s.cid !== fileToDelete.cid);
         saveDatabase(); // Persist changes
-        console.log(`[Backend] Deleted file with CID: ${cid}`);
+        console.log(`[Backend] Deleted file with CID: ${fileToDelete.cid}`);
         res.status(200).json({ message: 'File deleted successfully.' });
     }
     catch (error) {
@@ -286,21 +285,21 @@ apiRouter.post('/folders', (req, res) => {
         res.status(500).json({ error: 'Internal server error while creating folder.' });
     }
 });
-// 8. Move a file to a new path
-apiRouter.put('/files/:cid/move', (req, res) => {
+// 8. Move a file to a new path (Legacy - kept for reference, but /items/move is primary)
+apiRouter.put('/files/:fileId/move', (req, res) => {
     try {
-        const { cid } = req.params;
+        const { fileId } = req.params;
         const { ownerAddress, newPath } = req.body;
-        if (!cid || !ownerAddress || newPath === undefined) {
-            return res.status(400).json({ error: 'File CID, owner address, and new path are required.' });
+        if (!fileId || !ownerAddress || newPath === undefined) {
+            return res.status(400).json({ error: 'File ID, owner address, and new path are required.' });
         }
-        const fileToMove = files.find(f => f.cid === cid && f.owner === ownerAddress);
+        const fileToMove = files.find(f => f._id === fileId && f.owner === ownerAddress);
         if (!fileToMove) {
             return res.status(404).json({ error: 'File not found or you do not have permission to move it.' });
         }
         fileToMove.path = newPath;
         saveDatabase();
-        console.log(`[Backend] Moved file ${cid} to path ${newPath}`);
+        console.log(`[Backend] Moved file ${fileToMove.cid} to path ${newPath}`);
         res.status(200).json({ message: 'File moved successfully.', file: fileToMove });
     }
     catch (error) {
@@ -308,7 +307,7 @@ apiRouter.put('/files/:cid/move', (req, res) => {
         res.status(500).json({ error: 'Internal server error while moving file.' });
     }
 });
-// 9. Delete a folder (and its contents)
+// 9. Delete a folder (and its contents) - (Legacy, replaced by /items/delete)
 apiRouter.delete('/folders/:folderId', (req, res) => {
     try {
         const { folderId } = req.params;
@@ -392,14 +391,14 @@ apiRouter.put('/folders/:folderId/rename', (req, res) => {
     }
 });
 // 11. Rename a file
-apiRouter.put('/files/:cid/rename', (req, res) => {
+apiRouter.put('/files/:fileId/rename', (req, res) => {
     try {
-        const { cid } = req.params;
+        const { fileId } = req.params;
         const { ownerAddress, newName } = req.body;
-        if (!cid || !ownerAddress || !newName) {
-            return res.status(400).json({ error: 'File CID, owner address, and new name are required.' });
+        if (!fileId || !ownerAddress || !newName) {
+            return res.status(400).json({ error: 'File ID, owner address, and new name are required.' });
         }
-        const fileToRename = files.find(f => f.cid === cid && f.owner === ownerAddress);
+        const fileToRename = files.find(f => f._id === fileId && f.owner === ownerAddress);
         if (!fileToRename) {
             return res.status(404).json({ error: 'File not found or you do not have permission to rename it.' });
         }
@@ -410,12 +409,128 @@ apiRouter.put('/files/:cid/rename', (req, res) => {
         }
         fileToRename.filename = newName;
         saveDatabase();
-        console.log(`[Backend] Renamed file ${cid} to ${newName}`);
+        console.log(`[Backend] Renamed file ${fileToRename.cid} to ${newName}`);
         res.status(200).json({ message: 'File renamed successfully.', file: fileToRename });
     }
     catch (error) {
         console.error('[Backend] Error renaming file:', error);
         res.status(500).json({ error: 'Internal server error while renaming file.' });
+    }
+});
+// 12. Move multiple items (NEW, ROBUST IMPLEMENTATION)
+apiRouter.put('/items/move', (req, res) => {
+    try {
+        const { ownerAddress, itemIds, itemTypes, newPath } = req.body;
+        if (!ownerAddress || !itemIds || !itemTypes || newPath === undefined) {
+            return res.status(400).json({ error: 'Owner, item IDs, item types, and new path are required.' });
+        }
+        // Separate files and folders to be moved
+        const filesToMove = [];
+        const foldersToMove = [];
+        itemIds.forEach((id, index) => {
+            if (itemTypes[index] === 'file') {
+                const file = files.find(f => f._id === id && f.owner === ownerAddress);
+                if (file)
+                    filesToMove.push(file);
+            }
+            else if (itemTypes[index] === 'folder') {
+                const folder = folders.find(f => f._id === id && f.owner === ownerAddress);
+                if (folder)
+                    foldersToMove.push(folder);
+            }
+        });
+        // Move top-level files
+        filesToMove.forEach(file => {
+            file.path = newPath;
+        });
+        // Move top-level folders and all their descendants
+        foldersToMove.forEach(folderToMove => {
+            const oldPathPrefix = `${folderToMove.path}${folderToMove.name}/`;
+            const newName = folderToMove.name; // Name stays the same, only path changes
+            const newPathPrefix = `${newPath}${newName}/`;
+            // Update all descendant files
+            files.forEach(file => {
+                if (file.owner === ownerAddress && file.path.startsWith(oldPathPrefix)) {
+                    // Replace the old prefix with the new one
+                    file.path = file.path.replace(oldPathPrefix, newPathPrefix);
+                }
+            });
+            // Update all descendant folders
+            folders.forEach(folder => {
+                if (folder.owner === ownerAddress && folder.path.startsWith(oldPathPrefix)) {
+                    folder.path = folder.path.replace(oldPathPrefix, newPathPrefix);
+                }
+            });
+            // Finally, move the folder itself
+            folderToMove.path = newPath;
+        });
+        saveDatabase();
+        res.status(200).json({ message: 'Items moved successfully.' });
+    }
+    catch (error) {
+        console.error('[Backend] Error moving items:', error);
+        res.status(500).json({ error: 'Internal server error while moving items.' });
+    }
+});
+// 13. Delete multiple items
+apiRouter.post('/items/delete', (req, res) => {
+    try {
+        const { ownerAddress, itemIds } = req.body;
+        if (!ownerAddress || !itemIds) {
+            return res.status(400).json({ error: 'Owner and item IDs are required.' });
+        }
+        const user = findOrCreateUser(ownerAddress);
+        let totalSizeDeleted = 0;
+        const itemsToDelete = {
+            files: new Set(),
+            folders: new Set()
+        };
+        const initialFolders = folders.filter(f => itemIds.includes(f._id));
+        // Add initial selections
+        itemIds.forEach(id => {
+            if (files.some(f => f._id === id))
+                itemsToDelete.files.add(id);
+            if (folders.some(f => f._id === id))
+                itemsToDelete.folders.add(id);
+        });
+        // Recursively find all sub-folders and files
+        const foldersToScan = [...initialFolders];
+        while (foldersToScan.length > 0) {
+            const currentFolder = foldersToScan.pop();
+            if (!currentFolder)
+                continue;
+            const currentPath = `${currentFolder.path}${currentFolder.name}/`;
+            // Find direct subfolders and add them to be scanned
+            const subFolders = folders.filter(f => f.path === currentPath);
+            subFolders.forEach(sub => {
+                if (!itemsToDelete.folders.has(sub._id)) {
+                    itemsToDelete.folders.add(sub._id);
+                    foldersToScan.push(sub);
+                }
+            });
+            // Find files in the current folder and its subfolders
+            const filesInFolder = files.filter(f => f.path.startsWith(currentPath));
+            filesInFolder.forEach(file => itemsToDelete.files.add(file._id));
+        }
+        // Perform deletion and calculate size
+        files = files.filter(f => {
+            if (itemsToDelete.files.has(f._id)) {
+                totalSizeDeleted += f.size;
+                shares = shares.filter(s => s.cid !== f.cid); // Remove shares
+                return false;
+            }
+            return true;
+        });
+        folders = folders.filter(f => !itemsToDelete.folders.has(f._id));
+        user.storageUsed -= totalSizeDeleted;
+        if (user.storageUsed < 0)
+            user.storageUsed = 0;
+        saveDatabase();
+        res.status(200).json({ message: 'Items deleted successfully.' });
+    }
+    catch (error) {
+        console.error('[Backend] Error deleting items:', error);
+        res.status(500).json({ error: 'Internal server error while deleting items.' });
     }
 });
 // Mount the API router at the /api prefix
