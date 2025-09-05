@@ -59,3 +59,5 @@ export default function FolderCard({ folder, onFolderClick, onDelete, onRename }
     </Card>
   );
 }
+
+    

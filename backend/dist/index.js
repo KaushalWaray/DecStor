@@ -369,20 +369,19 @@ apiRouter.put('/folders/:folderId/rename', (req, res) => {
         }
         const oldPathPrefix = `${folderToRename.path}${folderToRename.name}/`;
         const newPathPrefix = `${folderToRename.path}${newName}/`;
-        // Rename the folder itself
-        folderToRename.name = newName;
-        // Update path for all direct child files
+        // Update paths for all descendant files and folders
         files.forEach(file => {
-            if (file.owner === ownerAddress && file.path === oldPathPrefix) {
-                file.path = newPathPrefix;
+            if (file.owner === ownerAddress && file.path.startsWith(oldPathPrefix)) {
+                file.path = file.path.replace(oldPathPrefix, newPathPrefix);
             }
         });
-        // Update path for all subfolders (and their descendants implicitly)
         folders.forEach(folder => {
             if (folder.owner === ownerAddress && folder.path.startsWith(oldPathPrefix)) {
                 folder.path = folder.path.replace(oldPathPrefix, newPathPrefix);
             }
         });
+        // Rename the folder itself
+        folderToRename.name = newName;
         saveDatabase();
         console.log(`[Backend] Renamed folder ${folderId} to ${newName}`);
         res.status(200).json({ message: 'Folder renamed successfully.', folder: folderToRename });
@@ -390,6 +389,33 @@ apiRouter.put('/folders/:folderId/rename', (req, res) => {
     catch (error) {
         console.error('[Backend] Error renaming folder:', error);
         res.status(500).json({ error: 'Internal server error while renaming folder.' });
+    }
+});
+// 11. Rename a file
+apiRouter.put('/files/:cid/rename', (req, res) => {
+    try {
+        const { cid } = req.params;
+        const { ownerAddress, newName } = req.body;
+        if (!cid || !ownerAddress || !newName) {
+            return res.status(400).json({ error: 'File CID, owner address, and new name are required.' });
+        }
+        const fileToRename = files.find(f => f.cid === cid && f.owner === ownerAddress);
+        if (!fileToRename) {
+            return res.status(404).json({ error: 'File not found or you do not have permission to rename it.' });
+        }
+        // Check for name collision in the same path
+        const existingFile = files.find(f => f.owner === ownerAddress && f.path === fileToRename.path && f.filename === newName);
+        if (existingFile) {
+            return res.status(409).json({ error: `A file named '${newName}' already exists in this location.` });
+        }
+        fileToRename.filename = newName;
+        saveDatabase();
+        console.log(`[Backend] Renamed file ${cid} to ${newName}`);
+        res.status(200).json({ message: 'File renamed successfully.', file: fileToRename });
+    }
+    catch (error) {
+        console.error('[Backend] Error renaming file:', error);
+        res.status(500).json({ error: 'Internal server error while renaming file.' });
     }
 });
 // Mount the API router at the /api prefix
