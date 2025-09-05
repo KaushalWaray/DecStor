@@ -1,31 +1,59 @@
 
 "use client";
 
-import { Card, CardHeader } from "@/components/ui/card";
-import { Folder } from "lucide-react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Folder, MoreVertical, Trash2, Edit } from "lucide-react";
 import type { Folder as FolderType } from "@/types";
 import { format } from "date-fns";
+import { Button } from "../ui/button";
 
 interface FolderCardProps {
   folder: FolderType;
   onFolderClick: (folder: FolderType) => void;
+  onDelete: (folder: FolderType) => void;
+  onRename: (folder: FolderType) => void;
 }
 
-export default function FolderCard({ folder, onFolderClick }: FolderCardProps) {
+export default function FolderCard({ folder, onFolderClick, onDelete, onRename }: FolderCardProps) {
   return (
     <Card 
-      className="flex flex-col justify-between transition-all hover:shadow-primary/20 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
-      onClick={() => onFolderClick(folder)}
+      className="flex flex-col justify-between transition-all hover:shadow-primary/20 hover:shadow-lg hover:-translate-y-1 group"
+      onDoubleClick={() => onFolderClick(folder)}
     >
       <CardHeader>
-        <div className="flex items-center gap-3">
-          <Folder className="h-8 w-8 text-amber-400" />
-          <p className="text-lg font-semibold truncate">{folder.name}</p>
+        <div className="flex items-start justify-between gap-3">
+          <div 
+            className="flex items-center gap-3 min-w-0 cursor-pointer"
+            onClick={() => onFolderClick(folder)}
+          >
+            <Folder className="h-8 w-8 text-amber-400 flex-shrink-0" />
+            <p className="text-lg font-semibold truncate">{folder.name}</p>
+          </div>
+           <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onRename(folder)}>
+                <Edit className="mr-2 h-4 w-4" /> Rename
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onDelete(folder)} className="text-destructive focus:text-destructive-foreground focus:bg-destructive">
+                <Trash2 className="mr-2 h-4 w-4" /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardHeader>
-      <div className="p-6 pt-0">
-          <p className="text-sm text-muted-foreground">Created: {format(new Date(folder.createdAt), "PPP")}</p>
-      </div>
+      <CardContent 
+        className="cursor-pointer"
+        onClick={() => onFolderClick(folder)}
+      >
+        <p className="text-sm text-muted-foreground">Created: {format(new Date(folder.createdAt), "PPP")}</p>
+      </CardContent>
     </Card>
   );
 }

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { AlgorandAccount, FileMetadata, Folder, StorageInfo, WalletEntry } from '@/types';
-import { getFilesByOwner, confirmPayment, getStorageServiceAddress, deleteFileFromDb, createFolder as apiCreateFolder, moveFile as apiMoveFile, getAllFolders } from '@/lib/api';
+import { getFilesByOwner, confirmPayment, getStorageServiceAddress, deleteFileFromDb, createFolder as apiCreateFolder, moveFile as apiMoveFile, getAllFolders, deleteFolder as apiDeleteFolder, renameFolder as apiRenameFolder } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
@@ -23,6 +23,7 @@ import { decryptMnemonic } from '@/lib/crypto';
 import StorageManager from './StorageManager';
 import Breadcrumbs from './Breadcrumbs';
 import { UPGRADE_COST_ALGOS } from '@/lib/constants';
+import RenameFolderModal from '../modals/RenameFolderModal';
 
 
 interface MyVaultProps {
@@ -44,7 +45,11 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [isRenameFolderModalOpen, setIsRenameFolderModalOpen] = useState(false);
+  const [isDeleteFolderModalOpen, setIsDeleteFolderModalOpen] = useState(false);
+  
   const [selectedFile, setSelectedFile] = useState<FileMetadata | null>(null);
+  const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null);
 
   const [isSharing, setIsSharing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -116,6 +121,16 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     }
   };
 
+  const handleOpenDeleteFolderModal = (folder: Folder) => {
+    setSelectedFolder(folder);
+    setIsDeleteFolderModalOpen(true);
+  };
+
+  const handleOpenRenameFolderModal = (folder: Folder) => {
+    setSelectedFolder(folder);
+    setIsRenameFolderModalOpen(true);
+  };
+
   const handleConfirmShare = async (recipientAddress: string) => {
     if (!selectedFile) return;
     setIsSharing(true);
@@ -180,6 +195,40 @@ export default function MyVault({ account, pin }: MyVaultProps) {
         setSelectedFile(null);
     }
   };
+
+  const handleConfirmDeleteFolder = async () => {
+    if (!selectedFolder) return;
+    setIsDeleting(true);
+    try {
+      await apiDeleteFolder(selectedFolder._id, account.addr);
+      toast({ title: "Folder Deleted", description: `${selectedFolder.name} and all its contents have been removed.` });
+      await fetchFilesAndStorage();
+    } catch (error: any) {
+      console.error("Folder delete failed:", error);
+      toast({ variant: "destructive", title: "Delete Failed", description: error.message });
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteFolderModalOpen(false);
+      setSelectedFolder(null);
+    }
+  };
+
+  const handleConfirmRenameFolder = async (newName: string) => {
+    if (!selectedFolder) return;
+    setIsMoving(true); // Re-use loading state for simplicity
+    try {
+        await apiRenameFolder(selectedFolder._id, account.addr, newName);
+        toast({ title: 'Folder Renamed', description: `Successfully renamed to '${newName}'.` });
+        await fetchFilesAndStorage();
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Rename Failed', description: error.message });
+    } finally {
+        setIsMoving(false);
+        setIsRenameFolderModalOpen(false);
+        setSelectedFolder(null);
+    }
+  };
+
 
   const handleInitiateUpgrade = async () => {
     try {
@@ -293,6 +342,8 @@ export default function MyVault({ account, pin }: MyVaultProps) {
             onDelete={handleOpenDeleteModal}
             onMove={handleOpenMoveModal}
             onFolderClick={(folder) => setCurrentPath(`${folder.path}${folder.name}/`)}
+            onFolderDelete={handleOpenDeleteFolderModal}
+            onFolderRename={handleOpenRenameFolderModal}
             emptyState={getEmptyState()}
           />
         )}
@@ -339,6 +390,36 @@ export default function MyVault({ account, pin }: MyVaultProps) {
                 currentPath={currentPath}
              />
         </>
+      )}
+
+      {selectedFolder && (
+          <>
+            <RenameFolderModal
+                isOpen={isRenameFolderModalOpen}
+                onOpenChange={setIsRenameFolderModalOpen}
+                onConfirm={handleConfirmRenameFolder}
+                isLoading={isMoving} // reuse loading state
+                currentName={selectedFolder.name}
+            />
+            <AlertDialog open={isDeleteFolderModalOpen} onOpenChange={setIsDeleteFolderModalOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive" />Delete Folder?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Are you sure you want to delete <span className="font-bold text-foreground">{selectedFolder.name}</span>? 
+                        All files and subfolders inside it will be permanently deleted. This action cannot be undone.
+                    </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleConfirmDeleteFolder} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                        {isDeleting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                        Delete Folder
+                    </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+          </>
       )}
 
       <CreateFolderModal 

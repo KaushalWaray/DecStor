@@ -58,12 +58,12 @@ const api = {
         throw error;
     }
   },
-  delete: async (path: string, data: any) => {
+  delete: async (path: string, data?: any) => {
       try {
         const res = await fetch(`${BACKEND_URL}${path}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
+          body: data ? JSON.stringify(data) : undefined,
         });
         if (!res.ok) {
             const errorBody = await res.json().catch(() => ({ error: res.statusText || 'Unknown API Error' }));
@@ -130,6 +130,14 @@ export const createFolder = async (folder: Omit<Folder, '_id' | 'createdAt'>): P
 
 export const moveFile = async (cid: string, ownerAddress: string, newPath: string) => {
     return api.put(`/files/${cid}/move`, { ownerAddress, newPath });
+};
+
+export const deleteFolder = async (folderId: string, ownerAddress: string) => {
+    return api.delete(`/folders/${folderId}`, { ownerAddress });
+};
+
+export const renameFolder = async (folderId: string, ownerAddress: string, newName: string) => {
+    return api.put(`/folders/${folderId}/rename`, { ownerAddress, newName });
 };
 
 

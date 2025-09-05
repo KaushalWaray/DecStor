@@ -403,6 +403,109 @@ apiRouter.put('/files/:cid/move', (req, res) => {
     }
 });
 
+// 9. Delete a folder (and its contents)
+apiRouter.delete('/folders/:folderId', (req, res) => {
+    try {
+        const { folderId } = req.params;
+        const { ownerAddress } = req.body;
+
+        if (!folderId || !ownerAddress) {
+            return res.status(400).json({ error: 'Folder ID and owner address are required.' });
+        }
+
+        const folderIndex = folders.findIndex(f => f._id === folderId && f.owner === ownerAddress);
+        if (folderIndex === -1) {
+            return res.status(404).json({ error: 'Folder not found or you do not have permission to delete it.' });
+        }
+
+        const folderToDelete = folders[folderIndex];
+        const folderPath = `${folderToDelete.path}${folderToDelete.name}/`;
+        
+        // Find all files and subfolders to delete
+        const filesToDelete = files.filter(f => f.owner === ownerAddress && f.path.startsWith(folderPath));
+        const subfoldersToDelete = folders.filter(f => f.owner === ownerAddress && f.path.startsWith(folderPath));
+        
+        let totalSizeDeleted = 0;
+        
+        // Delete files and calculate size
+        filesToDelete.forEach(file => {
+            totalSizeDeleted += file.size;
+            // Also remove shares associated with deleted files
+            shares = shares.filter(s => s.cid !== file.cid);
+        });
+
+        // Remove from the main arrays
+        files = files.filter(f => !filesToDelete.find(fd => fd._id === f._id));
+        folders = folders.filter(f => !subfoldersToDelete.find(fd => fd._id === f._id));
+        folders.splice(folders.findIndex(f => f._id === folderId), 1); // Delete the main folder itself
+
+        // Update user storage
+        const user = findOrCreateUser(ownerAddress);
+        user.storageUsed -= totalSizeDeleted;
+        if (user.storageUsed < 0) user.storageUsed = 0;
+
+        saveDatabase();
+
+        console.log(`[Backend] Deleted folder '${folderToDelete.name}' and its contents for owner ${ownerAddress.substring(0,10)}...`);
+        res.status(200).json({ message: 'Folder and its contents deleted successfully.' });
+
+    } catch (error) {
+        console.error('[Backend] Error deleting folder:', error);
+        res.status(500).json({ error: 'Internal server error while deleting folder.' });
+    }
+});
+
+// 10. Rename a folder
+apiRouter.put('/folders/:folderId/rename', (req, res) => {
+    try {
+        const { folderId } = req.params;
+        const { ownerAddress, newName } = req.body;
+
+        if (!folderId || !ownerAddress || !newName) {
+            return res.status(400).json({ error: 'Folder ID, owner address, and new name are required.' });
+        }
+
+        const folderToRename = folders.find(f => f._id === folderId && f.owner === ownerAddress);
+        if (!folderToRename) {
+            return res.status(404).json({ error: 'Folder not found or you do not have permission to rename it.' });
+        }
+
+        // Check for name collision
+        const existingFolder = folders.find(f => f.owner === ownerAddress && f.path === folderToRename.path && f.name === newName);
+        if (existingFolder) {
+            return res.status(409).json({ error: `A folder named '${newName}' already exists in this location.` });
+        }
+        
+        const oldPathPrefix = `${folderToRename.path}${folderToRename.name}/`;
+        const newPathPrefix = `${folderToRename.path}${newName}/`;
+
+        // Rename the folder itself
+        folderToRename.name = newName;
+
+        // Update path for all direct child files
+        files.forEach(file => {
+            if (file.owner === ownerAddress && file.path === oldPathPrefix) {
+                file.path = newPathPrefix;
+            }
+        });
+        
+        // Update path for all subfolders (and their descendants implicitly)
+        folders.forEach(folder => {
+            if (folder.owner === ownerAddress && folder.path.startsWith(oldPathPrefix)) {
+                folder.path = folder.path.replace(oldPathPrefix, newPathPrefix);
+            }
+        });
+
+        saveDatabase();
+        
+        console.log(`[Backend] Renamed folder ${folderId} to ${newName}`);
+        res.status(200).json({ message: 'Folder renamed successfully.', folder: folderToRename });
+    } catch (error) {
+        console.error('[Backend] Error renaming folder:', error);
+        res.status(500).json({ error: 'Internal server error while renaming folder.' });
+    }
+});
+
 
 // Mount the API router at the /api prefix
 app.use('/api', apiRouter);
