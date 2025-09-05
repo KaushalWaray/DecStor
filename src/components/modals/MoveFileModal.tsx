@@ -29,6 +29,7 @@ interface MoveFileModalProps {
 
 export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, isLoading, filename, folders, currentPath }: MoveFileModalProps) {
   const [destinationPath, setDestinationPath] = useState('');
+  const [isMoving, setIsMoving] = useState(false); // Local loading state
   const { toast } = useToast();
 
   const handleConfirm = async () => {
@@ -36,9 +37,9 @@ export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
       toast({ variant: 'destructive', title: 'No Destination', description: 'Please select a destination folder.' });
       return;
     }
-    setIsLoading(true);
+    setIsMoving(true);
     await onConfirm(destinationPath);
-    setIsLoading(false);
+    setIsMoving(false);
     onOpenChange(false);
   };
 
@@ -46,6 +47,7 @@ export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
   useEffect(() => {
     if (!isOpen) {
         setDestinationPath('');
+        setIsMoving(false);
     }
   }, [isOpen]);
 
@@ -70,7 +72,7 @@ export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
             </div>
             <div className="space-y-2">
                 <Label htmlFor="destination-folder">Destination Folder</Label>
-                 <Select value={destinationPath} onValueChange={setDestinationPath} disabled={isLoading}>
+                 <Select value={destinationPath} onValueChange={setDestinationPath} disabled={isLoading || isMoving}>
                     <SelectTrigger id="destination-folder">
                         <SelectValue placeholder="Select a destination..." />
                     </SelectTrigger>
@@ -88,9 +90,9 @@ export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
             </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>Cancel</Button>
-          <Button onClick={handleConfirm} disabled={isLoading || !destinationPath}>
-            {isLoading ? (
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading || isMoving}>Cancel</Button>
+          <Button onClick={handleConfirm} disabled={isLoading || isMoving || !destinationPath}>
+            {isMoving ? (
                 <>
                     <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
                     <span>Moving...</span>
