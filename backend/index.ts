@@ -5,6 +5,7 @@ import cors from 'cors';
 import algosdk from 'algosdk';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 // --- SELF-CONTAINED TYPE DEFINITIONS ---
 export interface FileMetadata {
@@ -44,6 +45,10 @@ export interface User {
 const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
 const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 const PORT = 3001;
+
+// Correctly determine __dirname in ES module scope
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const DB_FILE_PATH = path.join(__dirname, 'db.json');
 
 
