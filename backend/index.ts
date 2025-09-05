@@ -270,6 +270,11 @@ apiRouter.put('/users/:address/rename', async (req, res) => {
         }
 
         const user = await usersCollection.findOne({ address });
+        if (!user) {
+            // This case should ideally not happen if matchedCount > 0, but it's a good safeguard.
+            return res.status(404).json({ error: 'User not found after update.' });
+        }
+        
         console.log(`[Backend] Renamed wallet for ${address.substring(0,10)}... to "${newName}"`);
         res.status(200).json({ message: 'Wallet renamed successfully.', user });
 
@@ -707,3 +712,5 @@ const startServer = async () => {
 };
 
 startServer();
+
+    

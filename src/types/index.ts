@@ -88,3 +88,5 @@ export interface Activity {
 export interface ActivityLogInfo {
     activities: Activity[];
 }
+
+    
