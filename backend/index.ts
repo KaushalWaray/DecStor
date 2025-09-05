@@ -197,10 +197,15 @@ apiRouter.get('/files/:ownerAddress', async (req, res) => {
     try {
         const { ownerAddress } = req.params;
         const currentPath = (req.query.path as string) || '/';
+        const recursive = (req.query.recursive as string) === 'true';
 
         // Get owned files and folders for the current path
         const ownedFiles = files.filter(f => f.owner === ownerAddress && f.path === currentPath);
-        const ownedFolders = folders.filter(f => f.owner === ownerAddress && f.path === currentPath);
+        
+        // Get folders. If recursive, get all folders for the user.
+        const ownedFolders = recursive 
+            ? folders.filter(f => f.owner === ownerAddress)
+            : folders.filter(f => f.owner === ownerAddress && f.path === currentPath);
         
         // Get shared files (for inbox functionality - path independent for simplicity for now)
         const sharedCids = shares.filter(s => s.recipientAddress === ownerAddress).map(s => s.cid);
@@ -372,6 +377,32 @@ apiRouter.post('/folders', (req, res) => {
     }
 });
 
+// 8. Move a file to a new path
+apiRouter.put('/files/:cid/move', (req, res) => {
+    try {
+        const { cid } = req.params;
+        const { ownerAddress, newPath } = req.body;
+        if (!cid || !ownerAddress || newPath === undefined) {
+            return res.status(400).json({ error: 'File CID, owner address, and new path are required.' });
+        }
+
+        const fileToMove = files.find(f => f.cid === cid && f.owner === ownerAddress);
+        if (!fileToMove) {
+            return res.status(404).json({ error: 'File not found or you do not have permission to move it.' });
+        }
+
+        fileToMove.path = newPath;
+        saveDatabase();
+
+        console.log(`[Backend] Moved file ${cid} to path ${newPath}`);
+        res.status(200).json({ message: 'File moved successfully.', file: fileToMove });
+        
+    } catch(error) {
+        console.error('[Backend] Error moving file:', error);
+        res.status(500).json({ error: 'Internal server error while moving file.' });
+    }
+});
+
 
 // Mount the API router at the /api prefix
 app.use('/api', apiRouter);
@@ -382,5 +413,3 @@ app.listen(PORT, () => {
     loadDatabase(); // Load the database from file on server start
     console.log(`✅ Backend service listening at http://localhost:${PORT}`);
 });
-
-    

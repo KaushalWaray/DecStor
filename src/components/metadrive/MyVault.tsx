@@ -2,8 +2,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { AlgorandAccount, FileMetadata, Folder, StorageInfo, FilesAndStorageInfo, WalletEntry } from '@/types';
-import { getFilesByOwner, confirmPayment, getStorageServiceAddress, deleteFileFromDb, createFolder as apiCreateFolder } from '@/lib/api';
+import type { AlgorandAccount, FileMetadata, Folder, StorageInfo, WalletEntry } from '@/types';
+import { getFilesByOwner, confirmPayment, getStorageServiceAddress, deleteFileFromDb, createFolder as apiCreateFolder, moveFile as apiMoveFile, getAllFolders } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
@@ -11,6 +11,7 @@ import { LoaderCircle, HardDrive, FileSearch, Search, AlertTriangle, FolderPlus 
 import ShareFileModal from '../modals/ShareFileModal';
 import FileDetailsModal from '../modals/FileDetailsModal';
 import CreateFolderModal from '../modals/CreateFolderModal';
+import MoveFileModal from '../modals/MoveFileModal';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -36,15 +37,18 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPath, setCurrentPath] = useState('/');
+  const [allFoldersForMove, setAllFoldersForMove] = useState<Folder[]>([]);
   
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<FileMetadata | null>(null);
 
   const [isSharing, setIsSharing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
 
   // State for upgrading
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
@@ -100,6 +104,17 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     setSelectedFile(file);
     setIsDeleteModalOpen(true);
   };
+  
+  const handleOpenMoveModal = async (file: FileMetadata) => {
+    setSelectedFile(file);
+    try {
+        const { folders } = await getAllFolders(account.addr);
+        setAllFoldersForMove(folders);
+        setIsMoveModalOpen(true);
+    } catch(error: any) {
+        toast({ variant: "destructive", title: "Could not get folders", description: error.message });
+    }
+  };
 
   const handleConfirmShare = async (recipientAddress: string) => {
     if (!selectedFile) return;
@@ -145,6 +160,23 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     } finally {
         setIsDeleting(false);
         setIsDeleteModalOpen(false);
+        setSelectedFile(null);
+    }
+  };
+
+  const handleConfirmMove = async (newPath: string) => {
+    if (!selectedFile) return;
+    setIsMoving(true);
+    try {
+        await apiMoveFile(selectedFile.cid, account.addr, newPath);
+        toast({ title: 'File Moved', description: `${selectedFile.filename} has been moved successfully.`});
+        await fetchFilesAndStorage(); // Refresh the view
+    } catch (error: any) {
+        console.error("Move failed:", error);
+        toast({ variant: "destructive", title: "Move Failed", description: error.message || "An unknown error occurred." });
+    } finally {
+        setIsMoving(false);
+        setIsMoveModalOpen(false);
         setSelectedFile(null);
     }
   };
@@ -259,6 +291,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
             onShare={handleOpenShareModal}
             onDetails={handleOpenDetailsModal}
             onDelete={handleOpenDeleteModal}
+            onMove={handleOpenMoveModal}
             onFolderClick={(folder) => setCurrentPath(`${folder.path}${folder.name}/`)}
             emptyState={getEmptyState()}
           />
@@ -296,6 +329,15 @@ export default function MyVault({ account, pin }: MyVaultProps) {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            <MoveFileModal
+                isOpen={isMoveModalOpen}
+                onOpenChange={setIsMoveModalOpen}
+                onConfirm={handleConfirmMove}
+                isLoading={isMoving}
+                filename={selectedFile.filename}
+                folders={allFoldersForMove}
+                currentPath={currentPath}
+             />
         </>
       )}
 

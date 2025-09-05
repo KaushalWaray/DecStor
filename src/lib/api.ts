@@ -39,6 +39,25 @@ const api = {
         throw error;
     }
   },
+  put: async (path: string, data: any) => {
+    try {
+        const res = await fetch(`${BACKEND_URL}${path}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) {
+            const errorBody = await res.json().catch(() => ({ error: res.statusText || 'Unknown API Error' }));
+            throw new Error(`API Error: ${errorBody.error || res.statusText}`);
+        }
+        return res.json();
+    } catch (error: any) {
+        if (error.name === 'TypeError') {
+            throw new Error('Network Error: Could not connect to the backend server. Is it running?');
+        }
+        throw error;
+    }
+  },
   delete: async (path: string, data: any) => {
       try {
         const res = await fetch(`${BACKEND_URL}${path}`, {
@@ -80,6 +99,14 @@ export const getFilesByOwner = async (ownerAddress: string, path: string): Promi
   };
 };
 
+export const getAllFolders = async (ownerAddress: string): Promise<{folders: Folder[]}> => {
+    const urlPath = `/files/${ownerAddress}?recursive=true`;
+    const response = await api.get(urlPath);
+    return {
+        folders: response.folders || [],
+    }
+}
+
 export const recordShareInDb = async (cid: string, recipientAddress: string) => {
     return api.post('/share', { cid, recipientAddress });
 };
@@ -100,6 +127,10 @@ export const deleteFileFromDb = async (cid: string, ownerAddress: string) => {
 export const createFolder = async (folder: Omit<Folder, '_id' | 'createdAt'>): Promise<{folder: Folder}> => {
     return api.post('/folders', folder);
 }
+
+export const moveFile = async (cid: string, ownerAddress: string, newPath: string) => {
+    return api.put(`/files/${cid}/move`, { ownerAddress, newPath });
+};
 
 
 export default api;

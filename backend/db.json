@@ -7,11 +7,22 @@
     },
     {
       "address": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
-      "storageLimit": 1048576,
-      "storageUsed": 0
+      "storageLimit": 104857600,
+      "storageUsed": 35335
     }
   ],
-  "files": [],
+  "files": [
+    {
+      "_id": "2025-09-05T10:25:45.398Z0.3441980217066174",
+      "filename": "profile_pic.jpg",
+      "cid": "QmedJfi6K72aa2mHr1uaJB5SiWbFdHb3efvNdaVCRWX5NG",
+      "size": 35335,
+      "fileType": "image/jpeg",
+      "owner": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
+      "path": "/",
+      "createdAt": "2025-09-05T10:25:45.398Z"
+    }
+  ],
   "shares": [],
   "folders": [
     {

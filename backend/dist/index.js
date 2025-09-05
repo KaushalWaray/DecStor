@@ -77,6 +77,7 @@ const findOrCreateUser = (address) => {
         const userFiles = files.filter(f => f.owner === address);
         const totalSize = userFiles.reduce((acc, file) => acc + file.size, 0);
         if (user.storageUsed !== totalSize) {
+            console.log(`[Backend] Recalculating storage for ${address.substring(0, 10)}... Old: ${user.storageUsed}, New: ${totalSize}`);
             user.storageUsed = totalSize;
             saveDatabase(); // Persist corrected storage usage
         }
@@ -235,6 +236,9 @@ apiRouter.delete('/files/:cid', (req, res) => {
         const user = findOrCreateUser(ownerAddress);
         // Update user's storage usage
         user.storageUsed -= fileToDelete.size;
+        if (user.storageUsed < 0) {
+            user.storageUsed = 0;
+        }
         // Remove the file from the database
         files.splice(fileIndex, 1);
         // Also remove any shares associated with this file

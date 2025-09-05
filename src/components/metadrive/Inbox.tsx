@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { AlgorandAccount, FileMetadata, FilesAndStorageInfo } from '@/types';
+import type { AlgorandAccount, FileMetadata, Folder } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -107,6 +107,7 @@ export default function Inbox({ account, pin }: InboxProps) {
             onShare={noOp}
             onDetails={noOp}
             onDelete={noOp}
+            onMove={noOp}
             onFolderClick={noOp}
             emptyState={getEmptyState()}
         />

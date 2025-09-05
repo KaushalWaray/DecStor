@@ -3,8 +3,8 @@
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { File, Share2, Download, MoreVertical, Info, Trash2, LoaderCircle } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { File, Share2, Download, MoreVertical, Info, Trash2, LoaderCircle, ArrowRight } from "lucide-react";
 import type { FileMetadata } from "@/types";
 import { formatBytes, truncateAddress } from "@/lib/utils";
 import { IPFS_GATEWAY_URL } from "@/lib/constants";
@@ -19,9 +19,10 @@ interface FileCardProps {
   onShare: (file: FileMetadata) => void;
   onDetails: (file: FileMetadata) => void;
   onDelete: (file: FileMetadata) => void;
+  onMove: (file: FileMetadata) => void;
 }
 
-export default function FileCard({ file, pin, isOwner, onShare, onDetails, onDelete }: FileCardProps) {
+export default function FileCard({ file, pin, isOwner, onShare, onDetails, onDelete, onMove }: FileCardProps) {
   const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -74,13 +75,17 @@ export default function FileCard({ file, pin, isOwner, onShare, onDetails, onDel
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onMove(file)}>
+                  <ArrowRight className="mr-2 h-4 w-4" /> Move
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => onShare(file)}>
                   <Share2 className="mr-2 h-4 w-4" /> Share
                 </DropdownMenuItem>
                  <DropdownMenuItem onClick={() => onDetails(file)}>
                   <Info className="mr-2 h-4 w-4" /> Details
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onDelete(file)} className="text-destructive">
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onDelete(file)} className="text-destructive focus:text-destructive-foreground focus:bg-destructive">
                   <Trash2 className="mr-2 h-4 w-4" /> Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>

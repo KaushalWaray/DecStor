@@ -4,17 +4,17 @@
 import type { AlgorandAccount, FileMetadata, Folder } from '@/types';
 import FileCard from './FileCard';
 import FolderCard from './FolderCard';
-import { FileSearch } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 
 interface FileGridProps {
   files: FileMetadata[];
   folders: Folder[];
   account: AlgorandAccount;
-  pin: string; // Add pin for decryption
+  pin: string;
   onShare: (file: FileMetadata) => void;
   onDetails: (file: FileMetadata) => void;
   onDelete: (file: FileMetadata) => void;
+  onMove: (file: FileMetadata) => void;
   onFolderClick: (folder: Folder) => void;
   emptyState: {
     title: string;
@@ -23,7 +23,18 @@ interface FileGridProps {
   };
 }
 
-export default function FileGrid({ files = [], folders = [], account, pin, onShare, onDetails, onDelete, onFolderClick, emptyState }: FileGridProps) {
+export default function FileGrid({ 
+    files = [], 
+    folders = [], 
+    account, 
+    pin, 
+    onShare, 
+    onDetails, 
+    onDelete, 
+    onMove,
+    onFolderClick, 
+    emptyState 
+}: FileGridProps) {
   if (files.length === 0 && folders.length === 0) {
     const Icon = emptyState.icon;
     return (
@@ -55,6 +66,7 @@ export default function FileGrid({ files = [], folders = [], account, pin, onSha
             onShare={onShare}
             onDetails={onDetails}
             onDelete={onDelete}
+            onMove={onMove}
         />
       ))}
     </div>
