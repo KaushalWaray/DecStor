@@ -7,7 +7,7 @@ export const BACKEND_URL = "/api";
 export const ALGO_NETWORK_FEE = 0.001;
 export const IPFS_GATEWAY_URL = "https://gateway.pinata.cloud/ipfs";
 
-// --- NEW: Storage Payment Simulation Constants ---
+// --- Storage Payment Simulation Constants ---
 
 // A placeholder wallet address to receive "payments" for storage upgrades.
 // In a real scenario, this would be a secure, company-owned wallet.

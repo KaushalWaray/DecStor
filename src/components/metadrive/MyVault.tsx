@@ -9,11 +9,14 @@ import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
 import { LoaderCircle } from 'lucide-react';
 import ShareFileModal from '../modals/ShareFileModal';
+import ApproveTransactionModal from '../modals/ApproveTransactionModal';
 import { shareFile, payForStorageUpgrade } from '@/lib/algorand';
 import { truncateAddress } from '@/lib/utils';
 import { mnemonicToAccount } from '@/lib/algorand';
 import { decryptMnemonic } from '@/lib/crypto';
-import StorageManager from './StorageManager'; // Import the new component
+import StorageManager from './StorageManager';
+import { STORAGE_SERVICE_WALLET_ADDRESS, UPGRADE_COST_ALGOS } from '@/lib/constants';
+
 
 interface MyVaultProps {
   account: AlgorandAccount;
@@ -24,9 +27,14 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const [files, setFiles] = useState<FileMetadata[]>([]);
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // State for sharing
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [fileToShare, setFileToShare] = useState<FileMetadata | null>(null);
   const [isSharing, setIsSharing] = useState(false);
+
+  // State for upgrading
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
 
 
@@ -35,7 +43,6 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const fetchFilesAndStorage = useCallback(async () => {
     setIsLoading(true);
     try {
-      // API now returns both files and storage info
       const response: FilesAndStorageInfo = await getFilesByOwner(account.addr);
       
       const vaultFiles = response.files.filter(f => f.owner === account.addr);
@@ -89,10 +96,14 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     }
   };
 
-  const handleUpgrade = async () => {
+  const handleInitiateUpgrade = () => {
+    setIsUpgradeModalOpen(true);
+  };
+
+  const handleConfirmUpgrade = async () => {
       setIsUpgrading(true);
       try {
-        toast({ title: "Preparing Upgrade...", description: "Please approve the payment transaction." });
+        toast({ title: "Processing Upgrade...", description: "Sending payment transaction to the network." });
         
         const storedWallets: WalletEntry[] = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
         const walletEntry = storedWallets.find(w => w.address === account.addr);
@@ -121,6 +132,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
           toast({ variant: "destructive", title: "Upgrade Failed", description: error.message || "An unknown error occurred." });
       } finally {
           setIsUpgrading(false);
+          setIsUpgradeModalOpen(false);
       }
   };
   
@@ -131,7 +143,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
       {storageInfo && (
         <StorageManager 
             storageInfo={storageInfo}
-            onUpgrade={handleUpgrade}
+            onUpgrade={handleInitiateUpgrade}
             isUpgrading={isUpgrading}
         />
       )}
@@ -155,6 +167,18 @@ export default function MyVault({ account, pin }: MyVaultProps) {
           isLoading={isSharing}
         />
       )}
+
+      <ApproveTransactionModal
+        isOpen={isUpgradeModalOpen}
+        onOpenChange={setIsUpgradeModalOpen}
+        onApprove={handleConfirmUpgrade}
+        isLoading={isUpgrading}
+        title="Approve Storage Upgrade"
+        description="You are about to pay for a storage upgrade. Review the details below."
+        actionText="Upgrade to 100MB Pro Tier"
+        recipientAddress={STORAGE_SERVICE_WALLET_ADDRESS}
+        amount={UPGRADE_COST_ALGOS}
+      />
     </div>
   );
 }
