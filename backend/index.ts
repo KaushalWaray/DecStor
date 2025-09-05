@@ -7,7 +7,7 @@ import { Collection, Db, MongoClient, ObjectId } from 'mongodb';
 
 // --- SELF-CONTAINED TYPE DEFINITIONS ---
 export interface FileMetadata {
-  _id: string;
+  _id: ObjectId;
   filename: string;
   cid: string;
   size: number;
@@ -18,7 +18,7 @@ export interface FileMetadata {
 }
 
 export interface Folder {
-    _id: string;
+    _id: ObjectId;
     name: string;
     owner: string;
     path: string; 
@@ -27,6 +27,7 @@ export interface Folder {
 }
 
 export interface Share {
+  _id?: ObjectId;
   cid: string;
   senderAddress: string;
   recipientAddress: string;
@@ -44,7 +45,7 @@ export interface User {
 }
 
 export interface Activity {
-  _id: string;
+  _id: ObjectId;
   type: 'UPLOAD' | 'SHARE' | 'DELETE' | 'SEND_ALGO' | 'RECEIVE_ALGO';
   owner: string;
   timestamp: string;
@@ -293,7 +294,7 @@ apiRouter.get('/files/:ownerAddress', async (req, res) => {
         const ownedFiles = await filesCollection.find(ownedFilesQuery).toArray();
         const ownedFolders = await foldersCollection.find(ownedFoldersQuery).toArray();
 
-        const sharedCids = await sharesCollection.find({ recipientAddress: ownerAddress }).map(s => s.cid).toArray();
+        const sharedCids = await sharesCollection.find({ recipientAddress: ownerAddress }).map((s: Share) => s.cid).toArray();
         const sharedFiles = await filesCollection.find({ cid: { $in: sharedCids } }).toArray();
         
         const user = await findOrCreateUser(ownerAddress);
@@ -334,13 +335,13 @@ apiRouter.post('/share', async (req, res) => {
             return res.status(200).json({ message: 'File already shared with this user.' });
         }
 
-        const newShare: Share = {
+        const newShare: Omit<Share, '_id'> = {
             cid,
             senderAddress: file.owner,
             recipientAddress,
             createdAt: new Date().toISOString(),
         };
-        await sharesCollection.insertOne(newShare);
+        await sharesCollection.insertOne(newShare as Share);
 
         await createActivity(file.owner, 'SHARE', { filename: file.filename, cid, recipient: recipientAddress }, true);
         await createActivity(recipientAddress, 'SHARE', { filename: file.filename, cid, recipient: 'You' }, false);
@@ -477,7 +478,7 @@ apiRouter.put('/files/:fileId/rename', async (req, res) => {
             return res.status(400).json({ error: 'File ID, owner address, and new name are required.' });
         }
 
-        const fileToRename = await filesCollection.findOne({ _id: fileId as any, owner: ownerAddress });
+        const fileToRename = await filesCollection.findOne({ _id: new ObjectId(fileId), owner: ownerAddress });
         if (!fileToRename) {
             return res.status(404).json({ error: 'File not found or you do not have permission to rename it.' });
         }
@@ -487,7 +488,7 @@ apiRouter.put('/files/:fileId/rename', async (req, res) => {
             return res.status(409).json({ error: `A file named '${newName}' already exists in this location.` });
         }
 
-        await filesCollection.updateOne({ _id: fileToRename._id as any }, { $set: { filename: newName } });
+        await filesCollection.updateOne({ _id: fileToRename._id }, { $set: { filename: newName } });
         
         console.log(`[Backend] Renamed file ${fileToRename.cid} to ${newName}`);
         res.status(200).json({ message: 'File renamed successfully.', file: { ...fileToRename, filename: newName } });
@@ -506,8 +507,8 @@ apiRouter.put('/items/move', async (req, res) => {
             return res.status(400).json({ error: 'Owner, item IDs, item types, and new path are required.' });
         }
         
-        const fileIds = itemIds.filter((id: string, i: number) => itemTypes[i] === 'file').map(id => new ObjectId(id));
-        const folderIds = itemIds.filter((id: string, i: number) => itemTypes[i] === 'folder').map(id => new ObjectId(id));
+        const fileIds = itemIds.filter((id: string, i: number) => itemTypes[i] === 'file').map((id: string) => new ObjectId(id));
+        const folderIds = itemIds.filter((id: string, i: number) => itemTypes[i] === 'folder').map((id: string) => new ObjectId(id));
 
         await filesCollection.updateMany({ _id: { $in: fileIds } }, { $set: { path: newPath } });
 
@@ -556,8 +557,8 @@ apiRouter.post('/items/delete', async (req, res) => {
         const initialFiles = await filesCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
         const initialFolders = await foldersCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
 
-        initialFiles.forEach(f => filesToDeleteIds.add(f._id.toString()));
-        initialFolders.forEach(f => foldersToDeleteIds.add(f._id.toString()));
+        initialFiles.forEach((f: FileMetadata) => filesToDeleteIds.add(f._id.toString()));
+        initialFolders.forEach((f: Folder) => foldersToDeleteIds.add(f._id.toString()));
 
         const foldersToScan = [...initialFolders];
         while(foldersToScan.length > 0) {
@@ -575,16 +576,16 @@ apiRouter.post('/items/delete', async (req, res) => {
             }
 
             const filesInFolder = await filesCollection.find({ path: { $regex: `^${currentPath}` }, owner: ownerAddress }).toArray();
-            filesInFolder.forEach(file => filesToDeleteIds.add(file._id.toString()));
+            filesInFolder.forEach((file: FileMetadata) => filesToDeleteIds.add(file._id.toString()));
         }
         
         const finalFileIdsToDelete = Array.from(filesToDeleteIds).map(id => new ObjectId(id));
         const finalFolderIdsToDelete = Array.from(foldersToDeleteIds).map(id => new ObjectId(id));
 
         const filesToDeleteResult = await filesCollection.find({ _id: { $in: finalFileIdsToDelete } }).toArray();
-        let totalSizeDeleted = filesToDeleteResult.reduce((sum, file) => sum + file.size, 0);
+        let totalSizeDeleted = filesToDeleteResult.reduce((sum: number, file: FileMetadata) => sum + file.size, 0);
 
-        const cidsToDelete = filesToDeleteResult.map(f => f.cid);
+        const cidsToDelete = filesToDeleteResult.map((f: FileMetadata) => f.cid);
 
         await filesCollection.deleteMany({ _id: { $in: finalFileIdsToDelete } });
         await foldersCollection.deleteMany({ _id: { $in: finalFolderIdsToDelete } });
@@ -662,7 +663,3 @@ const startServer = async () => {
 };
 
 startServer();
-
-  
-
-    

@@ -2,18 +2,45 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import algosdk from 'algosdk';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { MongoClient, ObjectId } from 'mongodb';
 // --- END OF TYPE DEFINITIONS ---
 // --- CONSTANTS ---
 const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
 const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 const PORT = 3001;
-// Correctly determine __dirname in ES module scope
-const __filename = fileURLToPath(import.meta.url);
-// The DB file should be in the root of the 'backend' folder, not in 'dist'
-const DB_FILE_PATH = path.join(path.dirname(__filename), '..', 'db.json');
+const MONGO_URI = process.env.MONGO_URI;
+const DB_NAME = 'DecStor';
+// --- DATABASE CONNECTION ---
+if (!MONGO_URI) {
+    console.error("\n[Backend] FATAL: MONGO_URI is not set in the .env file.");
+    console.error("Please add your MongoDB connection string to backend/.env");
+    process.exit(1);
+}
+const mongoClient = new MongoClient(MONGO_URI);
+let db;
+let usersCollection;
+let filesCollection;
+let sharesCollection;
+let foldersCollection;
+let activitiesCollection;
+async function connectToDatabase() {
+    try {
+        await mongoClient.connect();
+        db = mongoClient.db(DB_NAME);
+        usersCollection = db.collection('Wallets');
+        filesCollection = db.collection('files');
+        sharesCollection = db.collection('shares');
+        foldersCollection = db.collection('folders');
+        activitiesCollection = db.collection('activities');
+        // Create index on address for fast lookups
+        await usersCollection.createIndex({ address: 1 }, { unique: true });
+        console.log(`[Backend] Successfully connected to MongoDB database: ${db.databaseName}`);
+    }
+    catch (error) {
+        console.error('[Backend] CRITICAL: Failed to connect to MongoDB!', error);
+        process.exit(1);
+    }
+}
 // --- PERSISTENT SERVICE WALLET ---
 let storageServiceAccount;
 try {
@@ -39,87 +66,58 @@ catch (error) {
     console.error("Please ensure the mnemonic in your .env file is a valid 25-word phrase.");
     process.exit(1);
 }
-// --- FILE-BASED PERSISTENT DATABASE ---
-let users = [];
-let files = [];
-let shares = [];
-let folders = [];
-let activities = []; // NEW: Activity Log storage
-const saveDatabase = () => {
-    try {
-        const data = JSON.stringify({ users, files, shares, folders, activities }, null, 2);
-        fs.writeFileSync(DB_FILE_PATH, data, 'utf8');
-    }
-    catch (error) {
-        console.error('[Backend] CRITICAL: Failed to save database to file!', error);
-    }
-};
-const loadDatabase = () => {
-    try {
-        if (fs.existsSync(DB_FILE_PATH)) {
-            const data = fs.readFileSync(DB_FILE_PATH, 'utf8');
-            const db = JSON.parse(data);
-            users = db.users || [];
-            files = db.files || [];
-            shares = db.shares || [];
-            folders = db.folders || [];
-            // Load activities, ensuring isRead defaults to true for old records
-            activities = (db.activities || []).map((a) => ({ ...a, isRead: a.isRead !== undefined ? a.isRead : true }));
-            console.log(`[Backend] Database loaded successfully from ${DB_FILE_PATH}.`);
-        }
-        else {
-            // Create the file with empty arrays if it doesn't exist
-            saveDatabase();
-            console.log(`[Backend] New database file created at ${DB_FILE_PATH}.`);
-        }
-    }
-    catch (error) {
-        console.error('[Backend] CRITICAL: Failed to load database! Starting with empty state.', error);
-        // Ensure arrays are in a clean state in case of partial load failure
-        users = [];
-        files = [];
-        shares = [];
-        folders = [];
-        activities = [];
-    }
-};
-// NEW: Helper to create an activity log
-const createActivity = (owner, type, details, isRead = false) => {
+// --- HELPER FUNCTIONS ---
+const createActivity = async (owner, type, details, isRead = false) => {
     const newActivity = {
-        _id: new Date().toISOString() + Math.random(),
         owner,
         type,
         details,
         timestamp: new Date().toISOString(),
         isRead,
     };
-    activities.unshift(newActivity); // Add to the beginning of the list
+    await activitiesCollection.insertOne(newActivity);
 };
-// --- HELPER FUNCTIONS ---
-const findOrCreateUser = (address) => {
-    let user = users.find(u => u.address === address);
+const getStorageLimit = (tier) => {
+    return tier === 'pro' ? PRO_TIER_LIMIT : FREE_TIER_LIMIT;
+};
+const findOrCreateUser = async (address) => {
+    let user = await usersCollection.findOne({ address });
+    const now = new Date().toISOString();
     if (!user) {
-        // User doesn't exist, so create them with the free tier plan.
-        user = {
+        const newUser = {
             address,
-            storageLimit: FREE_TIER_LIMIT,
             storageUsed: 0,
+            storageTier: 'free',
+            createdAt: now,
+            updatedAt: now,
+            lastLogin: now,
         };
-        users.push(user);
+        await usersCollection.insertOne(newUser);
         console.log(`[Backend] Created new user ${address.substring(0, 10)}... with free tier.`);
-        saveDatabase(); // Persist new user
+        user = newUser;
     }
     else {
-        // If user exists, recalculate their storage used to ensure consistency.
-        const userFiles = files.filter(f => f.owner === address);
-        const totalSize = userFiles.reduce((acc, file) => acc + file.size, 0);
+        // Recalculate storage just in case and update timestamps
+        const aggregationResult = await filesCollection.aggregate([
+            { $match: { owner: address } },
+            { $group: { _id: null, totalSize: { $sum: "$size" } } }
+        ]).toArray();
+        const totalSize = aggregationResult.length > 0 ? aggregationResult[0].totalSize : 0;
+        const updates = {
+            updatedAt: now,
+            lastLogin: now,
+        };
         if (user.storageUsed !== totalSize) {
+            updates.storageUsed = totalSize;
             console.log(`[Backend] Recalculating storage for ${address.substring(0, 10)}... Old: ${user.storageUsed}, New: ${totalSize}`);
-            user.storageUsed = totalSize;
-            saveDatabase(); // Persist corrected storage usage
         }
+        const result = await usersCollection.findOneAndUpdate({ address }, { $set: updates }, { returnDocument: 'after' });
+        user = result;
     }
-    return user;
+    return {
+        ...user,
+        storageLimit: getStorageLimit(user.storageTier),
+    };
 };
 const app = express();
 // --- MIDDLEWARE ---
@@ -129,11 +127,28 @@ app.use(express.json());
 const apiRouter = express.Router();
 // 1. Health Check
 apiRouter.get('/', (req, res) => {
-    res.status(200).json({ message: 'Backend is running and connected!' });
+    res.status(200).json({
+        message: 'Backend is running and connected!',
+        database: db ? 'Connected' : 'Disconnected'
+    });
 });
-// NEW: Endpoint to get the dynamic service address
 apiRouter.get('/service-address', (req, res) => {
     res.status(200).json({ address: storageServiceAccount.addr });
+});
+// NEW: Endpoint to ensure a user exists upon wallet import/creation
+apiRouter.post('/users/find-or-create', async (req, res) => {
+    try {
+        const { address } = req.body;
+        if (!address) {
+            return res.status(400).json({ error: 'Address is required.' });
+        }
+        const user = await findOrCreateUser(address);
+        res.status(200).json({ user });
+    }
+    catch (error) {
+        console.error('[Backend] Error finding or creating user:', error);
+        res.status(500).json({ error: 'Internal server error while finding or creating user.' });
+    }
 });
 // 2. Save File Metadata
 apiRouter.post('/files/metadata', async (req, res) => {
@@ -142,16 +157,16 @@ apiRouter.post('/files/metadata', async (req, res) => {
         if (!filename || !cid || !size || !fileType || !owner || path === undefined) {
             return res.status(400).json({ error: 'Missing required file metadata.' });
         }
-        const user = findOrCreateUser(owner);
-        if (user.storageUsed + size > user.storageLimit) {
+        const user = await findOrCreateUser(owner);
+        const storageLimit = getStorageLimit(user.storageTier);
+        if (user.storageUsed + size > storageLimit) {
             console.log(`[Backend] Quota exceeded for ${owner.substring(0, 10)}...`);
             return res.status(413).json({
                 error: 'Storage quota exceeded.',
-                details: `You have used ${user.storageUsed} of ${user.storageLimit} bytes.`
+                details: `You have used ${user.storageUsed} of ${storageLimit} bytes.`
             });
         }
         const newFile = {
-            _id: new Date().toISOString() + Math.random(), // Simple unique ID
             filename,
             cid,
             size,
@@ -160,13 +175,11 @@ apiRouter.post('/files/metadata', async (req, res) => {
             path,
             createdAt: new Date().toISOString(),
         };
-        files.push(newFile);
-        user.storageUsed += size;
-        // Log activity for the uploader (marked as read)
-        createActivity(owner, 'UPLOAD', { filename, cid }, true);
-        saveDatabase();
+        const result = await filesCollection.insertOne(newFile);
+        await usersCollection.updateOne({ address: owner }, { $inc: { storageUsed: size }, $set: { updatedAt: new Date().toISOString() } });
+        await createActivity(owner, 'UPLOAD', { filename, cid }, true);
         console.log(`[Backend] Saved metadata for CID: ${cid} at path ${path}`);
-        res.status(201).json({ message: 'Metadata saved successfully.', file: newFile });
+        res.status(201).json({ message: 'Metadata saved successfully.', file: { ...newFile, _id: result.insertedId } });
     }
     catch (error) {
         console.error('[Backend] Error saving metadata:', error);
@@ -177,18 +190,15 @@ apiRouter.post('/files/metadata', async (req, res) => {
 apiRouter.get('/files/:ownerAddress', async (req, res) => {
     try {
         const { ownerAddress } = req.params;
-        const currentPath = req.query.path || '/';
         const recursive = req.query.recursive === 'true';
-        let ownedFiles = files.filter(f => f.owner === ownerAddress);
-        let ownedFolders = folders.filter(f => f.owner === ownerAddress);
-        if (!recursive) {
-            ownedFiles = ownedFiles.filter(f => f.path === currentPath);
-            ownedFolders = ownedFolders.filter(f => f.path === currentPath);
-        }
-        const sharedCids = shares.filter(s => s.recipientAddress === ownerAddress).map(s => s.cid);
-        const sharedFiles = files.filter(f => sharedCids.includes(f.cid));
-        const user = findOrCreateUser(ownerAddress);
-        console.log(`[Backend] Found ${ownedFiles.length} files and ${ownedFolders.length} folders for owner ${ownerAddress.substring(0, 10)}... at path ${currentPath}`);
+        let ownedFilesQuery = recursive ? { owner: ownerAddress } : { owner: ownerAddress, path: req.query.path || '/' };
+        let ownedFoldersQuery = recursive ? { owner: ownerAddress } : { owner: ownerAddress, path: req.query.path || '/' };
+        const ownedFiles = await filesCollection.find(ownedFilesQuery).toArray();
+        const ownedFolders = await foldersCollection.find(ownedFoldersQuery).toArray();
+        const sharedCids = await sharesCollection.find({ recipientAddress: ownerAddress }).map(s => s.cid).toArray();
+        const sharedFiles = await filesCollection.find({ cid: { $in: sharedCids } }).toArray();
+        const user = await findOrCreateUser(ownerAddress);
+        console.log(`[Backend] Found ${ownedFiles.length} files and ${ownedFolders.length} folders for owner ${ownerAddress.substring(0, 10)}... at path ${ownedFilesQuery.path || '(recursive)'}`);
         res.status(200).json({
             files: ownedFiles,
             folders: ownedFolders,
@@ -211,11 +221,11 @@ apiRouter.post('/share', async (req, res) => {
         if (!cid || !recipientAddress) {
             return res.status(400).json({ error: 'CID and recipient address are required.' });
         }
-        const file = files.find(f => f.cid === cid);
+        const file = await filesCollection.findOne({ cid });
         if (!file) {
             return res.status(404).json({ error: 'File not found.' });
         }
-        const existingShare = shares.find(s => s.cid === cid && s.recipientAddress === recipientAddress);
+        const existingShare = await sharesCollection.findOne({ cid, recipientAddress });
         if (existingShare) {
             return res.status(200).json({ message: 'File already shared with this user.' });
         }
@@ -225,12 +235,9 @@ apiRouter.post('/share', async (req, res) => {
             recipientAddress,
             createdAt: new Date().toISOString(),
         };
-        shares.push(newShare);
-        // Log activity for the SENDER (marked as read)
-        createActivity(file.owner, 'SHARE', { filename: file.filename, cid, recipient: recipientAddress }, true);
-        // Log activity for the RECIPIENT (marked as unread)
-        createActivity(recipientAddress, 'SHARE', { filename: file.filename, cid, recipient: 'You' }, false);
-        saveDatabase();
+        await sharesCollection.insertOne(newShare);
+        await createActivity(file.owner, 'SHARE', { filename: file.filename, cid, recipient: recipientAddress }, true);
+        await createActivity(recipientAddress, 'SHARE', { filename: file.filename, cid, recipient: 'You' }, false);
         console.log(`[Backend] Shared CID ${cid} with ${recipientAddress}`);
         res.status(201).json({ message: 'File shared successfully.', share: newShare });
     }
@@ -242,17 +249,21 @@ apiRouter.post('/share', async (req, res) => {
 // 5. Confirm a payment and upgrade user's storage
 apiRouter.post('/payment/confirm', async (req, res) => {
     try {
-        const { senderAddress, txId } = req.body;
+        const { senderAddress, txId, recipientAddress, amount } = req.body;
         if (!senderAddress || !txId) {
             return res.status(400).json({ error: 'Sender address and transaction ID are required.' });
         }
         console.log(`[Backend] Received payment confirmation for tx: ${txId.substring(0, 10)}... from ${senderAddress.substring(0, 10)}...`);
-        const user = findOrCreateUser(senderAddress);
-        user.storageLimit = PRO_TIER_LIMIT;
-        saveDatabase();
-        console.log(`[Backend] Upgraded ${user.address.substring(0, 10)}... to Pro tier.`);
+        if (amount === 0.1 && recipientAddress === storageServiceAccount.addr) {
+            await usersCollection.updateOne({ address: senderAddress }, { $set: { storageTier: 'pro', updatedAt: new Date().toISOString() } });
+            console.log(`[Backend] Upgraded ${senderAddress.substring(0, 10)}... to Pro tier.`);
+        }
+        await createActivity(senderAddress, 'SEND_ALGO', { recipient: recipientAddress, amount }, true);
+        await createActivity(recipientAddress, 'RECEIVE_ALGO', { sender: senderAddress, amount }, false);
+        // Fetch the updated user to return the new storage limit
+        const user = await findOrCreateUser(senderAddress);
         res.status(200).json({
-            message: "Payment confirmed and storage upgraded successfully!",
+            message: "Payment confirmed and storage updated successfully!",
             storageInfo: {
                 storageUsed: user.storageUsed,
                 storageLimit: user.storageLimit,
@@ -264,156 +275,56 @@ apiRouter.post('/payment/confirm', async (req, res) => {
         res.status(500).json({ error: 'Internal server error while confirming payment.' });
     }
 });
-// 6. Delete a file (legacy - kept for reference)
-apiRouter.delete('/files/:fileId', (req, res) => {
-    try {
-        const { fileId } = req.params;
-        const { ownerAddress } = req.body;
-        if (!fileId || !ownerAddress) {
-            return res.status(400).json({ error: 'File ID and owner address are required.' });
-        }
-        const fileIndex = files.findIndex(f => f._id === fileId && f.owner === ownerAddress);
-        if (fileIndex === -1) {
-            return res.status(404).json({ error: 'File not found or you do not have permission to delete it.' });
-        }
-        const fileToDelete = files[fileIndex];
-        const user = findOrCreateUser(ownerAddress);
-        user.storageUsed -= fileToDelete.size;
-        if (user.storageUsed < 0)
-            user.storageUsed = 0;
-        files.splice(fileIndex, 1);
-        shares = shares.filter(s => s.cid !== fileToDelete.cid);
-        createActivity(ownerAddress, 'DELETE', { filename: fileToDelete.filename }, true);
-        saveDatabase();
-        console.log(`[Backend] Deleted file with CID: ${fileToDelete.cid}`);
-        res.status(200).json({ message: 'File deleted successfully.' });
-    }
-    catch (error) {
-        console.error('[Backend] Error deleting file:', error);
-        res.status(500).json({ error: 'Internal server error while deleting file.' });
-    }
-});
 // 7. Create a new folder
-apiRouter.post('/folders', (req, res) => {
+apiRouter.post('/folders', async (req, res) => {
     try {
         const { name, owner, path, isLocked } = req.body;
         if (!name || !owner || path === undefined) {
             return res.status(400).json({ error: 'Folder name, owner, and path are required.' });
         }
-        const existingFolder = folders.find(f => f.owner === owner && f.path === path && f.name === name);
+        const existingFolder = await foldersCollection.findOne({ owner, path, name });
         if (existingFolder) {
             return res.status(409).json({ error: `A folder named '${name}' already exists in this location.` });
         }
         const newFolder = {
-            _id: new Date().toISOString() + Math.random(),
             name,
             owner,
             path,
             createdAt: new Date().toISOString(),
             isLocked: !!isLocked,
         };
-        folders.push(newFolder);
-        saveDatabase();
+        const result = await foldersCollection.insertOne(newFolder);
         console.log(`[Backend] Created folder '${name}' at path '${path}' for owner ${owner.substring(0, 10)}...`);
-        res.status(201).json({ message: 'Folder created successfully.', folder: newFolder });
+        res.status(201).json({ message: 'Folder created successfully.', folder: { ...newFolder, _id: result.insertedId } });
     }
     catch (error) {
         console.error('[Backend] Error creating folder:', error);
         res.status(500).json({ error: 'Internal server error while creating folder.' });
     }
 });
-// 8. Move a file to a new path (Legacy)
-apiRouter.put('/files/:fileId/move', (req, res) => {
-    try {
-        const { fileId } = req.params;
-        const { ownerAddress, newPath } = req.body;
-        if (!fileId || !ownerAddress || newPath === undefined) {
-            return res.status(400).json({ error: 'File ID, owner address, and new path are required.' });
-        }
-        const fileToMove = files.find(f => f._id === fileId && f.owner === ownerAddress);
-        if (!fileToMove) {
-            return res.status(404).json({ error: 'File not found or you do not have permission to move it.' });
-        }
-        fileToMove.path = newPath;
-        saveDatabase();
-        console.log(`[Backend] Moved file ${fileToMove.cid} to path ${newPath}`);
-        res.status(200).json({ message: 'File moved successfully.', file: fileToMove });
-    }
-    catch (error) {
-        console.error('[Backend] Error moving file:', error);
-        res.status(500).json({ error: 'Internal server error while moving file.' });
-    }
-});
-// 9. Delete a folder (Legacy)
-apiRouter.delete('/folders/:folderId', (req, res) => {
-    try {
-        const { folderId } = req.params;
-        const { ownerAddress } = req.body;
-        if (!folderId || !ownerAddress) {
-            return res.status(400).json({ error: 'Folder ID and owner address are required.' });
-        }
-        const folderIndex = folders.findIndex(f => f._id === folderId && f.owner === ownerAddress);
-        if (folderIndex === -1) {
-            return res.status(404).json({ error: 'Folder not found or you do not have permission to delete it.' });
-        }
-        const folderToDelete = folders[folderIndex];
-        const folderPath = `${folderToDelete.path}${folderToDelete.name}/`;
-        const filesToDelete = files.filter(f => f.owner === ownerAddress && f.path.startsWith(folderPath));
-        const subfoldersToDelete = folders.filter(f => f.owner === ownerAddress && f.path.startsWith(folderPath));
-        let totalSizeDeleted = 0;
-        filesToDelete.forEach(file => {
-            totalSizeDeleted += file.size;
-            shares = shares.filter(s => s.cid !== file.cid);
-        });
-        files = files.filter(f => !filesToDelete.find(fd => fd._id === f._id));
-        folders = folders.filter(f => !subfoldersToDelete.find(fd => fd._id === f._id));
-        folders.splice(folders.findIndex(f => f._id === folderId), 1);
-        const user = findOrCreateUser(ownerAddress);
-        user.storageUsed -= totalSizeDeleted;
-        if (user.storageUsed < 0)
-            user.storageUsed = 0;
-        createActivity(ownerAddress, 'DELETE', { folderName: folderToDelete.name }, true);
-        saveDatabase();
-        console.log(`[Backend] Deleted folder '${folderToDelete.name}' and its contents for owner ${ownerAddress.substring(0, 10)}...`);
-        res.status(200).json({ message: 'Folder and its contents deleted successfully.' });
-    }
-    catch (error) {
-        console.error('[Backend] Error deleting folder:', error);
-        res.status(500).json({ error: 'Internal server error while deleting folder.' });
-    }
-});
 // 10. Rename a folder
-apiRouter.put('/folders/:folderId/rename', (req, res) => {
+apiRouter.put('/folders/:folderId/rename', async (req, res) => {
     try {
         const { folderId } = req.params;
         const { ownerAddress, newName } = req.body;
         if (!folderId || !ownerAddress || !newName) {
             return res.status(400).json({ error: 'Folder ID, owner address, and new name are required.' });
         }
-        const folderToRename = folders.find(f => f._id === folderId && f.owner === ownerAddress);
+        const folderToRename = await foldersCollection.findOne({ _id: new ObjectId(folderId), owner: ownerAddress });
         if (!folderToRename) {
             return res.status(404).json({ error: 'Folder not found or you do not have permission to rename it.' });
         }
-        const existingFolder = folders.find(f => f.owner === ownerAddress && f.path === folderToRename.path && f.name === newName);
+        const existingFolder = await foldersCollection.findOne({ owner: ownerAddress, path: folderToRename.path, name: newName });
         if (existingFolder) {
             return res.status(409).json({ error: `A folder named '${newName}' already exists in this location.` });
         }
         const oldPathPrefix = `${folderToRename.path}${folderToRename.name}/`;
         const newPathPrefix = `${folderToRename.path}${newName}/`;
-        files.forEach(file => {
-            if (file.owner === ownerAddress && file.path.startsWith(oldPathPrefix)) {
-                file.path = file.path.replace(oldPathPrefix, newPathPrefix);
-            }
-        });
-        folders.forEach(folder => {
-            if (folder.owner === ownerAddress && folder.path.startsWith(oldPathPrefix)) {
-                folder.path = folder.path.replace(oldPathPrefix, newPathPrefix);
-            }
-        });
-        folderToRename.name = newName;
-        saveDatabase();
+        await filesCollection.updateMany({ owner: ownerAddress, path: { $regex: `^${oldPathPrefix}` } }, [{ $set: { path: { $replaceOne: { input: "$path", find: oldPathPrefix, replacement: newPathPrefix } } } }]);
+        await foldersCollection.updateMany({ owner: ownerAddress, path: { $regex: `^${oldPathPrefix}` } }, [{ $set: { path: { $replaceOne: { input: "$path", find: oldPathPrefix, replacement: newPathPrefix } } } }]);
+        await foldersCollection.updateOne({ _id: folderToRename._id }, { $set: { name: newName } });
         console.log(`[Backend] Renamed folder ${folderId} to ${newName}`);
-        res.status(200).json({ message: 'Folder renamed successfully.', folder: folderToRename });
+        res.status(200).json({ message: 'Folder renamed successfully.', folder: { ...folderToRename, name: newName } });
     }
     catch (error) {
         console.error('[Backend] Error renaming folder:', error);
@@ -421,25 +332,24 @@ apiRouter.put('/folders/:folderId/rename', (req, res) => {
     }
 });
 // 11. Rename a file
-apiRouter.put('/files/:fileId/rename', (req, res) => {
+apiRouter.put('/files/:fileId/rename', async (req, res) => {
     try {
         const { fileId } = req.params;
         const { ownerAddress, newName } = req.body;
         if (!fileId || !ownerAddress || !newName) {
             return res.status(400).json({ error: 'File ID, owner address, and new name are required.' });
         }
-        const fileToRename = files.find(f => f._id === fileId && f.owner === ownerAddress);
+        const fileToRename = await filesCollection.findOne({ _id: fileId, owner: ownerAddress });
         if (!fileToRename) {
             return res.status(404).json({ error: 'File not found or you do not have permission to rename it.' });
         }
-        const existingFile = files.find(f => f.owner === ownerAddress && f.path === fileToRename.path && f.filename === newName);
+        const existingFile = await filesCollection.findOne({ owner: ownerAddress, path: fileToRename.path, filename: newName });
         if (existingFile) {
             return res.status(409).json({ error: `A file named '${newName}' already exists in this location.` });
         }
-        fileToRename.filename = newName;
-        saveDatabase();
+        await filesCollection.updateOne({ _id: fileToRename._id }, { $set: { filename: newName } });
         console.log(`[Backend] Renamed file ${fileToRename.cid} to ${newName}`);
-        res.status(200).json({ message: 'File renamed successfully.', file: fileToRename });
+        res.status(200).json({ message: 'File renamed successfully.', file: { ...fileToRename, filename: newName } });
     }
     catch (error) {
         console.error('[Backend] Error renaming file:', error);
@@ -447,53 +357,24 @@ apiRouter.put('/files/:fileId/rename', (req, res) => {
     }
 });
 // 12. Move multiple items
-apiRouter.put('/items/move', (req, res) => {
+apiRouter.put('/items/move', async (req, res) => {
     try {
         const { ownerAddress, itemIds, itemTypes, newPath } = req.body;
         if (!ownerAddress || !itemIds || !itemTypes || newPath === undefined) {
             return res.status(400).json({ error: 'Owner, item IDs, item types, and new path are required.' });
         }
-        const filesToMove = [];
-        const foldersToMove = [];
-        itemIds.forEach((id, index) => {
-            if (itemTypes[index] === 'file') {
-                const file = files.find(f => f._id === id && f.owner === ownerAddress);
-                if (file)
-                    filesToMove.push(file);
-            }
-            else if (itemTypes[index] === 'folder') {
-                const folder = folders.find(f => f._id === id && f.owner === ownerAddress);
-                if (folder)
-                    foldersToMove.push(folder);
-            }
-        });
-        filesToMove.forEach((file) => {
-            console.log(`[Backend] Moving file ${file.filename} to ${newPath}`);
-            file.path = newPath;
-        });
-        foldersToMove.forEach((folderToMove) => {
+        const fileIds = itemIds.filter((id, i) => itemTypes[i] === 'file').map(id => new ObjectId(id));
+        const folderIds = itemIds.filter((id, i) => itemTypes[i] === 'folder').map(id => new ObjectId(id));
+        await filesCollection.updateMany({ _id: { $in: fileIds } }, { $set: { path: newPath } });
+        const foldersToMove = await foldersCollection.find({ _id: { $in: folderIds } }).toArray();
+        for (const folderToMove of foldersToMove) {
             const oldPathPrefix = `${folderToMove.path}${folderToMove.name}/`;
             const newName = folderToMove.name;
             const newPathPrefix = `${newPath}${newName}/`;
-            console.log(`[Backend] Moving folder ${folderToMove.name} from ${folderToMove.path} to ${newPath}`);
-            console.log(`[Backend] Descendant path change: ${oldPathPrefix} -> ${newPathPrefix}`);
-            files.forEach((file) => {
-                if (file.owner === ownerAddress && file.path.startsWith(oldPathPrefix)) {
-                    const updatedPath = file.path.replace(oldPathPrefix, newPathPrefix);
-                    console.log(`[Backend] ...updating file ${file.filename} path to ${updatedPath}`);
-                    file.path = updatedPath;
-                }
-            });
-            folders.forEach((folder) => {
-                if (folder.owner === ownerAddress && folder.path.startsWith(oldPathPrefix)) {
-                    const updatedPath = folder.path.replace(oldPathPrefix, newPathPrefix);
-                    console.log(`[Backend] ...updating sub-folder ${folder.name} path to ${updatedPath}`);
-                    folder.path = updatedPath;
-                }
-            });
-            folderToMove.path = newPath;
-        });
-        saveDatabase();
+            await filesCollection.updateMany({ owner: ownerAddress, path: { $regex: `^${oldPathPrefix}` } }, [{ $set: { path: { $replaceOne: { input: "$path", find: oldPathPrefix, replacement: newPathPrefix } } } }]);
+            await foldersCollection.updateMany({ owner: ownerAddress, path: { $regex: `^${oldPathPrefix}` } }, [{ $set: { path: { $replaceOne: { input: "$path", find: oldPathPrefix, replacement: newPathPrefix } } } }]);
+            await foldersCollection.updateOne({ _id: folderToMove._id }, { $set: { path: newPath } });
+        }
         res.status(200).json({ message: 'Items moved successfully.' });
     }
     catch (error) {
@@ -502,55 +383,45 @@ apiRouter.put('/items/move', (req, res) => {
     }
 });
 // 13. Delete multiple items
-apiRouter.post('/items/delete', (req, res) => {
+apiRouter.post('/items/delete', async (req, res) => {
     try {
         const { ownerAddress, itemIds } = req.body;
         if (!ownerAddress || !itemIds) {
             return res.status(400).json({ error: 'Owner and item IDs are required.' });
         }
-        const user = findOrCreateUser(ownerAddress);
-        let totalSizeDeleted = 0;
-        const itemsToDelete = {
-            files: new Set(),
-            folders: new Set()
-        };
-        const initialFiles = files.filter(f => itemIds.includes(f._id));
-        const initialFolders = folders.filter(f => itemIds.includes(f._id));
-        initialFiles.forEach(f => itemsToDelete.files.add(f._id));
-        initialFolders.forEach(f => itemsToDelete.folders.add(f._id));
+        const objectItemIds = itemIds.map((id) => new ObjectId(id));
+        const filesToDeleteIds = new Set();
+        const foldersToDeleteIds = new Set();
+        const initialFiles = await filesCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
+        const initialFolders = await foldersCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
+        initialFiles.forEach(f => filesToDeleteIds.add(f._id.toString()));
+        initialFolders.forEach(f => foldersToDeleteIds.add(f._id.toString()));
         const foldersToScan = [...initialFolders];
         while (foldersToScan.length > 0) {
             const currentFolder = foldersToScan.pop();
             if (!currentFolder)
                 continue;
             const currentPath = `${currentFolder.path}${currentFolder.name}/`;
-            const subFolders = folders.filter(f => f.path === currentPath);
-            subFolders.forEach(sub => {
-                if (!itemsToDelete.folders.has(sub._id)) {
-                    itemsToDelete.folders.add(sub._id);
+            const subFolders = await foldersCollection.find({ path: currentPath, owner: ownerAddress }).toArray();
+            for (const sub of subFolders) {
+                if (!foldersToDeleteIds.has(sub._id.toString())) {
+                    foldersToDeleteIds.add(sub._id.toString());
                     foldersToScan.push(sub);
                 }
-            });
-            const filesInFolder = files.filter(f => f.path.startsWith(currentPath));
-            filesInFolder.forEach(file => itemsToDelete.files.add(file._id));
-        }
-        const deletedFilenames = [];
-        files = files.filter(f => {
-            if (itemsToDelete.files.has(f._id)) {
-                totalSizeDeleted += f.size;
-                shares = shares.filter(s => s.cid !== f.cid);
-                deletedFilenames.push(f.filename);
-                return false;
             }
-            return true;
-        });
-        const deletedFolderNames = folders.filter(f => itemsToDelete.folders.has(f._id)).map(f => f.name);
-        folders = folders.filter(f => !itemsToDelete.folders.has(f._id));
-        user.storageUsed -= totalSizeDeleted;
-        if (user.storageUsed < 0)
-            user.storageUsed = 0;
-        createActivity(ownerAddress, 'DELETE', { itemCount: deletedFilenames.length + deletedFolderNames.length }, true);
-        saveDatabase();
+            const filesInFolder = await filesCollection.find({ path: { $regex: `^${currentPath}` }, owner: ownerAddress }).toArray();
+            filesInFolder.forEach(file => filesToDeleteIds.add(file._id.toString()));
+        }
+        const finalFileIdsToDelete = Array.from(filesToDeleteIds).map(id => new ObjectId(id));
+        const finalFolderIdsToDelete = Array.from(foldersToDeleteIds).map(id => new ObjectId(id));
+        const filesToDeleteResult = await filesCollection.find({ _id: { $in: finalFileIdsToDelete } }).toArray();
+        let totalSizeDeleted = filesToDeleteResult.reduce((sum, file) => sum + file.size, 0);
+        const cidsToDelete = filesToDeleteResult.map(f => f.cid);
+        await filesCollection.deleteMany({ _id: { $in: finalFileIdsToDelete } });
+        await foldersCollection.deleteMany({ _id: { $in: finalFolderIdsToDelete } });
+        await sharesCollection.deleteMany({ cid: { $in: cidsToDelete } });
+        await usersCollection.updateOne({ address: ownerAddress }, { $inc: { storageUsed: -totalSizeDeleted } });
+        await createActivity(ownerAddress, 'DELETE', { itemCount: finalFileIdsToDelete.length + finalFolderIdsToDelete.length }, true);
         res.status(200).json({ message: 'Items deleted successfully.' });
     }
     catch (error) {
@@ -558,50 +429,37 @@ apiRouter.post('/items/delete', (req, res) => {
         res.status(500).json({ error: 'Internal server error while deleting items.' });
     }
 });
-// 14. NEW: Get activity logs for a user
-apiRouter.get('/activity/:ownerAddress', (req, res) => {
+// 14. Get activity logs for a user
+apiRouter.get('/activity/:ownerAddress', async (req, res) => {
     try {
         const { ownerAddress } = req.params;
-        let userActivities = activities.filter(a => a.owner === ownerAddress);
-        userActivities = userActivities.map(activity => {
+        let userActivities = await activitiesCollection.find({ owner: ownerAddress }).sort({ timestamp: -1 }).toArray();
+        for (let i = 0; i < userActivities.length; i++) {
+            let activity = userActivities[i];
             if (activity.type === 'SHARE' && activity.details.recipient === 'You') {
-                const shareInfo = shares.find(s => s.cid === activity.details.cid && s.recipientAddress === ownerAddress);
-                return {
-                    ...activity,
-                    details: {
-                        ...activity.details,
-                        senderAddress: shareInfo?.senderAddress
-                    }
-                };
+                const shareInfo = await sharesCollection.findOne({ cid: activity.details.cid, recipientAddress: ownerAddress });
+                activity.details.senderAddress = shareInfo?.senderAddress;
             }
-            return activity;
-        });
-        const allUserActivities = userActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        res.status(200).json({ activities: allUserActivities });
+            else if (activity.type === 'RECEIVE_ALGO') {
+                activity.details.senderAddress = activity.details.sender;
+            }
+        }
+        res.status(200).json({ activities: userActivities });
     }
     catch (error) {
         console.error('[Backend] Error fetching activity:', error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 });
-// 15. NEW: Mark activities as read for a user
-apiRouter.post('/activity/mark-read', (req, res) => {
+// 15. Mark activities as read for a user
+apiRouter.post('/activity/mark-read', async (req, res) => {
     try {
         const { ownerAddress } = req.body;
         if (!ownerAddress) {
             return res.status(400).json({ error: 'Owner address is required.' });
         }
-        let markedAsReadCount = 0;
-        activities.forEach(activity => {
-            if (activity.owner === ownerAddress && !activity.isRead) {
-                activity.isRead = true;
-                markedAsReadCount++;
-            }
-        });
-        if (markedAsReadCount > 0) {
-            saveDatabase();
-        }
-        console.log(`[Backend] Marked ${markedAsReadCount} notifications as read for ${ownerAddress.substring(0, 10)}...`);
+        const result = await activitiesCollection.updateMany({ owner: ownerAddress, isRead: false }, { $set: { isRead: true } });
+        console.log(`[Backend] Marked ${result.modifiedCount} notifications as read for ${ownerAddress.substring(0, 10)}...`);
         res.status(200).json({ message: 'Notifications marked as read.' });
     }
     catch (error) {
@@ -612,8 +470,11 @@ apiRouter.post('/activity/mark-read', (req, res) => {
 // Mount the API router at the /api prefix
 app.use('/api', apiRouter);
 // --- SERVER STARTUP ---
-app.listen(PORT, () => {
-    loadDatabase(); // Load the database from file on server start
-    console.log(`✅ Backend service listening at http://localhost:${PORT}`);
-});
+const startServer = async () => {
+    await connectToDatabase();
+    app.listen(PORT, () => {
+        console.log(`✅ Backend service listening at http://localhost:${PORT}`);
+    });
+};
+startServer();
 //# sourceMappingURL=index.js.map
