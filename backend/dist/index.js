@@ -424,7 +424,6 @@ apiRouter.put('/items/move', (req, res) => {
         if (!ownerAddress || !itemIds || !itemTypes || newPath === undefined) {
             return res.status(400).json({ error: 'Owner, item IDs, item types, and new path are required.' });
         }
-        // Separate files and folders to be moved
         const filesToMove = [];
         const foldersToMove = [];
         itemIds.forEach((id, index) => {
@@ -440,25 +439,31 @@ apiRouter.put('/items/move', (req, res) => {
             }
         });
         // Move top-level files
-        filesToMove.forEach(file => {
+        filesToMove.forEach((file) => {
+            console.log(`[Backend] Moving file ${file.filename} to ${newPath}`);
             file.path = newPath;
         });
         // Move top-level folders and all their descendants
-        foldersToMove.forEach(folderToMove => {
+        foldersToMove.forEach((folderToMove) => {
             const oldPathPrefix = `${folderToMove.path}${folderToMove.name}/`;
             const newName = folderToMove.name; // Name stays the same, only path changes
             const newPathPrefix = `${newPath}${newName}/`;
+            console.log(`[Backend] Moving folder ${folderToMove.name} from ${folderToMove.path} to ${newPath}`);
+            console.log(`[Backend] Descendant path change: ${oldPathPrefix} -> ${newPathPrefix}`);
             // Update all descendant files
-            files.forEach(file => {
+            files.forEach((file) => {
                 if (file.owner === ownerAddress && file.path.startsWith(oldPathPrefix)) {
-                    // Replace the old prefix with the new one
-                    file.path = file.path.replace(oldPathPrefix, newPathPrefix);
+                    const updatedPath = file.path.replace(oldPathPrefix, newPathPrefix);
+                    console.log(`[Backend] ...updating file ${file.filename} path to ${updatedPath}`);
+                    file.path = updatedPath;
                 }
             });
             // Update all descendant folders
-            folders.forEach(folder => {
+            folders.forEach((folder) => {
                 if (folder.owner === ownerAddress && folder.path.startsWith(oldPathPrefix)) {
-                    folder.path = folder.path.replace(oldPathPrefix, newPathPrefix);
+                    const updatedPath = folder.path.replace(oldPathPrefix, newPathPrefix);
+                    console.log(`[Backend] ...updating sub-folder ${folder.name} path to ${updatedPath}`);
+                    folder.path = updatedPath;
                 }
             });
             // Finally, move the folder itself
@@ -487,7 +492,7 @@ apiRouter.post('/items/delete', (req, res) => {
         };
         const initialFolders = folders.filter(f => itemIds.includes(f._id));
         // Add initial selections
-        itemIds.forEach(id => {
+        itemIds.forEach((id) => {
             if (files.some(f => f._id === id))
                 itemsToDelete.files.add(id);
             if (folders.some(f => f._id === id))

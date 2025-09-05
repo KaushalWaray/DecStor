@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from '@/components/ui/button';
@@ -10,8 +11,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { truncateAddress } from '@/lib/utils';
-import { LoaderCircle } from 'lucide-react';
+import { LoaderCircle, FileText } from 'lucide-react';
 import { ALGO_NETWORK_FEE } from '@/lib/constants';
+import type { FileMetadata } from '@/types';
 
 
 interface ApproveTransactionModalProps {
@@ -24,6 +26,7 @@ interface ApproveTransactionModalProps {
   actionText: string;
   recipientAddress?: string;
   amount?: number;
+  file?: FileMetadata; // New prop for file details
 }
 
 export default function ApproveTransactionModal({
@@ -35,7 +38,8 @@ export default function ApproveTransactionModal({
   description,
   actionText,
   recipientAddress,
-  amount
+  amount,
+  file,
 }: ApproveTransactionModalProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -45,7 +49,16 @@ export default function ApproveTransactionModal({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 my-4 p-4 border rounded-md">
-            <div className="flex justify-between items-center">
+            {file && (
+                <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">File</span>
+                    <span className="font-medium flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-primary" />
+                        {file.filename}
+                    </span>
+                </div>
+            )}
+             <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Action</span>
                 <span className="font-medium">{actionText}</span>
             </div>

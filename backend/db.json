@@ -8,7 +8,7 @@
     {
       "address": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
       "storageLimit": 104857600,
-      "storageUsed": 543679
+      "storageUsed": 855590
     }
   ],
   "files": [
@@ -29,7 +29,7 @@
       "size": 27102,
       "fileType": "image/jpeg",
       "owner": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
-      "path": "/",
+      "path": "/Profile_PIC/",
       "createdAt": "2025-09-05T10:57:48.257Z"
     },
     {
@@ -41,9 +41,25 @@
       "owner": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
       "path": "/",
       "createdAt": "2025-09-05T11:28:23.445Z"
+    },
+    {
+      "_id": "2025-09-05T11:35:43.210Z0.2462718027319759",
+      "filename": "natural_calm_lake_at_dusk_6891961.mp4",
+      "cid": "QmRnUonzR3gp8shzm5jrfPN5h7HE79ZyUXdYbLfSCtK6i9",
+      "size": 311911,
+      "fileType": "video/mp4",
+      "owner": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
+      "path": "/",
+      "createdAt": "2025-09-05T11:35:43.210Z"
     }
   ],
-  "shares": [],
+  "shares": [
+    {
+      "cid": "QmRnUonzR3gp8shzm5jrfPN5h7HE79ZyUXdYbLfSCtK6i9",
+      "recipientAddress": "CQHBYCZEFV5HEGXHBVJILW7N3LJMB2LDNZMA7AAYOMG6S3DOV3LUBGYK64",
+      "createdAt": "2025-09-05T11:36:48.048Z"
+    }
+  ],
   "folders": [
     {
       "_id": "2025-09-05T10:21:52.632Z0.5688588669210781",

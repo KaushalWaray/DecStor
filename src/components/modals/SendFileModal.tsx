@@ -47,7 +47,7 @@ export default function SendFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
         </DialogHeader>
         <div className="space-y-4 my-4">
             <div className="flex items-center gap-3 p-3 rounded-md bg-muted">
-                <FileText className="h-5 w-5 text-muted-foreground" />
+                <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                 <span className="font-medium truncate">{file.filename}</span>
             </div>
             <div className="space-y-2">
@@ -70,10 +70,10 @@ export default function SendFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
             {isLoading ? (
                 <>
                     <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                    <span>Sending...</span>
+                    <span>Validating...</span>
                 </>
             ) : (
-                "Send File"
+                "Review & Send"
             )}
             
           </Button>

@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { AlgorandAccount, FileMetadata, Folder, StorageInfo, WalletEntry } from '@/types';
+import type { AlgorandAccount, FileMetadata, Folder, StorageInfo } from '@/types';
 import { getFilesByOwner, confirmPayment, getStorageServiceAddress, createFolder as apiCreateFolder, renameFolder as apiRenameFolder, renameFile as apiRenameFile, moveItems as apiMoveItems, deleteItems as apiDeleteItems } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
@@ -18,11 +19,9 @@ import ApproveTransactionModal from '../modals/ApproveTransactionModal';
 import UnlockFolderModal from '../modals/UnlockFolderModal';
 import { payForStorageUpgrade } from '@/lib/algorand';
 import { truncateAddress } from '@/lib/utils';
-import { mnemonicToAccount } from '@/lib/algorand';
-import { decryptMnemonic } from '@/lib/crypto';
+import { UPGRADE_COST_ALGOS } from '@/lib/constants';
 import StorageManager from './StorageManager';
 import Breadcrumbs from './Breadcrumbs';
-import { UPGRADE_COST_ALGOS } from '@/lib/constants';
 import RenameModal from '../modals/RenameModal';
 import BulkActionBar from './BulkActionBar';
 import MediaPreviewModal from '../modals/MediaPreviewModal';
@@ -50,6 +49,7 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
 
   // Modal states
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+  const [isApproveSendFileModalOpen, setIsApproveSendFileModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
@@ -59,6 +59,7 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
   
   // Data for modals
   const [selectedFile, setSelectedFile] = useState<FileMetadata | null>(null);
+  const [sendRecipient, setSendRecipient] = useState<string>('');
   const [itemToDelete, setItemToDelete] = useState<FileMetadata | Folder | null>(null);
   const [itemsToMove, setItemsToMove] = useState<(FileMetadata | Folder)[]>([]);
   const [itemToRename, setItemToRename] = useState<FileMetadata | Folder | null>(null);
@@ -167,14 +168,21 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
     setIsMediaPreviewModalOpen(true);
   };
 
-  const handleConfirmSend = async (recipientAddress: string) => {
-    if (!selectedFile) return;
+  const handleInitiateSend = (recipient: string) => {
+    setSendRecipient(recipient);
+    setIsSendModalOpen(false); // Close first modal
+    setIsApproveSendFileModalOpen(true); // Open confirmation modal
+  };
+
+  const handleConfirmSend = async () => {
+    if (!selectedFile || !sendRecipient) return;
     setIsSending(true);
-    const success = await onConfirmSendFile(selectedFile, recipientAddress);
+    const success = await onConfirmSendFile(selectedFile, sendRecipient);
     setIsSending(false);
     if (success) {
-      setIsSendModalOpen(false);
+      setIsApproveSendFileModalOpen(false);
       setSelectedFile(null);
+      setSendRecipient('');
     }
   };
 
@@ -296,24 +304,10 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
       try {
         toast({ title: "Processing Upgrade...", description: "Please approve the transaction in your wallet." });
         
-        const storedWallets: WalletEntry[] = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
-        const walletEntry = storedWallets.find(w => w.address === account.addr);
-        
-        if (!walletEntry) {
-          throw new Error("Could not find wallet credentials. Please try re-importing your wallet.");
-        }
-
-        const mnemonic = await decryptMnemonic(walletEntry.encryptedMnemonic, pin);
-        if (!mnemonic) {
-          throw new Error("Decryption failed. Please check your PIN and try again.");
-        }
-        
-        const senderAccount = mnemonicToAccount(mnemonic);
-        
-        const { txId } = await payForStorageUpgrade(senderAccount, storageServiceAddress);
+        const { txId } = await payForStorageUpgrade(account, pin, storageServiceAddress);
         toast({ title: "Payment Sent!", description: `Transaction ${truncateAddress(txId, 6, 4)} confirmed. Finalizing upgrade...` });
 
-        const updatedStorageInfo = await confirmPayment(senderAccount.addr, txId);
+        const { storageInfo: updatedStorageInfo } = await confirmPayment(account.addr, txId);
         setStorageInfo(updatedStorageInfo);
 
         toast({ title: "Upgrade Complete!", description: "Your storage has been successfully upgraded to 100MB." });
@@ -424,13 +418,24 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
             <SendFileModal
             isOpen={isSendModalOpen}
             onOpenChange={setIsSendModalOpen}
-            onConfirm={handleConfirmSend}
+            onConfirm={handleInitiateSend}
             isLoading={isSending}
             file={selectedFile}
             />
             <FileDetailsModal
                 isOpen={isDetailsModalOpen}
                 onOpenChange={setIsDetailsModalOpen}
+                file={selectedFile}
+            />
+             <ApproveTransactionModal
+                isOpen={isApproveSendFileModalOpen}
+                onOpenChange={setIsApproveSendFileModalOpen}
+                onApprove={handleConfirmSend}
+                isLoading={isSending}
+                title="Approve File Send"
+                description="You are about to create an on-chain record of a file send. Please review the details carefully."
+                actionText={`Send ${selectedFile.filename}`}
+                recipientAddress={sendRecipient}
                 file={selectedFile}
             />
         </>
@@ -521,17 +526,19 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
         onConfirm={handleCreateFolder}
       />
 
-      <ApproveTransactionModal
-        isOpen={isUpgradeModalOpen}
-        onOpenChange={setIsUpgradeModalOpen}
-        onApprove={handleConfirmUpgrade}
-        isLoading={isUpgrading}
-        title="Approve Storage Upgrade"
-        description="You are about to pay for a storage upgrade. Review the details below."
-        actionText="Upgrade to 100MB Pro Tier"
-        recipientAddress={storageServiceAddress}
-        amount={UPGRADE_COST_ALGOS}
-      />
+      {storageInfo && (
+        <ApproveTransactionModal
+            isOpen={isUpgradeModalOpen}
+            onOpenChange={setIsUpgradeModalOpen}
+            onApprove={handleConfirmUpgrade}
+            isLoading={isUpgrading}
+            title="Approve Storage Upgrade"
+            description="You are about to pay for a storage upgrade. Review the details below."
+            actionText="Upgrade to 100MB Pro Tier"
+            recipientAddress={storageServiceAddress}
+            amount={UPGRADE_COST_ALGOS}
+        />
+      )}
     </div>
   );
 }

@@ -1,8 +1,10 @@
 
+
 import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, waitForConfirmation, isValidAddress, makeApplicationNoOpTxnFromObject, makePaymentTxnWithSuggestedParamsFromObject, OnApplicationComplete} from 'algosdk';
 import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID, UPGRADE_COST_ALGOS } from './constants';
-import type { AlgorandAccount } from '@/types';
+import type { AlgorandAccount, WalletEntry } from '@/types';
 import { recordShareInDb } from './api';
+import { decryptMnemonic } from './crypto';
 
 const algodClient = new Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
 
@@ -102,12 +104,20 @@ export const sendFile = async (
   };
 };
 
-export const payForStorageUpgrade = async (sender: AlgorandAccount, recipientAddress: string) => {
-    console.log(`[Algorand] Initiating payment for storage upgrade from ${sender.addr}`);
+export const payForStorageUpgrade = async (account: AlgorandAccount, pin: string, recipientAddress: string) => {
+    console.log(`[Algorand] Initiating payment for storage upgrade from ${account.addr}`);
+
+    // This function now requires the PIN to re-derive the secret key for signing.
+    const storedWallets: WalletEntry[] = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
+    const walletEntry = storedWallets.find(w => w.address === account.addr);
+    if (!walletEntry) throw new Error("Could not find wallet credentials. Please try re-importing your wallet.");
+
+    const mnemonic = await decryptMnemonic(walletEntry.encryptedMnemonic, pin);
+    if (!mnemonic) throw new Error("Decryption failed. Please check your PIN and try again.");
+    
+    const sender = mnemonicToAccount(mnemonic);
     
     const params = await algodClient.getTransactionParams().do();
-    console.log('[Algorand] Got transaction params.');
-
     const amount = UPGRADE_COST_ALGOS * 1_000_000; // to microAlgos
 
     const paymentTxn = makePaymentTxnWithSuggestedParamsFromObject({
