@@ -24,7 +24,7 @@ interface RenameWalletModalProps {
 }
 
 export default function RenameWalletModal({ isOpen, onOpenChange, onConfirm, currentName }: RenameWalletModalProps) {
-  const [newName, setNewName] = useState(currentName);
+  const [newName, setNewName] = useState(currentName || '');
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
@@ -75,7 +75,7 @@ export default function RenameWalletModal({ isOpen, onOpenChange, onConfirm, cur
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>Cancel</Button>
-          <Button onClick={handleConfirm} disabled={isLoading || !newName.trim() || newName === currentName}>
+          <Button onClick={handleConfirm} disabled={isLoading || !newName?.trim() || newName === currentName}>
             {isLoading ? (
                 <>
                     <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
