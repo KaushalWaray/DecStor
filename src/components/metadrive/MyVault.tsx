@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -150,7 +149,6 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
   };
 
   const handleBulkDelete = () => {
-    // This will be handled by a different modal/alert for bulk operations.
     setIsDeleteModalOpen(true);
   }
   
@@ -248,7 +246,6 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
 
 
   const handleFolderClick = (folder: Folder) => {
-    // If global search is active, clicking a folder clears the search and navigates
     if (isGlobalSearch) {
         setSearchTerm('');
     }
@@ -263,8 +260,9 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
   };
 
   const handlePathChange = (newPath: string) => {
-      // When changing path, clear search to avoid confusion
-      setSearchTerm('');
+      if (isGlobalSearch) {
+        setSearchTerm('');
+      }
       setCurrentPath(newPath);
   }
 
@@ -537,5 +535,3 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
     </div>
   );
 }
-
-    

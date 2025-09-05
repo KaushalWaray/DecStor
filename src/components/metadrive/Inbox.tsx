@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
@@ -9,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, RefreshCw, Inbox as InboxIcon, FileSearch, Search, List, LayoutGrid } from 'lucide-react';
 import FileGrid from './FileGrid';
 import { getFilesByOwner } from '@/lib/api';
+import MediaPreviewModal from '../modals/MediaPreviewModal';
 
 interface InboxProps {
   account: AlgorandAccount;
@@ -20,9 +20,10 @@ export default function Inbox({ account, pin }: InboxProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  const [fileToPreview, setFileToPreview] = useState<FileMetadata | null>(null);
+  const [isMediaPreviewModalOpen, setIsMediaPreviewModalOpen] = useState(false);
   const { toast } = useToast();
 
-  // The inbox will show all files shared with the user, regardless of folder structure for now.
   const inboxFiles = useMemo(() => {
       const allSharedFiles = allFiles.filter(f => f.owner !== account.addr);
       const uniqueCids = new Set();
@@ -44,8 +45,7 @@ export default function Inbox({ account, pin }: InboxProps) {
   const handleRefresh = useCallback(async (isInitialLoad = false) => {
     setIsLoading(true);
     try {
-      // We still fetch with a path, but the backend is now configured to return all shared files
-      const response = await getFilesByOwner(account.addr, '/');
+      const response = await getFilesByOwner(account.addr, '/', true);
       setAllFiles(response.sharedFiles || []);
 
       if (!isInitialLoad) {
@@ -72,10 +72,15 @@ export default function Inbox({ account, pin }: InboxProps) {
     return { title: 'Your Inbox is Empty', description: 'Files shared with you by other users will appear here.', icon: InboxIcon };
   };
 
-  // Inbox doesn't have actions like share/delete/details for now.
+  const handleOpenPreviewModal = (file: FileMetadata) => {
+    setFileToPreview(file);
+    setIsMediaPreviewModalOpen(true);
+  };
+
   const noOp = () => {};
 
   return (
+    <>
     <div className="p-6 bg-card rounded-lg space-y-6">
       <div className="flex flex-col sm:flex-row gap-4 justify-between items-center">
         <h2 className="text-2xl font-headline font-semibold">Received Files</h2>
@@ -114,6 +119,7 @@ export default function Inbox({ account, pin }: InboxProps) {
             onMove={noOp}
             onRename={noOp}
             onFolderClick={noOp}
+            onPreview={handleOpenPreviewModal}
             emptyState={getEmptyState()}
             view={view}
             selectedItems={[]} // No bulk actions in inbox for now
@@ -121,5 +127,14 @@ export default function Inbox({ account, pin }: InboxProps) {
         />
       )}
     </div>
+    {fileToPreview && (
+      <MediaPreviewModal
+        isOpen={isMediaPreviewModalOpen}
+        onOpenChange={setIsMediaPreviewModalOpen}
+        file={fileToPreview}
+        pin={pin} // Use main wallet pin for inbox files as folder context is unknown
+      />
+    )}
+    </>
   );
 }

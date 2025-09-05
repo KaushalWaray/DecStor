@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { AlgorandAccount, FileMetadata, Folder } from '@/types';
@@ -18,7 +17,7 @@ interface FileGridProps {
   onMove: (items: (FileMetadata | Folder)[]) => void;
   onRename: (item: FileMetadata | Folder) => void;
   onFolderClick: (folder: Folder) => void;
-  onPreview: (file: FileMetadata) => void; // New prop for previewing
+  onPreview: (file: FileMetadata) => void;
   emptyState: {
     title: string;
     description: string;
@@ -71,6 +70,7 @@ export default function FileGrid({
               files={files}
               folders={folders}
               pin={pin}
+              isOwner={files.every(f => f.owner === account.addr)}
               onFolderClick={onFolderClick}
               onSelectionChange={onSelectionChange}
               selectedItems={selectedItems}

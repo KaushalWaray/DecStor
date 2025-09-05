@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +22,7 @@ interface FileCardProps {
   onDelete: (file: FileMetadata) => void;
   onMove: (file: FileMetadata) => void;
   onRename: (file: FileMetadata) => void;
-  onPreview: (file: FileMetadata) => void; // New prop for previewing
+  onPreview: (file: FileMetadata) => void;
   isSelected: boolean;
   onSelectionChange: (checked: boolean) => void;
 }
@@ -146,4 +145,3 @@ export default function FileCard({ file, pin, isOwner, onSend, onDetails, onDele
     </Card>
   );
 }
-

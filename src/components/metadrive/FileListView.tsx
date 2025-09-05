@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -18,6 +17,7 @@ interface FileListViewProps {
   folders: FolderType[];
   files: FileMetadata[];
   pin: string;
+  isOwner: boolean;
   onFolderClick: (folder: FolderType) => void;
   selectedItems: (FileMetadata | FolderType)[];
   onSelectionChange: (item: FileMetadata | FolderType, selected: boolean) => void;
@@ -26,13 +26,14 @@ interface FileListViewProps {
   onMove: (items: (FileMetadata | FolderType)[]) => void;
   onDetails: (file: FileMetadata) => void;
   onDelete: (item: FileMetadata | FolderType) => void;
-  onPreview: (file: FileMetadata) => void; // New prop for previewing
+  onPreview: (file: FileMetadata) => void;
 }
 
 export function FileListView({
   folders,
   files,
   pin,
+  isOwner,
   onFolderClick,
   selectedItems,
   onSelectionChange,
@@ -183,23 +184,25 @@ export function FileListView({
                         >
                             {downloadingFileId === file._id ? <LoaderCircle className="animate-spin" /> : <Download />}
                         </Button>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon"><MoreVertical /></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                {isPreviewable && (
-                                  <DropdownMenuItem onClick={() => onPreview(file)}><Play className="mr-2"/> Preview</DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem onClick={() => onSend(file)}><Send className="mr-2"/> Send</DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => onRename(file)}><Edit className="mr-2"/> Rename</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => onMove([file])}><ArrowRight className="mr-2"/> Move</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => onDetails(file)}><Info className="mr-2"/> Details</DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => onDelete(file)} className="text-destructive"><Trash2 className="mr-2"/> Delete</DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        {isOwner && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon"><MoreVertical /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    {isPreviewable && (
+                                    <DropdownMenuItem onClick={() => onPreview(file)}><Play className="mr-2"/> Preview</DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuItem onClick={() => onSend(file)}><Send className="mr-2"/> Send</DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => onRename(file)}><Edit className="mr-2"/> Rename</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => onMove([file])}><ArrowRight className="mr-2"/> Move</DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => onDetails(file)}><Info className="mr-2"/> Details</DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem onClick={() => onDelete(file)} className="text-destructive"><Trash2 className="mr-2"/> Delete</DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                     </TableCell>
                 </TableRow>
             );
