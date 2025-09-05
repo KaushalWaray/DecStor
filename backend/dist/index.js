@@ -80,8 +80,8 @@ const createActivity = async (owner, type, details, isRead = false) => {
 const getStorageLimit = (tier) => {
     return tier === 'pro' ? PRO_TIER_LIMIT : FREE_TIER_LIMIT;
 };
-const findOrCreateUser = async (address) => {
-    const user = await usersCollection.findOne({ address });
+const findOrCreateUser = async (address, walletName) => {
+    let user = await usersCollection.findOne({ address });
     const now = new Date().toISOString();
     if (user) {
         // --- Existing User Logic ---
@@ -98,20 +98,19 @@ const findOrCreateUser = async (address) => {
             updates.storageUsed = totalSize;
             console.log(`[Backend] Recalculating storage for ${address.substring(0, 10)}... Old: ${user.storageUsed}, New: ${totalSize}`);
         }
-        const result = await usersCollection.findOneAndUpdate({ address }, { $set: updates }, { returnDocument: 'after' });
-        if (!result) {
-            // This should ideally not happen if user was found, but it's good practice to check
+        await usersCollection.updateOne({ address }, { $set: updates });
+        const updatedUser = await usersCollection.findOne({ address });
+        if (!updatedUser) {
             throw new Error("Failed to update and retrieve user.");
         }
-        return {
-            ...result,
-            storageLimit: getStorageLimit(result.storageTier),
-        };
+        user = updatedUser;
     }
     else {
         // --- New User Logic ---
+        const defaultName = walletName || `Wallet ${address.substring(address.length - 4)}`;
         const newUser = {
             address,
+            walletName: defaultName,
             storageUsed: 0,
             storageTier: 'free',
             createdAt: now,
@@ -119,16 +118,17 @@ const findOrCreateUser = async (address) => {
             lastLogin: now,
         };
         const insertResult = await usersCollection.insertOne(newUser);
-        console.log(`[Backend] Created new user ${address.substring(0, 10)}... with free tier.`);
+        console.log(`[Backend] Created new user ${address.substring(0, 10)}... with name "${defaultName}" and free tier.`);
         const createdUser = await usersCollection.findOne({ _id: insertResult.insertedId });
         if (!createdUser) {
             throw new Error("Failed to create and retrieve new user.");
         }
-        return {
-            ...createdUser,
-            storageLimit: getStorageLimit(createdUser.storageTier),
-        };
+        user = createdUser;
     }
+    return {
+        ...user,
+        storageLimit: getStorageLimit(user.storageTier),
+    };
 };
 const app = express();
 // --- MIDDLEWARE ---
@@ -149,16 +149,41 @@ apiRouter.get('/service-address', (req, res) => {
 // NEW: Endpoint to ensure a user exists upon wallet import/creation
 apiRouter.post('/users/find-or-create', async (req, res) => {
     try {
-        const { address } = req.body;
+        const { address, walletName } = req.body;
         if (!address) {
             return res.status(400).json({ error: 'Address is required.' });
         }
-        const user = await findOrCreateUser(address);
+        const user = await findOrCreateUser(address, walletName);
         res.status(200).json({ user });
     }
     catch (error) {
         console.error('[Backend] Error finding or creating user:', error);
         res.status(500).json({ error: 'Internal server error while finding or creating user.' });
+    }
+});
+// NEW: Rename a wallet
+apiRouter.put('/users/:address/rename', async (req, res) => {
+    try {
+        const { address } = req.params;
+        const { newName } = req.body;
+        if (!newName) {
+            return res.status(400).json({ error: 'New name is required.' });
+        }
+        const result = await usersCollection.updateOne({ address }, { $set: { walletName: newName, updatedAt: new Date().toISOString() } });
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+        const user = await usersCollection.findOne({ address });
+        if (!user) {
+            // This case should ideally not happen if matchedCount > 0, but it's a good safeguard.
+            return res.status(404).json({ error: 'User not found after update.' });
+        }
+        console.log(`[Backend] Renamed wallet for ${address.substring(0, 10)}... to "${newName}"`);
+        res.status(200).json({ message: 'Wallet renamed successfully.', user });
+    }
+    catch (error) {
+        console.error('[Backend] Error renaming wallet:', error);
+        res.status(500).json({ error: 'Internal server error while renaming wallet.' });
     }
 });
 // 2. Save File Metadata
@@ -261,14 +286,16 @@ apiRouter.post('/share', async (req, res) => {
 apiRouter.post('/payment/confirm', async (req, res) => {
     try {
         const { senderAddress, txId, recipientAddress, amount } = req.body;
-        if (!senderAddress || !txId) {
-            return res.status(400).json({ error: 'Sender address and transaction ID are required.' });
+        if (!senderAddress || !txId || !recipientAddress || amount === undefined) {
+            return res.status(400).json({ error: 'Sender address, recipient, amount, and transaction ID are required.' });
         }
         console.log(`[Backend] Received payment confirmation for tx: ${txId.substring(0, 10)}... from ${senderAddress.substring(0, 10)}...`);
+        // This logic is specifically for the storage upgrade flow
         if (amount === 0.1 && recipientAddress === storageServiceAccount.addr) {
             await usersCollection.updateOne({ address: senderAddress }, { $set: { storageTier: 'pro', updatedAt: new Date().toISOString() } });
             console.log(`[Backend] Upgraded ${senderAddress.substring(0, 10)}... to Pro tier.`);
         }
+        // This is generic activity logging for ANY payment confirmation received
         await createActivity(senderAddress, 'SEND_ALGO', { recipient: recipientAddress, amount }, true);
         await createActivity(recipientAddress, 'RECEIVE_ALGO', { sender: senderAddress, amount }, false);
         // Fetch the updated user to return the new storage limit

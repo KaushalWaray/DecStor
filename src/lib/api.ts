@@ -117,7 +117,7 @@ export const renameWallet = async (address: string, newName: string): Promise<{ 
     return api.put(`/users/${address}/rename`, { newName });
 }
 
-export const confirmPayment = async (senderAddress: string, txId: string, recipientAddress: string, amount: number): Promise<{ storageInfo: StorageInfo }> => {
+export const confirmPayment = async (senderAddress: string, txId: string, recipientAddress?: string, amount?: number): Promise<{ storageInfo: StorageInfo }> => {
     return api.post('/payment/confirm', { senderAddress, txId, recipientAddress, amount });
 }
 

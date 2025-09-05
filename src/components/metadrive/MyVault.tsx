@@ -307,7 +307,7 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
         const { txId } = await payForStorageUpgrade(account, pin, storageServiceAddress);
         toast({ title: "Payment Sent!", description: `Transaction ${truncateAddress(txId, 6, 4)} confirmed. Finalizing upgrade...` });
 
-        const { storageInfo: updatedStorageInfo } = await confirmPayment(account.addr, txId);
+        const { storageInfo: updatedStorageInfo } = await confirmPayment(account.addr, txId, storageServiceAddress, UPGRADE_COST_ALGOS);
         setStorageInfo(updatedStorageInfo);
 
         toast({ title: "Upgrade Complete!", description: "Your storage has been successfully upgraded to 100MB." });

@@ -35,7 +35,7 @@ export interface Share {
 }
 
 export interface User {
-  _id: ObjectId;
+  _id?: ObjectId;
   address: string;
   walletName: string;
   storageUsed: number;
@@ -341,7 +341,7 @@ apiRouter.get('/files/:ownerAddress', async (req, res) => {
         const ownedFiles = await filesCollection.find(ownedFilesQuery).toArray();
         const ownedFolders = await foldersCollection.find(ownedFoldersQuery).toArray();
 
-        const sharedCids = await sharesCollection.find({ recipientAddress: ownerAddress }).map((s: WithId<Share>) => s.cid).toArray();
+        const sharedCids = await sharesCollection.find({ recipientAddress: ownerAddress }).map((s) => s.cid).toArray();
         const sharedFiles = await filesCollection.find({ cid: { $in: sharedCids } }).toArray();
         
         const user = await findOrCreateUser(ownerAddress);
@@ -606,8 +606,8 @@ apiRouter.post('/items/delete', async (req, res) => {
         const initialFiles = await filesCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
         const initialFolders = await foldersCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
 
-        initialFiles.forEach((f: WithId<FileMetadata>) => filesToDeleteIds.add(f._id.toString()));
-        initialFolders.forEach((f: WithId<Folder>) => foldersToDeleteIds.add(f._id.toString()));
+        initialFiles.forEach((f) => filesToDeleteIds.add(f._id.toString()));
+        initialFolders.forEach((f) => foldersToDeleteIds.add(f._id.toString()));
 
         const foldersToScan = [...initialFolders];
         while(foldersToScan.length > 0) {
@@ -625,16 +625,16 @@ apiRouter.post('/items/delete', async (req, res) => {
             }
 
             const filesInFolder = await filesCollection.find({ path: { $regex: `^${currentPath}` }, owner: ownerAddress }).toArray();
-            filesInFolder.forEach((file: WithId<FileMetadata>) => filesToDeleteIds.add(file._id.toString()));
+            filesInFolder.forEach((file) => filesToDeleteIds.add(file._id.toString()));
         }
         
         const finalFileIdsToDelete = Array.from(filesToDeleteIds).map(id => new ObjectId(id));
         const finalFolderIdsToDelete = Array.from(foldersToDeleteIds).map(id => new ObjectId(id));
 
         const filesToDeleteResult = await filesCollection.find({ _id: { $in: finalFileIdsToDelete } }).toArray();
-        let totalSizeDeleted = filesToDeleteResult.reduce((sum: number, file: WithId<FileMetadata>) => sum + file.size, 0);
+        let totalSizeDeleted = filesToDeleteResult.reduce((sum, file) => sum + file.size, 0);
 
-        const cidsToDelete = filesToDeleteResult.map((f: WithId<FileMetadata>) => f.cid);
+        const cidsToDelete = filesToDeleteResult.map((f) => f.cid);
 
         await filesCollection.deleteMany({ _id: { $in: finalFileIdsToDelete } });
         await foldersCollection.deleteMany({ _id: { $in: finalFolderIdsToDelete } });

@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { AlgorandAccount, FileMetadata, Folder } from '@/types';
