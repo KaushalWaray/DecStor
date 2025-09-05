@@ -277,6 +277,7 @@ export default function Home() {
                     onUnlock={handleUnlock} 
                     onReset={handleReset} 
                     onAddNew={() => setWalletState('creating')} 
+                    onImportNew={() => setWalletState('importing')}
                     onDeleteWallet={handleDeleteWallet} 
                 />;
       case 'unlocked':

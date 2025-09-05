@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LockKeyhole, Eye, EyeOff, LoaderCircle, PlusCircle, Trash2 } from 'lucide-react';
+import { LockKeyhole, Eye, EyeOff, LoaderCircle, PlusCircle, Trash2, Download } from 'lucide-react';
 import { truncateAddress } from '@/lib/utils';
 import type { WalletEntry } from '@/types';
 
@@ -17,10 +17,11 @@ interface LockScreenProps {
   onUnlock: (address: string, pin: string) => void;
   onReset: () => void;
   onAddNew: () => void;
+  onImportNew: () => void;
   onDeleteWallet: (address: string) => void;
 }
 
-export default function LockScreen({ wallets, selectedWallet, onSetSelectedWallet, onUnlock, onReset, onAddNew, onDeleteWallet }: LockScreenProps) {
+export default function LockScreen({ wallets, selectedWallet, onSetSelectedWallet, onUnlock, onReset, onAddNew, onImportNew, onDeleteWallet }: LockScreenProps) {
   const [pin, setPin] = useState('');
   const [isPinVisible, setIsPinVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -100,6 +101,9 @@ export default function LockScreen({ wallets, selectedWallet, onSetSelectedWalle
         <CardFooter className="flex flex-col gap-2">
             <Button variant="secondary" className="w-full" onClick={onAddNew}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add New Wallet
+            </Button>
+            <Button variant="secondary" className="w-full" onClick={onImportNew}>
+                <Download className="mr-2 h-4 w-4" /> Import Existing Wallet
             </Button>
             <Button variant="link" className="text-sm text-muted-foreground" onClick={onReset}>
                 <Trash2 className="mr-2 h-4 w-4" /> Delete All Wallets
