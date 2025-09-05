@@ -152,7 +152,7 @@ const getStorageLimit = (tier: 'free' | 'pro') => {
 };
 
 const findOrCreateUser = async (address: string): Promise<User & { storageLimit: number }> => {
-    const user = await usersCollection.findOne({ address });
+    let user = await usersCollection.findOne({ address });
     const now = new Date().toISOString();
 
     if (user) {
@@ -174,21 +174,16 @@ const findOrCreateUser = async (address: string): Promise<User & { storageLimit:
             console.log(`[Backend] Recalculating storage for ${address.substring(0,10)}... Old: ${user.storageUsed}, New: ${totalSize}`);
         }
         
-        const result = await usersCollection.findOneAndUpdate(
+        await usersCollection.updateOne(
             { address }, 
             { $set: updates },
-            { returnDocument: 'after' }
         );
         
-        if (!result) {
-            // This should ideally not happen if user was found, but it's good practice to check
-            throw new Error("Failed to update and retrieve user.");
+        const updatedUser = await usersCollection.findOne({ address });
+        if (!updatedUser) {
+             throw new Error("Failed to update and retrieve user.");
         }
-
-        return {
-            ...result,
-            storageLimit: getStorageLimit(result.storageTier),
-        };
+        user = updatedUser;
 
     } else {
         // --- New User Logic ---
@@ -207,12 +202,13 @@ const findOrCreateUser = async (address: string): Promise<User & { storageLimit:
         if (!createdUser) {
             throw new Error("Failed to create and retrieve new user.");
         }
-        
-        return {
-            ...createdUser,
-            storageLimit: getStorageLimit(createdUser.storageTier),
-        };
+        user = createdUser;
     }
+        
+    return {
+        ...user,
+        storageLimit: getStorageLimit(user.storageTier),
+    };
 };
 
 
@@ -374,17 +370,19 @@ apiRouter.post('/share', async (req, res) => {
 apiRouter.post('/payment/confirm', async (req, res) => {
     try {
         const { senderAddress, txId, recipientAddress, amount } = req.body;
-        if (!senderAddress || !txId) {
-            return res.status(400).json({ error: 'Sender address and transaction ID are required.' });
+        if (!senderAddress || !txId || !recipientAddress || amount === undefined) {
+            return res.status(400).json({ error: 'Sender address, recipient, amount, and transaction ID are required.' });
         }
 
         console.log(`[Backend] Received payment confirmation for tx: ${txId.substring(0,10)}... from ${senderAddress.substring(0,10)}...`);
         
+        // This logic is specifically for the storage upgrade flow
         if (amount === 0.1 && recipientAddress === storageServiceAccount.addr) {
             await usersCollection.updateOne({ address: senderAddress }, { $set: { storageTier: 'pro', updatedAt: new Date().toISOString() } });
             console.log(`[Backend] Upgraded ${senderAddress.substring(0,10)}... to Pro tier.`);
         }
         
+        // This is generic activity logging for ANY payment confirmation received
         await createActivity(senderAddress, 'SEND_ALGO', { recipient: recipientAddress, amount }, true);
         await createActivity(recipientAddress, 'RECEIVE_ALGO', { sender: senderAddress, amount }, false);
 
@@ -572,8 +570,8 @@ apiRouter.post('/items/delete', async (req, res) => {
         const initialFiles = await filesCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
         const initialFolders = await foldersCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
 
-        initialFiles.forEach((f: FileMetadata) => filesToDeleteIds.add(f._id.toString()));
-        initialFolders.forEach((f: Folder) => foldersToDeleteIds.add(f._id.toString()));
+        initialFiles.forEach((f: WithId<FileMetadata>) => filesToDeleteIds.add(f._id.toString()));
+        initialFolders.forEach((f: WithId<Folder>) => foldersToDeleteIds.add(f._id.toString()));
 
         const foldersToScan = [...initialFolders];
         while(foldersToScan.length > 0) {
@@ -591,16 +589,16 @@ apiRouter.post('/items/delete', async (req, res) => {
             }
 
             const filesInFolder = await filesCollection.find({ path: { $regex: `^${currentPath}` }, owner: ownerAddress }).toArray();
-            filesInFolder.forEach((file: FileMetadata) => filesToDeleteIds.add(file._id.toString()));
+            filesInFolder.forEach((file: WithId<FileMetadata>) => filesToDeleteIds.add(file._id.toString()));
         }
         
         const finalFileIdsToDelete = Array.from(filesToDeleteIds).map(id => new ObjectId(id));
         const finalFolderIdsToDelete = Array.from(foldersToDeleteIds).map(id => new ObjectId(id));
 
         const filesToDeleteResult = await filesCollection.find({ _id: { $in: finalFileIdsToDelete } }).toArray();
-        let totalSizeDeleted = filesToDeleteResult.reduce((sum: number, file: FileMetadata) => sum + file.size, 0);
+        let totalSizeDeleted = filesToDeleteResult.reduce((sum: number, file: WithId<FileMetadata>) => sum + file.size, 0);
 
-        const cidsToDelete = filesToDeleteResult.map((f: FileMetadata) => f.cid);
+        const cidsToDelete = filesToDeleteResult.map((f: WithId<FileMetadata>) => f.cid);
 
         await filesCollection.deleteMany({ _id: { $in: finalFileIdsToDelete } });
         await foldersCollection.deleteMany({ _id: { $in: finalFolderIdsToDelete } });

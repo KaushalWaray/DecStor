@@ -81,23 +81,10 @@ const getStorageLimit = (tier) => {
     return tier === 'pro' ? PRO_TIER_LIMIT : FREE_TIER_LIMIT;
 };
 const findOrCreateUser = async (address) => {
-    let user = await usersCollection.findOne({ address });
+    const user = await usersCollection.findOne({ address });
     const now = new Date().toISOString();
-    if (!user) {
-        const newUser = {
-            address,
-            storageUsed: 0,
-            storageTier: 'free',
-            createdAt: now,
-            updatedAt: now,
-            lastLogin: now,
-        };
-        await usersCollection.insertOne(newUser);
-        console.log(`[Backend] Created new user ${address.substring(0, 10)}... with free tier.`);
-        user = newUser;
-    }
-    else {
-        // Recalculate storage just in case and update timestamps
+    if (user) {
+        // --- Existing User Logic ---
         const aggregationResult = await filesCollection.aggregate([
             { $match: { owner: address } },
             { $group: { _id: null, totalSize: { $sum: "$size" } } }
@@ -112,12 +99,36 @@ const findOrCreateUser = async (address) => {
             console.log(`[Backend] Recalculating storage for ${address.substring(0, 10)}... Old: ${user.storageUsed}, New: ${totalSize}`);
         }
         const result = await usersCollection.findOneAndUpdate({ address }, { $set: updates }, { returnDocument: 'after' });
-        user = result;
+        if (!result) {
+            // This should ideally not happen if user was found, but it's good practice to check
+            throw new Error("Failed to update and retrieve user.");
+        }
+        return {
+            ...result,
+            storageLimit: getStorageLimit(result.storageTier),
+        };
     }
-    return {
-        ...user,
-        storageLimit: getStorageLimit(user.storageTier),
-    };
+    else {
+        // --- New User Logic ---
+        const newUser = {
+            address,
+            storageUsed: 0,
+            storageTier: 'free',
+            createdAt: now,
+            updatedAt: now,
+            lastLogin: now,
+        };
+        const insertResult = await usersCollection.insertOne(newUser);
+        console.log(`[Backend] Created new user ${address.substring(0, 10)}... with free tier.`);
+        const createdUser = await usersCollection.findOne({ _id: insertResult.insertedId });
+        if (!createdUser) {
+            throw new Error("Failed to create and retrieve new user.");
+        }
+        return {
+            ...createdUser,
+            storageLimit: getStorageLimit(createdUser.storageTier),
+        };
+    }
 };
 const app = express();
 // --- MIDDLEWARE ---

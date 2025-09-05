@@ -113,9 +113,8 @@ export const findOrCreateUserInDb = async (address: string) => {
     return api.post('/users/find-or-create', { address });
 };
 
-export const confirmPayment = async (senderAddress: string, txId: string): Promise<StorageInfo> => {
-    const res = await api.post('/payment/confirm', { senderAddress, txId });
-    return res.storageInfo;
+export const confirmPayment = async (senderAddress: string, txId: string, recipientAddress: string, amount: number): Promise<{ storageInfo: StorageInfo }> => {
+    return api.post('/payment/confirm', { senderAddress, txId, recipientAddress, amount });
 }
 
 export const getStorageServiceAddress = async (): Promise<{address: string}> => {

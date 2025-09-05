@@ -7,7 +7,7 @@ import { encryptMnemonic, decryptMnemonic } from '@/lib/crypto';
 import { mnemonicToAccount, isValidMnemonic, sendPayment, sendFile } from '@/lib/algorand';
 import { useToast } from '@/hooks/use-toast';
 import { truncateAddress } from '@/lib/utils';
-import { findOrCreateUserInDb } from '@/lib/api';
+import { findOrCreateUserInDb, confirmPayment } from '@/lib/api';
 
 import WelcomeScreen from '@/components/metadrive/WelcomeScreen';
 import CreateWalletFlow from '@/components/metadrive/CreateWalletFlow';
@@ -218,10 +218,15 @@ export default function Home() {
   }, [account, pin]);
 
   const handleConfirmSendAlgo = useCallback(async (recipient: string, amount: number) => {
+    if (!account) return false;
     try {
       toast({ title: "Sending Transaction...", description: "Please wait while we process your transaction." });
       const senderAccount = await getSenderAccount();
       const { txId } = await sendPayment(senderAccount, recipient, amount);
+      
+      // Confirm the payment with the backend to create activity logs
+      await confirmPayment(account.addr, txId, recipient, amount);
+      
       toast({ title: "Transaction Sent!", description: `Successfully sent ${amount} ALGO. TxID: ${truncateAddress(txId, 6, 4)}` });
       return true; // Indicate success
     } catch (error: any) {
@@ -229,7 +234,7 @@ export default function Home() {
       toast({ variant: "destructive", title: "Send Failed", description: error.message || "An unknown error occurred." });
       return false; // Indicate failure
     }
-  }, [getSenderAccount, toast]);
+  }, [getSenderAccount, toast, account]);
 
   const handleConfirmSendFile = useCallback(async (file: FileMetadata, recipientAddress: string) => {
      if (!file) return false;
