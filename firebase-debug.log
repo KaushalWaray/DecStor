@@ -1,0 +1,15 @@
+[debug] [2025-09-01T17:09:36.428Z] ----------------------------------------------------------------------
+[debug] [2025-09-01T17:09:36.430Z] Command:       /nix/store/ws50yvm6vzlzf7jzz6n7xh4szddrack1-nodejs-20.19.1/bin/node /nix/store/mb7dm7av34020nn56xbny0fl17nwiddp-firebase-tools-14.14.0/lib/node_modules/firebase-tools/lib/bin/firebase.js init functions
+[debug] [2025-09-01T17:09:36.431Z] CLI Version:   14.14.0
+[debug] [2025-09-01T17:09:36.431Z] Platform:      linux
+[debug] [2025-09-01T17:09:36.431Z] Node Version:  v20.19.1
+[debug] [2025-09-01T17:09:36.432Z] Time:          Mon Sep 01 2025 17:09:36 GMT+0000 (Coordinated Universal Time)
+[debug] [2025-09-01T17:09:36.432Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-09-01T17:09:36.435Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2025-09-01T17:09:36.483Z] No OAuth tokens found
+[debug] [2025-09-01T17:09:36.483Z] No OAuth tokens found
+[error] Failed to fetch Firebase Project from current Studio Workspace: Unable to refresh auth: not yet authenticated.
+[debug] [2025-09-01T17:09:36.490Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform","https://www.googleapis.com/auth/userinfo.email"]
+[debug] [2025-09-01T17:09:36.863Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2025-09-01T17:09:36.867Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
