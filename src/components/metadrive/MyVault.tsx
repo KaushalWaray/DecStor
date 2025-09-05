@@ -7,7 +7,7 @@ import { getFilesByOwner, confirmPayment, getStorageServiceAddress, createFolder
 import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
-import { LoaderCircle, HardDrive, FileSearch, Search, AlertTriangle, FolderPlus, List, LayoutGrid } from 'lucide-react';
+import { LoaderCircle, HardDrive, FileSearch, Search, AlertTriangle, FolderPlus, List, LayoutGrid, RefreshCw } from 'lucide-react';
 import SendFileModal from '../modals/SendFileModal';
 import FileDetailsModal from '../modals/FileDetailsModal';
 import CreateFolderModal from '../modals/CreateFolderModal';
@@ -101,13 +101,18 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
     return { files, folders };
   }, [allFiles, allFolders, searchTerm, currentPath, isGlobalSearch]);
 
-  const fetchFilesAndStorage = useCallback(async () => {
-    setIsLoading(true);
+  const fetchFilesAndStorage = useCallback(async (isInitialLoad = false) => {
+    if (!isInitialLoad) {
+        setIsLoading(true);
+    }
     try {
       const response = await getFilesByOwner(account.addr, '/', true);
       setAllFiles(response.files || []);
       setAllFolders(response.folders || []);
       setStorageInfo(response.storageInfo);
+      if (!isInitialLoad) {
+          toast({ title: "Vault Refreshed", description: "Latest files and folders have been loaded."});
+      }
     } catch (error: any) {
       console.error(error);
       toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not fetch your files and storage data.' });
@@ -117,7 +122,7 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
   }, [account.addr, toast]);
 
   useEffect(() => {
-    fetchFilesAndStorage();
+    fetchFilesAndStorage(true);
   }, [fetchFilesAndStorage]);
 
   useEffect(() => {
@@ -347,7 +352,7 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
       <FileUploader 
         ownerAddress={account.addr} 
         pin={currentFolderPin} 
-        onUploadSuccess={fetchFilesAndStorage} 
+        onUploadSuccess={() => fetchFilesAndStorage(true)} 
         currentPath={currentPath}
       />
       
@@ -374,6 +379,9 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
                 </div>
                  <Button variant="outline" size="icon" onClick={() => setView(v => v === 'grid' ? 'list' : 'grid')} title={view === 'grid' ? 'Switch to List View' : 'Switch to Grid View'}>
                     {view === 'grid' ? <List /> : <LayoutGrid />}
+                </Button>
+                <Button variant="outline" size="icon" onClick={() => fetchFilesAndStorage(false)} disabled={isLoading} title="Refresh Vault">
+                   {isLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 </Button>
                 <Button onClick={() => setIsCreateFolderModalOpen(true)}>
                     <FolderPlus className="mr-2 h-4 w-4" /> Create Folder

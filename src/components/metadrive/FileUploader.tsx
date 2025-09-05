@@ -46,6 +46,7 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
 
     setIsUploading(true);
     setUploadProgress({ total: filesToUpload.length, completed: 0 });
+    let successfulUploads = 0;
 
     for (const file of filesToUpload) {
         try {
@@ -63,27 +64,35 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
             owner: ownerAddress,
             path: currentPath,
           });
-
+          
+          successfulUploads++;
           setUploadProgress(prev => ({ ...prev, completed: prev.completed + 1 }));
         } catch (error: any) {
           console.error(error);
           const errorMessage = error.response?.data?.error || error.message || 'An unknown error occurred.';
           toast({ variant: 'destructive', title: `Upload Failed for ${file.name}`, description: errorMessage });
-          // Optional: decide whether to continue or stop on error
+          setUploadProgress(prev => ({ ...prev, completed: prev.completed + 1 }));
+          // Stop on quota error
+          if (errorMessage.toLowerCase().includes('quota')) {
+              toast({ variant: 'destructive', title: 'Stopping Uploads', description: 'Storage quota exceeded.'})
+              break;
+          }
         }
     }
     
-    toast({ 
-        title: 'Uploads Complete!', 
-        description: `${uploadProgress.completed} of ${filesToUpload.length} files saved to your vault.`,
-        className: 'bg-green-500 text-white',
-        duration: 5000,
-    });
+    if (successfulUploads > 0) {
+        toast({ 
+            title: 'Uploads Complete!', 
+            description: `${successfulUploads} of ${filesToUpload.length} files saved to your vault.`,
+            className: 'bg-green-500 text-white',
+            duration: 5000,
+        });
+        onUploadSuccess();
+    }
     
     setFilesToUpload([]);
-    onUploadSuccess();
     setIsUploading(false);
-  }, [filesToUpload, ownerAddress, pin, currentPath, onUploadSuccess, toast, uploadProgress.completed]);
+  }, [filesToUpload, ownerAddress, pin, currentPath, onUploadSuccess, toast]);
 
   const onDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
@@ -123,7 +132,7 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
                 <ShieldCheck className="text-primary"/> 
                 Upload Encrypted Files
             </CardTitle>
-            <CardDescription>Drag & drop files here, or click to browse. Files are encrypted with the current folder's PIN before upload.</CardDescription>
+            <CardDescription>Drag & drop files here, or click to browse. Files are encrypted with the current wallet or folder PIN before upload.</CardDescription>
         </CardHeader>
         <CardContent>
             {isUploading ? (
