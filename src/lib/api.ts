@@ -38,6 +38,25 @@ const api = {
         }
         throw error;
     }
+  },
+  delete: async (path: string, data: any) => {
+      try {
+        const res = await fetch(`${BACKEND_URL}${path}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) {
+            const errorBody = await res.json().catch(() => ({ error: res.statusText || 'Unknown API Error' }));
+            throw new Error(`API Error: ${errorBody.error || res.statusText}`);
+        }
+        return res.json();
+    } catch (error: any) {
+        if (error.name === 'TypeError') {
+            throw new Error('Network Error: Could not connect to the backend server. Is it running?');
+        }
+        throw error;
+    }
   }
 };
 
@@ -65,6 +84,10 @@ export const confirmPayment = async (senderAddress: string, txId: string): Promi
 
 export const getStorageServiceAddress = async (): Promise<{address: string}> => {
     return api.get('/service-address');
+}
+
+export const deleteFileFromDb = async (cid: string, ownerAddress: string) => {
+    return api.delete(`/files/${cid}`, { ownerAddress });
 }
 
 

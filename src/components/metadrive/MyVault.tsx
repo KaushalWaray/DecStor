@@ -1,14 +1,18 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { AlgorandAccount, FileMetadata, StorageInfo, FilesAndStorageInfo, WalletEntry } from '@/types';
-import { getFilesByOwner, confirmPayment, getStorageServiceAddress } from '@/lib/api';
+import { getFilesByOwner, confirmPayment, getStorageServiceAddress, deleteFileFromDb } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
-import { LoaderCircle } from 'lucide-react';
+import { LoaderCircle, HardDrive, FileSearch, Search, AlertTriangle } from 'lucide-react';
 import ShareFileModal from '../modals/ShareFileModal';
+import FileDetailsModal from '../modals/FileDetailsModal';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 import ApproveTransactionModal from '../modals/ApproveTransactionModal';
 import { shareFile, payForStorageUpgrade } from '@/lib/algorand';
 import { truncateAddress } from '@/lib/utils';
@@ -24,32 +28,43 @@ interface MyVaultProps {
 }
 
 export default function MyVault({ account, pin }: MyVaultProps) {
-  const [files, setFiles] = useState<FileMetadata[]>([]);
+  const [allFiles, setAllFiles] = useState<FileMetadata[]>([]);
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
   
-  // State for sharing
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [fileToShare, setFileToShare] = useState<FileMetadata | null>(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<FileMetadata | null>(null);
+
   const [isSharing, setIsSharing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // State for upgrading
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [storageServiceAddress, setStorageServiceAddress] = useState<string>('');
 
-
   const { toast } = useToast();
+
+  const vaultFiles = useMemo(() => {
+    return allFiles.filter(f => f.owner === account.addr);
+  }, [allFiles, account.addr]);
+
+  const filteredFiles = useMemo(() => {
+    if (!searchTerm) return vaultFiles;
+    return vaultFiles.filter(file => 
+      file.filename.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [vaultFiles, searchTerm]);
 
   const fetchFilesAndStorage = useCallback(async () => {
     setIsLoading(true);
     try {
       const response: FilesAndStorageInfo = await getFilesByOwner(account.addr);
-      
-      const vaultFiles = response.files.filter(f => f.owner === account.addr);
-      setFiles(vaultFiles);
+      setAllFiles(response.files);
       setStorageInfo(response.storageInfo);
-
     } catch (error: any) {
       console.error(error);
       toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not fetch your files and storage data.' });
@@ -63,13 +78,22 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   }, [fetchFilesAndStorage]);
   
   const handleOpenShareModal = (file: FileMetadata) => {
-    setFileToShare(file);
+    setSelectedFile(file);
     setIsShareModalOpen(true);
+  };
+  
+  const handleOpenDetailsModal = (file: FileMetadata) => {
+    setSelectedFile(file);
+    setIsDetailsModalOpen(true);
+  };
+  
+  const handleOpenDeleteModal = (file: FileMetadata) => {
+    setSelectedFile(file);
+    setIsDeleteModalOpen(true);
   };
 
   const handleConfirmShare = async (recipientAddress: string) => {
-    if (!fileToShare) return;
-
+    if (!selectedFile) return;
     setIsSharing(true);
     try {
         toast({ title: "Sharing File...", description: "Please approve the transaction to create an on-chain proof-of-share." });
@@ -81,11 +105,11 @@ export default function MyVault({ account, pin }: MyVaultProps) {
         if (!mnemonic) throw new Error("Decryption failed");
         const senderAccount = mnemonicToAccount(mnemonic);
 
-      const {txId} = await shareFile(senderAccount, recipientAddress, fileToShare.cid);
+      const {txId} = await shareFile(senderAccount, recipientAddress, selectedFile.cid);
       
       toast({
         title: 'File Shared!',
-        description: `Successfully shared ${fileToShare.filename} with ${truncateAddress(recipientAddress)}. TxID: ${truncateAddress(txId, 6, 4)}`,
+        description: `Successfully shared ${selectedFile.filename} with ${truncateAddress(recipientAddress)}. TxID: ${truncateAddress(txId, 6, 4)}`,
       });
 
     } catch (error: any) {
@@ -94,7 +118,25 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     } finally {
       setIsSharing(false);
       setIsShareModalOpen(false);
-      setFileToShare(null);
+      setSelectedFile(null);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedFile) return;
+    setIsDeleting(true);
+    try {
+        // TODO: Also unpin from Pinata
+        await deleteFileFromDb(selectedFile.cid, account.addr);
+        toast({ title: "File Deleted", description: `${selectedFile.filename} has been removed from your vault.`});
+        await fetchFilesAndStorage(); // Refresh data
+    } catch(error: any) {
+        console.error("Delete failed:", error);
+        toast({ variant: "destructive", title: "Delete Failed", description: error.message || "An unknown error occurred." });
+    } finally {
+        setIsDeleting(false);
+        setIsDeleteModalOpen(false);
+        setSelectedFile(null);
     }
   };
 
@@ -146,6 +188,13 @@ export default function MyVault({ account, pin }: MyVaultProps) {
           setIsUpgradeModalOpen(false);
       }
   };
+
+  const getEmptyState = () => {
+    if (searchTerm) {
+        return { title: 'No Results Found', description: 'Your search did not match any files in your vault.', icon: FileSearch };
+    }
+    return { title: 'Your Vault is Empty', description: 'Upload a file to get started.', icon: HardDrive };
+  };
   
   return (
     <div className="space-y-6">
@@ -160,24 +209,67 @@ export default function MyVault({ account, pin }: MyVaultProps) {
       )}
       
       <div className="p-6 bg-card rounded-lg">
-        <h2 className="text-2xl font-headline font-semibold mb-4">My Files</h2>
-        {isLoading && files.length === 0 ? (
-          <div className="flex justify-center items-center h-40">
+        <div className="flex flex-col sm:flex-row gap-4 justify-between items-center mb-4">
+            <h2 className="text-2xl font-headline font-semibold">My Files</h2>
+            <div className="relative w-full sm:w-72">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                    placeholder="Search my files..." 
+                    className="pl-10"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+        </div>
+
+        {isLoading && filteredFiles.length === 0 && !searchTerm ? (
+          <div className="flex justify-center items-center h-64">
             <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <FileGrid files={files} onShare={handleOpenShareModal} />
+          <FileGrid 
+            files={filteredFiles} 
+            account={account}
+            onShare={handleOpenShareModal}
+            onDetails={handleOpenDetailsModal}
+            onDelete={handleOpenDeleteModal}
+            emptyState={getEmptyState()}
+          />
         )}
       </div>
 
-      {fileToShare && (
-        <ShareFileModal
-          isOpen={isShareModalOpen}
-          onOpenChange={setIsShareModalOpen}
-          onConfirm={handleConfirmShare}
-          isLoading={isSharing}
-          filename={fileToShare.filename}
-        />
+      {selectedFile && (
+        <>
+            <ShareFileModal
+            isOpen={isShareModalOpen}
+            onOpenChange={setIsShareModalOpen}
+            onConfirm={handleConfirmShare}
+            isLoading={isSharing}
+            filename={selectedFile.filename}
+            />
+            <FileDetailsModal
+                isOpen={isDetailsModalOpen}
+                onOpenChange={setIsDetailsModalOpen}
+                file={selectedFile}
+            />
+            <AlertDialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive" />Are you sure you want to delete this file?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This will permanently delete <span className="font-bold text-foreground">{selectedFile.filename}</span> from your vault. This action cannot be undone.
+                    </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                        {isDeleting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                        Delete File
+                    </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
       )}
 
       <ApproveTransactionModal

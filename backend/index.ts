@@ -273,6 +273,47 @@ apiRouter.post('/payment/confirm', async (req, res) => {
 });
 
 
+// 6. Delete a file
+apiRouter.delete('/files/:cid', (req, res) => {
+    try {
+        const { cid } = req.params;
+        const { ownerAddress } = req.body;
+
+        if (!cid || !ownerAddress) {
+            return res.status(400).json({ error: 'File CID and owner address are required.' });
+        }
+        
+        const fileIndex = files.findIndex(f => f.cid === cid && f.owner === ownerAddress);
+        
+        if (fileIndex === -1) {
+            return res.status(404).json({ error: 'File not found or you do not have permission to delete it.' });
+        }
+
+        const fileToDelete = files[fileIndex];
+        const user = findOrCreateUser(ownerAddress);
+
+        // Update user's storage usage
+        user.storageUsed -= fileToDelete.size;
+
+        // Remove the file from the database
+        files.splice(fileIndex, 1);
+        
+        // Also remove any shares associated with this file
+        shares = shares.filter(s => s.cid !== cid);
+
+        saveDatabase(); // Persist changes
+
+        console.log(`[Backend] Deleted file with CID: ${cid}`);
+        res.status(200).json({ message: 'File deleted successfully.' });
+
+    } catch (error) {
+        console.error('[Backend] Error deleting file:', error);
+        res.status(500).json({ error: 'Internal server error while deleting file.' });
+    }
+});
+
+
+
 // Mount the API router at the /api prefix
 app.use('/api', apiRouter);
 
