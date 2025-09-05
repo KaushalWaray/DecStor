@@ -29,7 +29,7 @@ export interface Folder {
 
 export interface Share {
   cid: string;
-  ownerAddress: string;
+  senderAddress: string;
   recipientAddress: string;
   createdAt: string;
 }
@@ -55,4 +55,16 @@ export interface FilesAndStorageInfo {
     sharedFiles: FileMetadata[];
 }
 
-    
+export interface Activity {
+  _id: string;
+  type: 'UPLOAD' | 'SHARE' | 'DELETE';
+  owner: string;
+  timestamp: string;
+  details: {
+    filename?: string;
+    folderName?: string;
+    cid?: string;
+    recipient?: string;
+    itemCount?: number;
+  };
+}
