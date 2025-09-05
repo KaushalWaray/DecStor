@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Button } from '@/components/ui/button';
@@ -13,8 +12,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Copy, QrCode } from 'lucide-react';
+import { Copy, QrCode, ExternalLink } from 'lucide-react';
 import QRCode from 'qrcode.react';
+import Link from 'next/link';
 
 interface ReceiveModalProps {
   isOpen: boolean;
@@ -58,6 +58,14 @@ export default function ReceiveModal({ isOpen, onOpenChange, address }: ReceiveM
                         <Copy className="h-4 w-4" />
                     </Button>
                 </div>
+            </div>
+             <div className="w-full space-y-2">
+                <Button asChild variant="secondary" className="w-full">
+                    <Link href="https://bank.testnet.algorand.network/" target="_blank">
+                        Get Testnet Funds <ExternalLink className="ml-2" />
+                    </Link>
+                </Button>
+                <p className="text-xs text-muted-foreground text-center">Use the dispenser to get free ALGO for testing.</p>
             </div>
         </div>
         <DialogFooter>
