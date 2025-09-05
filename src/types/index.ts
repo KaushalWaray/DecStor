@@ -24,6 +24,7 @@ export interface Folder {
     owner: string;
     path: string; // e.g., "/", "/documents/"
     createdAt: string;
+    isLocked?: boolean;
 }
 
 export interface Share {

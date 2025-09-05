@@ -16,6 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import ApproveTransactionModal from '../modals/ApproveTransactionModal';
+import UnlockFolderModal from '../modals/UnlockFolderModal';
 import { shareFile, payForStorageUpgrade } from '@/lib/algorand';
 import { truncateAddress } from '@/lib/utils';
 import { mnemonicToAccount } from '@/lib/algorand';
@@ -40,6 +41,11 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const [currentPath, setCurrentPath] = useState('/');
   const [allFoldersForMove, setAllFoldersForMove] = useState<Folder[]>([]);
   
+  // State for locked folders
+  const [unlockedPins, setUnlockedPins] = useState<Record<string, string>>({});
+  const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+  const [folderToUnlock, setFolderToUnlock] = useState<Folder | null>(null);
+  
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -61,6 +67,11 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const [storageServiceAddress, setStorageServiceAddress] = useState<string>('');
 
   const { toast } = useToast();
+
+  const currentFolderPin = useMemo(() => {
+    return unlockedPins[currentPath] || pin;
+  }, [unlockedPins, currentPath, pin]);
+
 
   const filteredFiles = useMemo(() => {
     if (!searchTerm) return allFiles;
@@ -229,6 +240,27 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     }
   };
 
+  const handleFolderClick = (folder: Folder) => {
+    const nextPath = `${folder.path}${folder.name}/`;
+    if (folder.isLocked && !unlockedPins[nextPath]) {
+        setFolderToUnlock(folder);
+        setIsUnlockModalOpen(true);
+    } else {
+        setCurrentPath(nextPath);
+    }
+  };
+
+  const handleUnlockFolder = (folderPin: string) => {
+    if (folderToUnlock) {
+      const folderPath = `${folderToUnlock.path}${folderToUnlock.name}/`;
+      setUnlockedPins(prev => ({ ...prev, [folderPath]: folderPin }));
+      setCurrentPath(folderPath);
+      toast({ title: "Folder Unlocked", description: `You can now access '${folderToUnlock.name}'.`});
+    }
+    setIsUnlockModalOpen(false);
+    setFolderToUnlock(null);
+  };
+
 
   const handleInitiateUpgrade = async () => {
     try {
@@ -279,10 +311,14 @@ export default function MyVault({ account, pin }: MyVaultProps) {
       }
   };
 
-  const handleCreateFolder = async (folderName: string) => {
+  const handleCreateFolder = async (folderName: string, isLocked: boolean, folderPin?: string) => {
     try {
-        await apiCreateFolder({ name: folderName, owner: account.addr, path: currentPath });
+        await apiCreateFolder({ name: folderName, owner: account.addr, path: currentPath, isLocked });
         toast({ title: 'Folder Created', description: `Successfully created folder '${folderName}'.`});
+        if(isLocked && folderPin) {
+            const newPath = `${currentPath}${folderName}/`;
+            setUnlockedPins(prev => ({...prev, [newPath]: folderPin}));
+        }
         await fetchFilesAndStorage();
     } catch(error: any) {
         toast({ variant: 'destructive', title: 'Failed to Create Folder', description: error.message });
@@ -298,7 +334,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   
   return (
     <div className="space-y-6">
-      <FileUploader ownerAddress={account.addr} pin={pin} onUploadSuccess={fetchFilesAndStorage} currentPath={currentPath}/>
+      <FileUploader ownerAddress={account.addr} pin={currentFolderPin} onUploadSuccess={fetchFilesAndStorage} currentPath={currentPath}/>
       
       {storageInfo && (
         <StorageManager 
@@ -336,12 +372,12 @@ export default function MyVault({ account, pin }: MyVaultProps) {
             files={filteredFiles}
             folders={filteredFolders}
             account={account}
-            pin={pin}
+            pin={currentFolderPin}
             onShare={handleOpenShareModal}
             onDetails={handleOpenDetailsModal}
             onDelete={handleOpenDeleteModal}
             onMove={handleOpenMoveModal}
-            onFolderClick={(folder) => setCurrentPath(`${folder.path}${folder.name}/`)}
+            onFolderClick={handleFolderClick}
             onFolderDelete={handleOpenDeleteFolderModal}
             onFolderRename={handleOpenRenameFolderModal}
             emptyState={getEmptyState()}
@@ -420,6 +456,15 @@ export default function MyVault({ account, pin }: MyVaultProps) {
                 </AlertDialogContent>
             </AlertDialog>
           </>
+      )}
+      
+      {folderToUnlock && (
+          <UnlockFolderModal
+            isOpen={isUnlockModalOpen}
+            onOpenChange={setIsUnlockModalOpen}
+            onUnlock={handleUnlockFolder}
+            folderName={folderToUnlock.name}
+          />
       )}
 
       <CreateFolderModal 

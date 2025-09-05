@@ -25,6 +25,7 @@ export interface Folder {
     owner: string;
     path: string; // e.g., "/", "/documents/"
     createdAt: string;
+    isLocked?: boolean;
 }
 
 export interface Share {
@@ -346,7 +347,7 @@ apiRouter.delete('/files/:cid', (req, res) => {
 // 7. Create a new folder
 apiRouter.post('/folders', (req, res) => {
     try {
-        const { name, owner, path } = req.body;
+        const { name, owner, path, isLocked } = req.body;
         if (!name || !owner || path === undefined) {
             return res.status(400).json({ error: 'Folder name, owner, and path are required.' });
         }
@@ -362,7 +363,8 @@ apiRouter.post('/folders', (req, res) => {
             name,
             owner,
             path,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            isLocked: !!isLocked, // Ensure it's a boolean
         };
 
         folders.push(newFolder);

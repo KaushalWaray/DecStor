@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Folder, MoreVertical, Trash2, Edit } from "lucide-react";
+import { Folder, MoreVertical, Trash2, Edit, FolderLock } from "lucide-react";
 import type { Folder as FolderType } from "@/types";
 import { format } from "date-fns";
 import { Button } from "../ui/button";
@@ -16,6 +16,8 @@ interface FolderCardProps {
 }
 
 export default function FolderCard({ folder, onFolderClick, onDelete, onRename }: FolderCardProps) {
+  const Icon = folder.isLocked ? FolderLock : Folder;
+
   return (
     <Card 
       className="flex flex-col justify-between transition-all hover:shadow-primary/20 hover:shadow-lg hover:-translate-y-1 group"
@@ -27,7 +29,7 @@ export default function FolderCard({ folder, onFolderClick, onDelete, onRename }
             className="flex items-center gap-3 min-w-0 cursor-pointer"
             onClick={() => onFolderClick(folder)}
           >
-            <Folder className="h-8 w-8 text-amber-400 flex-shrink-0" />
+            <Icon className={`h-8 w-8 ${folder.isLocked ? 'text-red-400' : 'text-amber-400'} flex-shrink-0`} />
             <p className="text-lg font-semibold truncate">{folder.name}</p>
           </div>
            <DropdownMenu>
