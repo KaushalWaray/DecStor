@@ -129,7 +129,7 @@ export default function FileCard({ file, pin, isOwner, onSend, onDetails, onDele
           )}
       </CardContent>
       <CardFooter className="gap-2">
-        <Button variant="outline" className="w-full flex-1" onClick={handleDownload} disabled={isDownloading}>
+        <Button variant="outline" className="flex-1" onClick={handleDownload} disabled={isDownloading}>
           {isDownloading ? (
             <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
           ) : (
@@ -138,7 +138,7 @@ export default function FileCard({ file, pin, isOwner, onSend, onDetails, onDele
            Download
         </Button>
         {isPreviewable && (
-          <Button variant="secondary" onClick={() => onPreview(file)} className="w-full flex-1">
+          <Button variant="secondary" onClick={() => onPreview(file)} className="flex-1">
             <Play className="mr-2 h-4 w-4" /> Preview
           </Button>
         )}
