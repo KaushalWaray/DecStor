@@ -6,8 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MyVault from "./MyVault";
 import Inbox from "./Inbox";
 import type { AlgorandAccount, FileMetadata, Activity } from "@/types";
-import Notifications from "./Notifications";
+import ActivityLog from "./ActivityLog";
 import { getNotifications } from '@/lib/api';
+import { Bell } from 'lucide-react';
 
 interface FileTabsProps {
   account: AlgorandAccount;
@@ -38,7 +39,7 @@ export default function FileTabs({ account, pin, onConfirmSendFile }: FileTabsPr
 
   const onNotificationsViewed = () => {
     setUnreadCount(0);
-    // You could also refetch here to be sure, but this is faster for the UI
+    fetchUnreadCount(); // Refetch to be sure
   };
 
   return (
@@ -47,10 +48,11 @@ export default function FileTabs({ account, pin, onConfirmSendFile }: FileTabsPr
         <TabsTrigger value="vault">My Vault</TabsTrigger>
         <TabsTrigger value="inbox">Inbox</TabsTrigger>
         <TabsTrigger value="notifications">
-            <div className="relative">
-                Notifications
+            <div className="relative flex items-center gap-2">
+                <Bell className="h-4 w-4"/>
+                Activity Log
                 {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-4 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
+                    <span className="absolute top-[-5px] right-[-15px] flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">
                         {unreadCount}
                     </span>
                 )}
@@ -64,9 +66,9 @@ export default function FileTabs({ account, pin, onConfirmSendFile }: FileTabsPr
         <Inbox account={account} pin={pin} />
       </TabsContent>
        <TabsContent value="notifications">
-        <Notifications 
-            account={account} 
-            onNotificationsViewed={onNotificationsViewed}
+        <ActivityLog
+            account={account}
+            onLogsViewed={onNotificationsViewed}
             isTabActive={currentTab === 'notifications'}
         />
       </TabsContent>

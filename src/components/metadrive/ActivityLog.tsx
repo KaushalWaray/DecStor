@@ -12,10 +12,10 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { truncateAddress } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
-interface NotificationsProps {
+interface ActivityLogProps {
   account: AlgorandAccount;
   isTabActive: boolean;
-  onNotificationsViewed: () => void;
+  onLogsViewed: () => void;
 }
 
 const ICONS: { [key in Activity['type']]: React.ElementType } = {
@@ -48,7 +48,7 @@ const getSubjectText = (activity: Activity) => {
     return "You";
 }
 
-export default function Notifications({ account, isTabActive, onNotificationsViewed }: NotificationsProps) {
+export default function ActivityLog({ account, isTabActive, onLogsViewed }: ActivityLogProps) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -59,11 +59,11 @@ export default function Notifications({ account, isTabActive, onNotificationsVie
       const response = await getNotifications(account.addr);
       setActivities(response.activities || []);
       if (!isInitialLoad) {
-          toast({ title: "Notifications refreshed!" });
+          toast({ title: "Activity log refreshed!" });
       }
     } catch (error: any) {
       console.error(error);
-      toast({ variant: 'destructive', title: 'Error Fetching Notifications', description: error.message || 'Could not fetch your notifications.' });
+      toast({ variant: 'destructive', title: 'Error Fetching Activity', description: error.message || 'Could not fetch your activity log.' });
     } finally {
       setIsLoading(false);
     }
@@ -72,7 +72,7 @@ export default function Notifications({ account, isTabActive, onNotificationsVie
   useEffect(() => {
     fetchActivities(true);
   }, [fetchActivities]);
-  
+
   // Mark notifications as read when tab becomes active
   useEffect(() => {
     if (isTabActive) {
@@ -81,23 +81,23 @@ export default function Notifications({ account, isTabActive, onNotificationsVie
         markNotificationsAsRead(account.addr).then(() => {
           // Visually mark as read instantly for better UX
           setActivities(acts => acts.map(a => ({...a, isRead: true})));
-          onNotificationsViewed();
+          onLogsViewed();
         }).catch(err => {
           console.error("Failed to mark notifications as read", err);
         });
       }
     }
-  }, [isTabActive, activities, account.addr, onNotificationsViewed]);
+  }, [isTabActive, activities, account.addr, onLogsViewed]);
 
   return (
     <Card className="max-w-4xl mx-auto">
         <CardHeader className="flex flex-row items-center justify-between">
              <div className="space-y-1">
                 <CardTitle className="font-headline text-2xl flex items-center gap-2">
-                    <Bell />
-                    Notifications
+                    <History />
+                    Activity Log
                 </CardTitle>
-                <CardDescription>A log of recent events in your account.</CardDescription>
+                <CardDescription>A log of all recent events in your account.</CardDescription>
             </div>
             <Button onClick={() => fetchActivities(false)} disabled={isLoading} variant="outline">
                 {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
@@ -112,15 +112,15 @@ export default function Notifications({ account, isTabActive, onNotificationsVie
             ) : activities.length === 0 ? (
                 <div className="text-center text-muted-foreground h-64 flex flex-col justify-center items-center">
                     <BellOff className="h-12 w-12 mb-4" />
-                    <h3 className="text-xl font-semibold text-foreground">All Caught Up</h3>
-                    <p>New notifications will appear here.</p>
+                    <h3 className="text-xl font-semibold text-foreground">No Activity Yet</h3>
+                    <p>Actions like uploads and shares will appear here.</p>
                 </div>
             ) : (
                 <ul className="space-y-1">
                     {activities.map(activity => {
                         const Icon = ICONS[activity.type] || History;
                         return (
-                            <li key={activity._id} className={cn("flex items-start gap-4 p-3 rounded-md transition-colors", !activity.isRead && 'bg-primary/10')}>
+                            <li key={activity._id} className={cn("flex items-start gap-4 p-3 rounded-md transition-colors relative", !activity.isRead && 'bg-primary/10')}>
                                 {!activity.isRead && <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-l-md" />}
                                 <div className={cn("relative p-2 bg-muted rounded-full mt-1", !activity.isRead && 'bg-primary/20')}>
                                     <Icon className="h-5 w-5 text-muted-foreground" />
@@ -130,7 +130,7 @@ export default function Notifications({ account, isTabActive, onNotificationsVie
                                     <p className="text-sm">
                                         {getSubjectText(activity)} {getActionText(activity)}
                                     </p>
-                                    <p 
+                                    <p
                                         className="text-xs text-muted-foreground"
                                         title={format(new Date(activity.timestamp), 'PPP p')}
                                     >
