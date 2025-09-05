@@ -481,22 +481,21 @@ apiRouter.put('/folders/:folderId/rename', (req, res) => {
         const oldPathPrefix = `${folderToRename.path}${folderToRename.name}/`;
         const newPathPrefix = `${folderToRename.path}${newName}/`;
 
-        // Rename the folder itself
-        folderToRename.name = newName;
-
-        // Update path for all direct child files
+        // Update paths for all descendant files and folders
         files.forEach(file => {
-            if (file.owner === ownerAddress && file.path === oldPathPrefix) {
-                file.path = newPathPrefix;
+            if (file.owner === ownerAddress && file.path.startsWith(oldPathPrefix)) {
+                file.path = file.path.replace(oldPathPrefix, newPathPrefix);
             }
         });
         
-        // Update path for all subfolders (and their descendants implicitly)
         folders.forEach(folder => {
             if (folder.owner === ownerAddress && folder.path.startsWith(oldPathPrefix)) {
                 folder.path = folder.path.replace(oldPathPrefix, newPathPrefix);
             }
         });
+
+        // Rename the folder itself
+        folderToRename.name = newName;
 
         saveDatabase();
         

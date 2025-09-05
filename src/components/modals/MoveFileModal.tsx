@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -29,11 +29,11 @@ interface MoveFileModalProps {
 
 export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, isLoading, filename, folders, currentPath }: MoveFileModalProps) {
   const [destinationPath, setDestinationPath] = useState('');
-  const [isMoving, setIsMoving] = useState(false); // Local loading state
+  const [isMoving, setIsMoving] = useState(false);
   const { toast } = useToast();
 
   const handleConfirm = async () => {
-    if (!destinationPath) {
+    if (destinationPath === undefined || destinationPath === null) {
       toast({ variant: 'destructive', title: 'No Destination', description: 'Please select a destination folder.' });
       return;
     }
@@ -52,10 +52,12 @@ export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
   }, [isOpen]);
 
   // Filter out the current folder from the list of possible destinations
-  const availableFolders = [
-    { name: 'My Vault (Root)', path: '/' },
-    ...folders.map(f => ({ name: f.path + f.name, path: `${f.path}${f.name}/` }))
-  ].filter(f => f.path !== currentPath);
+  const availableFolders = useMemo(() => {
+    return [
+      { name: 'My Vault (Root)', path: '/' },
+      ...folders.map(f => ({ name: f.path + f.name, path: `${f.path}${f.name}/` }))
+    ].filter(f => f.path !== currentPath);
+  }, [folders, currentPath]);
 
 
   return (
@@ -91,7 +93,7 @@ export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading || isMoving}>Cancel</Button>
-          <Button onClick={handleConfirm} disabled={isLoading || isMoving || !destinationPath}>
+          <Button onClick={handleConfirm} disabled={isLoading || isMoving || destinationPath === ''}>
             {isMoving ? (
                 <>
                     <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />

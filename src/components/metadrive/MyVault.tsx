@@ -74,14 +74,12 @@ export default function MyVault({ account, pin }: MyVaultProps) {
 
 
   const filteredFiles = useMemo(() => {
-    if (!searchTerm) return allFiles;
     return allFiles.filter(file => 
       file.filename.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [allFiles, searchTerm]);
   
   const filteredFolders = useMemo(() => {
-    if (!searchTerm) return folders;
     return folders.filter(folder =>
       folder.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -363,7 +361,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
             </div>
         </div>
 
-        {isLoading && filteredFiles.length === 0 && filteredFolders.length === 0 && !searchTerm ? (
+        {isLoading && filteredFiles.length === 0 && filteredFolders.length === 0 ? (
           <div className="flex justify-center items-center h-64">
             <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
           </div>
