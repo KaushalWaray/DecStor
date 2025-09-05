@@ -1,0 +1,25 @@
+{
+  "users": [
+    {
+      "address": "CQHBYCZEFV5HEGXHBVJILW7N3LJMB2LDNZMA7AAYOMG6S3DOV3LUBGYK64",
+      "storageLimit": 1048576,
+      "storageUsed": 0
+    },
+    {
+      "address": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
+      "storageLimit": 1048576,
+      "storageUsed": 0
+    }
+  ],
+  "files": [],
+  "shares": [],
+  "folders": [
+    {
+      "_id": "2025-09-05T10:21:52.632Z0.5688588669210781",
+      "name": "Profile_PIC",
+      "owner": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
+      "path": "/",
+      "createdAt": "2025-09-05T10:21:52.632Z"
+    }
+  ]
+}

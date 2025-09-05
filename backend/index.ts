@@ -119,6 +119,7 @@ const findOrCreateUser = (address: string): User => {
         const totalSize = userFiles.reduce((acc, file) => acc + file.size, 0);
         
         if(user.storageUsed !== totalSize) {
+            console.log(`[Backend] Recalculating storage for ${address.substring(0,10)}... Old: ${user.storageUsed}, New: ${totalSize}`);
             user.storageUsed = totalSize;
             saveDatabase(); // Persist corrected storage usage
         }
@@ -316,6 +317,9 @@ apiRouter.delete('/files/:cid', (req, res) => {
 
         // Update user's storage usage
         user.storageUsed -= fileToDelete.size;
+        if (user.storageUsed < 0) {
+            user.storageUsed = 0;
+        }
 
         // Remove the file from the database
         files.splice(fileIndex, 1);
@@ -378,3 +382,5 @@ app.listen(PORT, () => {
     loadDatabase(); // Load the database from file on server start
     console.log(`✅ Backend service listening at http://localhost:${PORT}`);
 });
+
+    

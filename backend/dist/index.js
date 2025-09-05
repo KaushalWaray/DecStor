@@ -12,8 +12,8 @@ const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 const PORT = 3001;
 // Correctly determine __dirname in ES module scope
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const DB_FILE_PATH = path.join(__dirname, 'db.json');
+// The DB file should be in the root of the 'backend' folder, not in 'dist'
+const DB_FILE_PATH = path.join(path.dirname(__filename), '..', 'db.json');
 // --- DYNAMICALLY GENERATED SERVICE WALLET ---
 const storageServiceAccount = algosdk.generateAccount();
 console.log(`[Backend] Storage Service Wallet generated: ${storageServiceAccount.addr}`);
@@ -41,12 +41,12 @@ const loadDatabase = () => {
             files = db.files || [];
             shares = db.shares || [];
             folders = db.folders || [];
-            console.log('[Backend] Database loaded successfully from db.json.');
+            console.log(`[Backend] Database loaded successfully from ${DB_FILE_PATH}.`);
         }
         else {
             // Create the file with empty arrays if it doesn't exist
             saveDatabase();
-            console.log('[Backend] New database file created at db.json.');
+            console.log(`[Backend] New database file created at ${DB_FILE_PATH}.`);
         }
     }
     catch (error) {
