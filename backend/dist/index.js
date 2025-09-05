@@ -23,6 +23,7 @@ let filesCollection;
 let sharesCollection;
 let foldersCollection;
 let activitiesCollection;
+let contactsCollection;
 async function connectToDatabase() {
     try {
         await mongoClient.connect();
@@ -32,8 +33,10 @@ async function connectToDatabase() {
         sharesCollection = db.collection('shares');
         foldersCollection = db.collection('folders');
         activitiesCollection = db.collection('activities');
+        contactsCollection = db.collection('contacts');
         // Create index on address for fast lookups
         await usersCollection.createIndex({ address: 1 }, { unique: true });
+        await contactsCollection.createIndex({ owner: 1 });
         console.log(`[Backend] Successfully connected to MongoDB database: ${db.databaseName}`);
     }
     catch (error) {
@@ -175,7 +178,6 @@ apiRouter.put('/users/:address/rename', async (req, res) => {
         }
         const user = await usersCollection.findOne({ address });
         if (!user) {
-            // This case should ideally not happen if matchedCount > 0, but it's a good safeguard.
             return res.status(404).json({ error: 'User not found after update.' });
         }
         console.log(`[Backend] Renamed wallet for ${address.substring(0, 10)}... to "${newName}"`);
@@ -280,6 +282,29 @@ apiRouter.post('/share', async (req, res) => {
     catch (error) {
         console.error('[Backend] Error sharing file:', error);
         res.status(500).json({ error: 'Internal server error while sharing file.' });
+    }
+});
+// NEW: Get all shares made BY a user
+apiRouter.get('/shares/:ownerAddress', async (req, res) => {
+    try {
+        const { ownerAddress } = req.params;
+        const sentShares = await sharesCollection.find({ senderAddress: ownerAddress }).toArray();
+        const fileCids = sentShares.map(s => s.cid);
+        const files = await filesCollection.find({ cid: { $in: fileCids } }).toArray();
+        const fileMap = new Map(files.map(f => [f.cid, f]));
+        const results = sentShares.map(share => {
+            const file = fileMap.get(share.cid);
+            return {
+                ...share,
+                filename: file?.filename,
+                fileType: file?.fileType,
+            };
+        });
+        res.status(200).json({ shares: results });
+    }
+    catch (error) {
+        console.error('[Backend] Error fetching sent shares:', error);
+        res.status(500).json({ error: 'Internal server error.' });
     }
 });
 // 5. Confirm a payment and upgrade user's storage
@@ -502,6 +527,85 @@ apiRouter.post('/activity/mark-read', async (req, res) => {
     }
     catch (error) {
         console.error('[Backend] Error marking notifications as read:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+// === NEW: CONTACTS API ===
+// 16. Get all contacts for a user
+apiRouter.get('/contacts/:ownerAddress', async (req, res) => {
+    try {
+        const { ownerAddress } = req.params;
+        const contacts = await contactsCollection.find({ owner: ownerAddress }).sort({ name: 1 }).toArray();
+        res.status(200).json({ contacts });
+    }
+    catch (error) {
+        console.error('[Backend] Error fetching contacts:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+// 17. Create a new contact
+apiRouter.post('/contacts', async (req, res) => {
+    try {
+        const { owner, name, address } = req.body;
+        if (!owner || !name || !address) {
+            return res.status(400).json({ error: 'Owner, name, and address are required.' });
+        }
+        if (!algosdk.isValidAddress(address)) {
+            return res.status(400).json({ error: 'Invalid Algorand address provided.' });
+        }
+        const existingContact = await contactsCollection.findOne({ owner, address });
+        if (existingContact) {
+            return res.status(409).json({ error: 'A contact with this address already exists.' });
+        }
+        const newContact = {
+            owner,
+            name,
+            address,
+            createdAt: new Date().toISOString(),
+        };
+        const result = await contactsCollection.insertOne(newContact);
+        res.status(201).json({ message: 'Contact created successfully.', contact: { ...newContact, _id: result.insertedId } });
+    }
+    catch (error) {
+        console.error('[Backend] Error creating contact:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+// 18. Update a contact
+apiRouter.put('/contacts/:contactId', async (req, res) => {
+    try {
+        const { contactId } = req.params;
+        const { owner, name, address } = req.body;
+        if (!owner || !name || !address) {
+            return res.status(400).json({ error: 'Owner, name, and address are required.' });
+        }
+        const result = await contactsCollection.updateOne({ _id: new ObjectId(contactId), owner: owner }, { $set: { name, address } });
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ error: 'Contact not found or you do not have permission to edit it.' });
+        }
+        res.status(200).json({ message: 'Contact updated successfully.' });
+    }
+    catch (error) {
+        console.error('[Backend] Error updating contact:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+// 19. Delete a contact
+apiRouter.delete('/contacts/:contactId', async (req, res) => {
+    try {
+        const { contactId } = req.params;
+        const { owner } = req.body; // Owner must be passed in body for verification
+        if (!owner) {
+            return res.status(400).json({ error: 'Owner is required for deletion.' });
+        }
+        const result = await contactsCollection.deleteOne({ _id: new ObjectId(contactId), owner: owner });
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ error: 'Contact not found or you do not have permission to delete it.' });
+        }
+        res.status(200).json({ message: 'Contact deleted successfully.' });
+    }
+    catch (error) {
+        console.error('[Backend] Error deleting contact:', error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 });

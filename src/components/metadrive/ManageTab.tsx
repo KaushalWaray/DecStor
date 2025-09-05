@@ -10,10 +10,11 @@ import SentFiles from './SentFiles';
 
 interface ManageTabProps {
   account: AlgorandAccount;
+  balance: number;
   onConfirmSendAlgo: (recipient: string, amount: number) => Promise<boolean>;
 }
 
-export default function ManageTab({ account, onConfirmSendAlgo }: ManageTabProps) {
+export default function ManageTab({ account, balance, onConfirmSendAlgo }: ManageTabProps) {
   
   return (
     <Tabs defaultValue="addressBook" className="w-full">
@@ -22,7 +23,7 @@ export default function ManageTab({ account, onConfirmSendAlgo }: ManageTabProps
         <TabsTrigger value="sentFiles"><Send className="mr-2 h-4 w-4" />Sent Files</TabsTrigger>
       </TabsList>
       <TabsContent value="addressBook" className="mt-6">
-        <AddressBook account={account} onConfirmSendAlgo={onConfirmSendAlgo} />
+        <AddressBook account={account} balance={balance} onConfirmSendAlgo={onConfirmSendAlgo} />
       </TabsContent>
       <TabsContent value="sentFiles" className="mt-6">
         <SentFiles account={account} />

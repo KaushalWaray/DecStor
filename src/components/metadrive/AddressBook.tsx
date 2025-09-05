@@ -17,10 +17,11 @@ import ApproveTransactionModal from '../modals/ApproveTransactionModal';
 
 interface AddressBookProps {
     account: AlgorandAccount;
+    balance: number;
     onConfirmSendAlgo: (recipient: string, amount: number) => Promise<boolean>;
 }
 
-export default function AddressBook({ account, onConfirmSendAlgo }: AddressBookProps) {
+export default function AddressBook({ account, balance, onConfirmSendAlgo }: AddressBookProps) {
     const [contacts, setContacts] = useState<Contact[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -184,14 +185,15 @@ export default function AddressBook({ account, onConfirmSendAlgo }: AddressBookP
                 </AlertDialog>
             )}
 
-            {isSendModalOpen && (
+            {isSendModalOpen && sendDetails && (
                 <SendModal 
                     isOpen={isSendModalOpen}
                     onOpenChange={setIsSendModalOpen}
                     onConfirm={handleInitiateSend}
                     isLoading={isSending}
-                    balance={1000} // Dummy balance, as it's not crucial for just opening the modal with a pre-filled address
+                    balance={balance}
                     account={account}
+                    initialRecipient={sendDetails.recipient}
                 />
             )}
 

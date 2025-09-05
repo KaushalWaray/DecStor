@@ -29,9 +29,10 @@ interface SendModalProps {
   isLoading: boolean;
   balance: number;
   account?: AlgorandAccount;
+  initialRecipient?: string;
 }
 
-export default function SendModal({ isOpen, onOpenChange, onConfirm, isLoading, balance, account }: SendModalProps) {
+export default function SendModal({ isOpen, onOpenChange, onConfirm, isLoading, balance, account, initialRecipient }: SendModalProps) {
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -39,6 +40,7 @@ export default function SendModal({ isOpen, onOpenChange, onConfirm, isLoading, 
 
   useEffect(() => {
     if (isOpen) {
+      setRecipient(initialRecipient || '');
       const fetchContacts = async () => {
         try {
           if (!account) return;
@@ -54,7 +56,7 @@ export default function SendModal({ isOpen, onOpenChange, onConfirm, isLoading, 
         setRecipient('');
         setAmount('');
     }
-  }, [isOpen, account]);
+  }, [isOpen, account, initialRecipient]);
 
   const handleConfirm = () => {
     if (!algosdk.isValidAddress(recipient)) {
@@ -98,7 +100,7 @@ export default function SendModal({ isOpen, onOpenChange, onConfirm, isLoading, 
              {contacts.length > 0 && (
               <div className="space-y-2">
                 <Label htmlFor="contact-select">Select from Contacts</Label>
-                <Select onValueChange={(value) => setRecipient(value)}>
+                <Select onValueChange={(value) => setRecipient(value)} value={recipient}>
                   <SelectTrigger id="contact-select">
                     <SelectValue placeholder="Choose a saved contact..." />
                   </SelectTrigger>

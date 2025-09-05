@@ -1,9 +1,8 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { getAccountBalance } from '@/lib/algorand';
 import { truncateAddress } from '@/lib/utils';
 import type { AlgorandAccount, User } from '@/types';
 import { LogOut, Shield, Copy, LoaderCircle, Users, ChevronDown, ArrowUpRight, ArrowDownLeft, Edit } from 'lucide-react';
@@ -17,14 +16,14 @@ import RenameWalletModal from '../modals/RenameWalletModal';
 interface DashboardHeaderProps {
   account: AlgorandAccount;
   user: User;
+  balance: number | null;
   onLock: () => void;
   onGoToManager: () => void;
   onConfirmSend: (recipient: string, amount: number) => Promise<boolean>;
   onRenameWallet: (newName: string) => Promise<boolean>;
 }
 
-export default function DashboardHeader({ account, user, onLock, onGoToManager, onConfirmSend, onRenameWallet }: DashboardHeaderProps) {
-  const [balance, setBalance] = useState<number | null>(null);
+export default function DashboardHeader({ account, user, balance, onLock, onGoToManager, onConfirmSend, onRenameWallet }: DashboardHeaderProps) {
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
@@ -36,16 +35,6 @@ export default function DashboardHeader({ account, user, onLock, onGoToManager, 
 
   const { toast } = useToast();
 
-  const fetchBalance = async () => {
-      const bal = await getAccountBalance(account.addr);
-      setBalance(bal);
-  };
-
-  useEffect(() => {
-    fetchBalance();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account.addr]);
-  
   const handleCopyAddress = () => {
     navigator.clipboard.writeText(account.addr);
     toast({ title: "Address copied!" });
@@ -61,10 +50,7 @@ export default function DashboardHeader({ account, user, onLock, onGoToManager, 
     if (!sendDetails) return;
     
     setIsSending(true);
-    const success = await onConfirmSend(sendDetails.recipient, sendDetails.amount);
-    if(success) {
-      await fetchBalance(); // Refresh balance after successful send
-    }
+    await onConfirmSend(sendDetails.recipient, sendDetails.amount);
     setIsSending(false);
     setIsApproveSendModalOpen(false);
     setSendDetails(null);
@@ -147,6 +133,7 @@ export default function DashboardHeader({ account, user, onLock, onGoToManager, 
         onConfirm={handleInitiateSend}
         isLoading={isSending}
         balance={balance ?? 0}
+        account={account}
     />
 
     {sendDetails && (

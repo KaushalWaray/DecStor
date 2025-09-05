@@ -14,11 +14,12 @@ import ManageTab from './ManageTab';
 interface FileTabsProps {
   account: AlgorandAccount;
   pin: string;
+  balance: number;
   onConfirmSendFile: (file: FileMetadata, recipient: string) => Promise<boolean>;
   onConfirmSendAlgo: (recipient: string, amount: number) => Promise<boolean>;
 }
 
-export default function FileTabs({ account, pin, onConfirmSendFile, onConfirmSendAlgo }: FileTabsProps) {
+export default function FileTabs({ account, pin, balance, onConfirmSendFile, onConfirmSendAlgo }: FileTabsProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentTab, setCurrentTab] = useState("vault");
 
@@ -69,7 +70,7 @@ export default function FileTabs({ account, pin, onConfirmSendFile, onConfirmSen
         <Inbox account={account} pin={pin} />
       </TabsContent>
       <TabsContent value="manage" className="mt-6">
-        <ManageTab account={account} onConfirmSendAlgo={onConfirmSendAlgo} />
+        <ManageTab account={account} balance={balance} onConfirmSendAlgo={onConfirmSendAlgo} />
       </TabsContent>
        <TabsContent value="notifications" className="mt-6">
         <ActivityLog
