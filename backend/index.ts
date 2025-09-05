@@ -3,6 +3,8 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import algosdk from 'algosdk';
+import fs from 'fs';
+import path from 'path';
 
 // --- SELF-CONTAINED TYPE DEFINITIONS ---
 export interface FileMetadata {
@@ -33,6 +35,8 @@ export interface User {
 const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
 const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 const PORT = 3001;
+const DB_FILE_PATH = path.join(__dirname, 'db.json');
+
 
 // --- DYNAMICALLY GENERATED SERVICE WALLET ---
 const storageServiceAccount = algosdk.generateAccount();
@@ -40,14 +44,42 @@ console.log(`[Backend] Storage Service Wallet generated: ${storageServiceAccount
 console.log(`[Backend] This address will receive payments for storage upgrades.`);
 
 
-// --- IN-MEMORY DATABASE ---
-// We are using simple arrays to store data in memory, as per the project's README.
-// This is for demonstration purposes and will reset when the server restarts.
+// --- FILE-BASED PERSISTENT DATABASE ---
 let users: User[] = [];
 let files: FileMetadata[] = [];
 let shares: Share[] = [];
 
-console.log('[Backend] In-memory database initialized.');
+const saveDatabase = () => {
+    try {
+        const data = JSON.stringify({ users, files, shares }, null, 2);
+        fs.writeFileSync(DB_FILE_PATH, data, 'utf8');
+    } catch (error) {
+        console.error('[Backend] CRITICAL: Failed to save database to file!', error);
+    }
+};
+
+const loadDatabase = () => {
+    try {
+        if (fs.existsSync(DB_FILE_PATH)) {
+            const data = fs.readFileSync(DB_FILE_PATH, 'utf8');
+            const db = JSON.parse(data);
+            users = db.users || [];
+            files = db.files || [];
+            shares = db.shares || [];
+            console.log('[Backend] Database loaded successfully from db.json.');
+        } else {
+            // Create the file with empty arrays if it doesn't exist
+            saveDatabase();
+            console.log('[Backend] New database file created at db.json.');
+        }
+    } catch (error) {
+        console.error('[Backend] CRITICAL: Failed to load database! Starting with empty state.', error);
+        // Ensure arrays are in a clean state in case of partial load failure
+        users = [];
+        files = [];
+        shares = [];
+    }
+};
 
 
 // --- HELPER FUNCTIONS ---
@@ -63,11 +95,16 @@ const findOrCreateUser = (address: string): User => {
         };
         users.push(user);
         console.log(`[Backend] Created new user ${address.substring(0,10)}... with free tier.`);
+        saveDatabase(); // Persist new user
     } else {
         // If user exists, recalculate their storage used to ensure consistency.
         const userFiles = files.filter(f => f.owner === address);
         const totalSize = userFiles.reduce((acc, file) => acc + file.size, 0);
-        user.storageUsed = totalSize;
+        
+        if(user.storageUsed !== totalSize) {
+            user.storageUsed = totalSize;
+            saveDatabase(); // Persist corrected storage usage
+        }
     }
     return user;
 };
@@ -124,6 +161,8 @@ apiRouter.post('/files/metadata', async (req, res) => {
 
         // Update user's storage used
         user.storageUsed += size;
+        
+        saveDatabase(); // Persist new file and updated user storage
         
         console.log(`[Backend] Saved metadata for CID: ${cid}`);
         res.status(201).json({ message: 'Metadata saved successfully.', file: newFile });
@@ -191,6 +230,8 @@ apiRouter.post('/share', async (req, res) => {
             createdAt: new Date().toISOString(),
         };
         shares.push(newShare);
+        
+        saveDatabase(); // Persist the new share
 
         console.log(`[Backend] Shared CID ${cid} with ${recipientAddress}`);
         res.status(201).json({ message: 'File shared successfully.', share: newShare });
@@ -214,6 +255,8 @@ apiRouter.post('/payment/confirm', async (req, res) => {
         const user = findOrCreateUser(senderAddress);
         user.storageLimit = PRO_TIER_LIMIT;
         
+        saveDatabase(); // Persist the upgraded storage limit
+
         console.log(`[Backend] Upgraded ${user.address.substring(0,10)}... to Pro tier.`);
         res.status(200).json({
             message: "Payment confirmed and storage upgraded successfully!",
@@ -236,5 +279,6 @@ app.use('/api', apiRouter);
 
 // --- SERVER STARTUP ---
 app.listen(PORT, () => {
+    loadDatabase(); // Load the database from file on server start
     console.log(`✅ Backend service listening at http://localhost:${PORT}`);
 });
