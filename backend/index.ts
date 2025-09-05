@@ -2,6 +2,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import algosdk from 'algosdk';
 
 // --- SELF-CONTAINED TYPE DEFINITIONS ---
 export interface FileMetadata {
@@ -32,6 +33,12 @@ export interface User {
 const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
 const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 const PORT = 3001;
+
+// --- DYNAMICALLY GENERATED SERVICE WALLET ---
+const storageServiceAccount = algosdk.generateAccount();
+console.log(`[Backend] Storage Service Wallet generated: ${storageServiceAccount.addr}`);
+console.log(`[Backend] This address will receive payments for storage upgrades.`);
+
 
 // --- IN-MEMORY DATABASE ---
 // We are using simple arrays to store data in memory, as per the project's README.
@@ -78,6 +85,11 @@ const apiRouter = express.Router();
 // 1. Health Check
 apiRouter.get('/', (req, res) => {
     res.status(200).json({ message: 'Backend is running and connected!' });
+});
+
+// NEW: Endpoint to get the dynamic service address
+apiRouter.get('/service-address', (req, res) => {
+    res.status(200).json({ address: storageServiceAccount.addr });
 });
 
 // 2. Save File Metadata

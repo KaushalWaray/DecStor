@@ -63,5 +63,9 @@ export const confirmPayment = async (senderAddress: string, txId: string): Promi
     return res.storageInfo;
 }
 
+export const getStorageServiceAddress = async (): Promise<{address: string}> => {
+    return api.get('/service-address');
+}
+
 
 export default api;

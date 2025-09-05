@@ -1,6 +1,6 @@
 
 import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, waitForConfirmation, isValidAddress, makeApplicationNoOpTxnFromObject, makePaymentTxnWithSuggestedParamsFromObject, OnApplicationComplete} from 'algosdk';
-import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID, STORAGE_SERVICE_WALLET_ADDRESS, UPGRADE_COST_ALGOS } from './constants';
+import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID, UPGRADE_COST_ALGOS } from './constants';
 import type { AlgorandAccount } from '@/types';
 import { recordShareInDb } from './api';
 
@@ -77,7 +77,7 @@ export const shareFile = async (
   };
 };
 
-export const payForStorageUpgrade = async (sender: AlgorandAccount) => {
+export const payForStorageUpgrade = async (sender: AlgorandAccount, recipientAddress: string) => {
     console.log(`[Algorand] Initiating payment for storage upgrade from ${sender.addr}`);
     
     const params = await algodClient.getTransactionParams().do();
@@ -87,11 +87,11 @@ export const payForStorageUpgrade = async (sender: AlgorandAccount) => {
 
     const paymentTxn = makePaymentTxnWithSuggestedParamsFromObject({
         from: sender.addr,
-        to: STORAGE_SERVICE_WALLET_ADDRESS,
+        to: recipientAddress,
         amount,
         suggestedParams: params,
     });
-    console.log('[Algorand] Created payment transaction object.');
+    console.log(`[Algorand] Created payment transaction object for recipient ${recipientAddress}.`);
 
     const signedTxn = paymentTxn.signTxn(sender.sk);
     const txId = paymentTxn.txID().toString();

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { AlgorandAccount, FileMetadata, StorageInfo, FilesAndStorageInfo, WalletEntry } from '@/types';
-import { getFilesByOwner, confirmPayment } from '@/lib/api';
+import { getFilesByOwner, confirmPayment, getStorageServiceAddress } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
@@ -15,7 +15,7 @@ import { truncateAddress } from '@/lib/utils';
 import { mnemonicToAccount } from '@/lib/algorand';
 import { decryptMnemonic } from '@/lib/crypto';
 import StorageManager from './StorageManager';
-import { STORAGE_SERVICE_WALLET_ADDRESS, UPGRADE_COST_ALGOS } from '@/lib/constants';
+import { UPGRADE_COST_ALGOS } from '@/lib/constants';
 
 
 interface MyVaultProps {
@@ -36,6 +36,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   // State for upgrading
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [storageServiceAddress, setStorageServiceAddress] = useState<string>('');
 
 
   const { toast } = useToast();
@@ -96,8 +97,14 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     }
   };
 
-  const handleInitiateUpgrade = () => {
-    setIsUpgradeModalOpen(true);
+  const handleInitiateUpgrade = async () => {
+    try {
+        const { address } = await getStorageServiceAddress();
+        setStorageServiceAddress(address);
+        setIsUpgradeModalOpen(true);
+    } catch(error: any) {
+        toast({ variant: "destructive", title: "Cannot Start Upgrade", description: error.message });
+    }
   };
 
   const handleConfirmUpgrade = async () => {
@@ -119,7 +126,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
         
         const senderAccount = mnemonicToAccount(mnemonic);
         
-        const { txId } = await payForStorageUpgrade(senderAccount);
+        const { txId } = await payForStorageUpgrade(senderAccount, storageServiceAddress);
         toast({ title: "Payment Sent!", description: `Transaction ${truncateAddress(txId, 6, 4)} confirmed. Finalizing upgrade...` });
 
         const updatedStorageInfo = await confirmPayment(senderAccount.addr, txId);
@@ -176,7 +183,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
         title="Approve Storage Upgrade"
         description="You are about to pay for a storage upgrade. Review the details below."
         actionText="Upgrade to 100MB Pro Tier"
-        recipientAddress={STORAGE_SERVICE_WALLET_ADDRESS}
+        recipientAddress={storageServiceAddress}
         amount={UPGRADE_COST_ALGOS}
       />
     </div>
