@@ -1,29 +1,45 @@
+
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { generateAccount } from '@/lib/algorand';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Copy, ArrowLeft, Eye, EyeOff, LoaderCircle, ArrowRight } from 'lucide-react';
+import { Copy, ArrowLeft, Eye, EyeOff, LoaderCircle, ArrowRight, Shuffle } from 'lucide-react';
 
 interface CreateWalletFlowProps {
   onWalletCreated: (mnemonic: string, pin: string) => void;
   onBack: () => void;
 }
 
+// Helper to shuffle an array
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const newArray = [...array];
+  for (let i = newArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+  }
+  return newArray;
+};
+
 export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWalletFlowProps) {
-  const [step, setStep] = useState<Step>('display');
+  const [step, setStep] = useState<'display' | 'confirm' | 'pin'>('display');
   const [mnemonic, setMnemonic] = useState('');
-  const [confirmationPhrase, setConfirmationPhrase] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [isPinVisible, setIsPinVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  // State for the new confirmation flow
+  const [confirmationIndices, setConfirmationIndices] = useState<number[]>([]);
+  const [selectedWords, setSelectedWords] = useState<string[]>([]);
+  const [shuffledMnemonic, setShuffledMnemonic] = useState<string[]>([]);
+
+  const mnemonicWords = useMemo(() => mnemonic.split(' '), [mnemonic]);
 
   useMemo(() => {
     if(!mnemonic) {
@@ -32,16 +48,40 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
     }
   }, [mnemonic]);
 
+  useEffect(() => {
+    if (step === 'confirm' && mnemonicWords.length === 25) {
+        // Select 3 unique random indices to ask for confirmation
+        const indices = new Set<number>();
+        while(indices.size < 3) {
+            indices.add(Math.floor(Math.random() * 25));
+        }
+        setConfirmationIndices(Array.from(indices).sort((a,b) => a - b));
+
+        // Shuffle the mnemonic for display
+        setShuffledMnemonic(shuffleArray(mnemonicWords));
+        setSelectedWords([]); // Reset selected words
+    }
+  }, [step, mnemonicWords]);
+
   const handleCopyToClipboard = () => {
     navigator.clipboard.writeText(mnemonic);
     toast({ title: 'Copied to clipboard!' });
   };
   
+  const handleWordSelection = (word: string) => {
+    if (selectedWords.length < 3) {
+        setSelectedWords([...selectedWords, word]);
+    }
+  };
+  
   const handleConfirmMnemonic = () => {
-    if (confirmationPhrase.trim() !== mnemonic.trim()) {
-      toast({ variant: 'destructive', title: 'Incorrect Phrase', description: 'The recovery phrase does not match. Please check and try again.' });
+    const correctWords = confirmationIndices.map(index => mnemonicWords[index]);
+    if (JSON.stringify(selectedWords) === JSON.stringify(correctWords)) {
+        toast({ title: "Phrase Confirmed!", description: "You're all set. Now create a PIN."});
+        setStep('pin');
     } else {
-      setStep('pin');
+        toast({ variant: 'destructive', title: 'Incorrect Words', description: 'The words you selected do not match. Please try again.' });
+        setSelectedWords([]); // Reset for another try
     }
   };
 
@@ -57,12 +97,8 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
 
     setIsLoading(true);
     await onWalletCreated(mnemonic, pin);
-    // No need to set loading to false, as the component will unmount
   };
   
-  const mnemonicWords = mnemonic.split(' ');
-  type Step = 'display' | 'confirm' | 'pin';
-
   const renderStep = () => {
     switch (step) {
       case 'display':
@@ -98,22 +134,54 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
 
       case 'confirm':
         return (
-          <Card className="w-full max-w-lg">
+          <Card className="w-full max-w-2xl">
             <CardHeader>
               <CardTitle className="font-headline text-2xl">Confirm Recovery Phrase</CardTitle>
-              <CardDescription>Enter your 25-word recovery phrase to confirm you have saved it.</CardDescription>
+              <CardDescription>
+                To confirm you saved your phrase, please select the following words in order: 
+                <strong className="text-primary font-bold"> Word #{confirmationIndices[0] + 1}</strong>, 
+                <strong className="text-primary font-bold"> #{confirmationIndices[1] + 1}</strong>, and 
+                <strong className="text-primary font-bold"> #{confirmationIndices[2] + 1}</strong>.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <Textarea
-                placeholder="Enter the 25 words you saved..."
-                className="font-code h-40"
-                value={confirmationPhrase}
-                onChange={(e) => setConfirmationPhrase(e.target.value)}
-              />
+                <div className="p-4 border rounded-md bg-muted/20 min-h-[7rem] flex items-center justify-center gap-4 font-code text-lg">
+                    {selectedWords.map((word, index) => (
+                        <div key={index} className="bg-background p-2 rounded-md shadow-sm">
+                            {word}
+                        </div>
+                    ))}
+                    {selectedWords.length < 3 && <div className="w-16 h-8 bg-muted animate-pulse rounded-md" />}
+                </div>
+
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 mt-4">
+                    {shuffledMnemonic.map((word, index) => {
+                        const isSelected = selectedWords.includes(word);
+                        return (
+                            <Button 
+                                key={index} 
+                                variant={isSelected ? "secondary" : "outline"}
+                                className={`font-code ${isSelected ? 'opacity-50' : ''}`}
+                                onClick={() => handleWordSelection(word)}
+                                disabled={isSelected}
+                            >
+                                {word}
+                            </Button>
+                        )
+                    })}
+                </div>
             </CardContent>
             <CardFooter className="justify-between">
               <Button variant="ghost" onClick={() => setStep('display')}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>
-              <Button onClick={handleConfirmMnemonic}>Confirm</Button>
+               <Button 
+                    variant="secondary" 
+                    size="icon" 
+                    onClick={() => setSelectedWords([])}
+                    title="Clear selection"
+                >
+                    <Shuffle className="h-4 w-4"/>
+              </Button>
+              <Button onClick={handleConfirmMnemonic} disabled={selectedWords.length !== 3}>Confirm</Button>
             </CardFooter>
           </Card>
         );
@@ -154,3 +222,4 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
 
   return <div className="flex flex-col items-center justify-center h-full">{renderStep()}</div>;
 }
+
