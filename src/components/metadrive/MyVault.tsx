@@ -50,9 +50,9 @@ export default function MyVault({ account, pin }: MyVaultProps) {
       setFiles(vaultFiles);
       setStorageInfo(response.storageInfo);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch your files and storage data.' });
+      toast({ variant: 'destructive', title: 'Error', description: error.message || 'Could not fetch your files and storage data.' });
     } finally {
       setIsLoading(false);
     }
@@ -72,6 +72,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
 
     setIsSharing(true);
     try {
+        toast({ title: "Sharing File...", description: "Please approve the transaction to create an on-chain proof-of-share." });
         const storedWallets = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
         const walletEntry = storedWallets.find((w: any) => w.address === account.addr);
         if (!walletEntry) throw new Error("Could not find wallet credentials to sign transaction.");
@@ -80,11 +81,11 @@ export default function MyVault({ account, pin }: MyVaultProps) {
         if (!mnemonic) throw new Error("Decryption failed");
         const senderAccount = mnemonicToAccount(mnemonic);
 
-      await shareFile(senderAccount, recipientAddress, fileToShare.cid);
+      const {txId} = await shareFile(senderAccount, recipientAddress, fileToShare.cid);
       
       toast({
         title: 'File Shared!',
-        description: `Successfully shared ${fileToShare.filename} with ${truncateAddress(recipientAddress)}.`,
+        description: `Successfully shared ${fileToShare.filename} with ${truncateAddress(recipientAddress)}. TxID: ${truncateAddress(txId, 6, 4)}`,
       });
 
     } catch (error: any) {
@@ -100,6 +101,9 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const handleInitiateUpgrade = async () => {
     try {
         const { address } = await getStorageServiceAddress();
+        if (!address) {
+            throw new Error("Could not retrieve a valid storage service address from the backend.");
+        }
         setStorageServiceAddress(address);
         setIsUpgradeModalOpen(true);
     } catch(error: any) {
@@ -110,7 +114,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const handleConfirmUpgrade = async () => {
       setIsUpgrading(true);
       try {
-        toast({ title: "Processing Upgrade...", description: "Sending payment transaction to the network." });
+        toast({ title: "Processing Upgrade...", description: "Please approve the transaction in your wallet." });
         
         const storedWallets: WalletEntry[] = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
         const walletEntry = storedWallets.find(w => w.address === account.addr);
@@ -172,6 +176,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
           onOpenChange={setIsShareModalOpen}
           onConfirm={handleConfirmShare}
           isLoading={isSharing}
+          filename={fileToShare.filename}
         />
       )}
 
