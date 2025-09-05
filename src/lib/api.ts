@@ -89,12 +89,14 @@ export const postFileMetadata = async (metadata: Omit<FileMetadata, '_id' | 'cre
 };
 
 export const getFilesByOwner = async (ownerAddress: string, path: string, recursive: boolean = false): Promise<FilesAndStorageInfo> => {
-  const url = new URL(`${BACKEND_URL}/files/${ownerAddress}`);
-  url.searchParams.append('path', path);
+  const params = new URLSearchParams({ path });
   if (recursive) {
-      url.searchParams.append('recursive', 'true');
+    params.append('recursive', 'true');
   }
-  const response = await api.get(url.pathname + url.search);
+  const queryString = params.toString();
+  const urlPath = `/files/${ownerAddress}?${queryString}`;
+
+  const response = await api.get(urlPath);
   return {
       files: response.files || [],
       folders: response.folders || [],
