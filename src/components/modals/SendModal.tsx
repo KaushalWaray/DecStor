@@ -114,4 +114,3 @@ export default function SendModal({ isOpen, onOpenChange, onConfirm, isLoading, 
     </Dialog>
   );
 }
-

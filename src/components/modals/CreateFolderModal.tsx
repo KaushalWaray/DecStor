@@ -137,5 +137,3 @@ export default function CreateFolderModal({ isOpen, onOpenChange, onConfirm }: C
     </Dialog>
   );
 }
-
-    

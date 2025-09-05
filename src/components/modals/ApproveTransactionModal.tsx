@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { truncateAddress } from '@/lib/utils';
-import { LoaderCircle, FileText } from 'lucide-react';
+import { LoaderCircle, FileText, Wallet } from 'lucide-react';
 import { ALGO_NETWORK_FEE } from '@/lib/constants';
 import type { FileMetadata } from '@/types';
 
@@ -41,15 +41,22 @@ export default function ApproveTransactionModal({
   amount,
   file,
 }: ApproveTransactionModalProps) {
+  const isSendingAlgo = amount !== undefined;
+  const isSendingFile = file !== undefined;
+  const isUpgrade = title.toLowerCase().includes('upgrade');
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle className="font-headline text-2xl">{title}</DialogTitle>
+          <DialogTitle className="font-headline text-2xl flex items-center gap-2">
+            { isSendingAlgo ? <Wallet/> : <FileText/> }
+            {title}
+          </DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 my-4 p-4 border rounded-md">
-            {file && (
+            {isSendingFile && (
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">File</span>
                     <span className="font-medium flex items-center gap-2">
@@ -58,34 +65,36 @@ export default function ApproveTransactionModal({
                     </span>
                 </div>
             )}
-             <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Action</span>
-                <span className="font-medium">{actionText}</span>
-            </div>
+             { (isSendingAlgo || isUpgrade) && (
+                 <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Amount</span>
+                    <span className="font-medium">{amount} ALGO</span>
+                </div>
+            )}
             {recipientAddress && (
                 <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Recipient</span>
                     <span className="font-code text-primary">{truncateAddress(recipientAddress)}</span>
                 </div>
             )}
-            {amount !== undefined && (
-                 <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Amount</span>
-                    <span className="font-medium">{amount} ALGO</span>
-                </div>
-            )}
             <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Network Fee</span>
                 <span className="font-medium">{ALGO_NETWORK_FEE} ALGO</span>
             </div>
+             <div className="flex justify-between items-center border-t pt-4 mt-4">
+                <span className="text-muted-foreground font-bold">Total</span>
+                <span className="font-bold text-primary">
+                    { isSendingAlgo || isUpgrade ? (amount! + ALGO_NETWORK_FEE).toFixed(4) : ALGO_NETWORK_FEE } ALGO
+                </span>
+            </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Reject
           </Button>
           <Button onClick={onApprove} disabled={isLoading}>
             {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-            Approve
+            {actionText}
           </Button>
         </DialogFooter>
       </DialogContent>
