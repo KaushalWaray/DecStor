@@ -1,6 +1,8 @@
 
 "use client";
 
+import algosdk from 'algosdk';
+
 // This file implements strong, standard-based cryptography using the Web Crypto API.
 // It uses AES-GCM, a widely recommended authenticated encryption cipher.
 
@@ -126,15 +128,6 @@ export async function decryptMnemonic(encryptedDataB64: string, pin: string): Pr
     }
 }
 
-/**
- * A wrapper to create an account object from a mnemonic.
- * @param {string} mnemonic The 25-word mnemonic.
- * @returns {{addr: string, sk: Uint8Array}} The account object.
- */
- export function mnemonicToAccount(mnemonic: string) {
-    const { "addr": address, "sk": secretKey } = algosdk.mnemonicToSecretKey(mnemonic);
-    return { addr: address, sk: secretKey, mnemonic };
-}
 
 /**
  * Encrypts a file using the user's PIN.

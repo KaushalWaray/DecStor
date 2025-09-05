@@ -21,13 +21,13 @@ try {
     if (!mnemonic) {
         const newAccount = algosdk.generateAccount();
         console.error("\n[Backend] FATAL: SERVICE_WALLET_MNEMONIC not set in environment.");
-        console.error("=" * 60);
+        console.error("=".repeat(60));
         console.error("A new wallet has been generated for you. Please take action:");
         console.error("1. Create a file named .env in the /backend directory.");
         console.error("2. Add the following line to the .env file:");
         console.error(`\n   SERVICE_WALLET_MNEMONIC="${algosdk.secretKeyToMnemonic(newAccount.sk)}"\n`);
         console.error("3. Restart the backend server.");
-        console.error("=" * 60);
+        console.error("=".repeat(60));
         process.exit(1); // Exit if the mnemonic isn't set.
     }
     storageServiceAccount = algosdk.mnemonicToSecretKey(mnemonic);

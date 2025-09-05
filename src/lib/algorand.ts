@@ -21,6 +21,10 @@ export const mnemonicToAccount = (mnemonic: string): AlgorandAccount => {
 
 export const isValidMnemonic = (mnemonic: string): boolean => {
   try {
+    // A valid mnemonic must be 25 words.
+    if (mnemonic.trim().split(/\s+/g).length !== 25) {
+      return false;
+    }
     mnemonicToSecretKey(mnemonic);
     return true;
   } catch (e) {

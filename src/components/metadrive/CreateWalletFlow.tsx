@@ -2,13 +2,15 @@
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
-import { generateAccount } from '@/lib/algorand';
+import { generateAccount, mnemonicToAccount } from '@/lib/algorand';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Copy, ArrowLeft, Eye, EyeOff, LoaderCircle, ArrowRight, Shuffle } from 'lucide-react';
+import { Copy, ArrowLeft, Eye, EyeOff, LoaderCircle, ArrowRight, Shuffle, ExternalLink } from 'lucide-react';
+import { truncateAddress } from '@/lib/utils';
+import Link from 'next/link';
 
 interface CreateWalletFlowProps {
   onWalletCreated: (mnemonic: string, pin: string) => void;
@@ -26,7 +28,7 @@ const shuffleArray = <T,>(array: T[]): T[] => {
 };
 
 export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWalletFlowProps) {
-  const [step, setStep] = useState<'display' | 'confirm' | 'pin'>('display');
+  const [step, setStep] = useState<'display' | 'confirm' | 'fund' | 'pin'>('display');
   const [mnemonic, setMnemonic] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -40,6 +42,10 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
   const [shuffledMnemonic, setShuffledMnemonic] = useState<string[]>([]);
 
   const mnemonicWords = useMemo(() => mnemonic.split(' '), [mnemonic]);
+  const newAddress = useMemo(() => {
+    if (!mnemonic) return '';
+    return mnemonicToAccount(mnemonic).addr;
+  }, [mnemonic]);
 
   useMemo(() => {
     if(!mnemonic) {
@@ -63,9 +69,9 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
     }
   }, [step, mnemonicWords]);
 
-  const handleCopyToClipboard = () => {
-    navigator.clipboard.writeText(mnemonic);
-    toast({ title: 'Copied to clipboard!' });
+  const handleCopyToClipboard = (textToCopy: string, message: string = 'Copied to clipboard!') => {
+    navigator.clipboard.writeText(textToCopy);
+    toast({ title: message });
   };
   
   const handleWordSelection = (word: string) => {
@@ -77,8 +83,8 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
   const handleConfirmMnemonic = () => {
     const correctWords = confirmationIndices.map(index => mnemonicWords[index]);
     if (JSON.stringify(selectedWords) === JSON.stringify(correctWords)) {
-        toast({ title: "Phrase Confirmed!", description: "You're all set. Now create a PIN."});
-        setStep('pin');
+        toast({ title: "Phrase Confirmed!", description: "Excellent. Next, let's get some test funds."});
+        setStep('fund');
     } else {
         toast({ variant: 'destructive', title: 'Incorrect Words', description: 'The words you selected do not match. Please try again.' });
         setSelectedWords([]); // Reset for another try
@@ -125,7 +131,7 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
             <CardFooter className="justify-between">
               <Button variant="ghost" onClick={onBack}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>
               <div className="flex gap-2">
-                 <Button variant="secondary" onClick={handleCopyToClipboard}><Copy className="mr-2 h-4 w-4" />Copy</Button>
+                 <Button variant="secondary" onClick={() => handleCopyToClipboard(mnemonic, 'Recovery phrase copied!')}><Copy className="mr-2 h-4 w-4" />Copy</Button>
                 <Button onClick={() => setStep('confirm')}>Next <ArrowRight className="ml-2 h-4 w-4" /></Button>
               </div>
             </CardFooter>
@@ -186,6 +192,40 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
           </Card>
         );
 
+      case 'fund':
+        return (
+           <Card className="w-full max-w-lg">
+            <CardHeader>
+              <CardTitle className="font-headline text-2xl">Fund Your New Wallet</CardTitle>
+              <CardDescription>To use the app, you need some free test ALGOs. Copy your new address and use the dispenser.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+               <div className="space-y-2">
+                    <Label>Your New Wallet Address</Label>
+                    <div className="relative">
+                        <Input readOnly value={newAddress} className="font-code pr-10" />
+                        <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => handleCopyToClipboard(newAddress, 'Address copied!')}>
+                            <Copy className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </div>
+
+                <Button asChild size="lg" className="w-full">
+                    <Link href="https://bank.testnet.algorand.network/" target="_blank">
+                        Open Testnet Dispenser <ExternalLink className="ml-2" />
+                    </Link>
+                </Button>
+
+                <p className="text-xs text-muted-foreground text-center">The dispenser will open in a new tab. Come back here after you have funded your account.</p>
+             
+            </CardContent>
+            <CardFooter className="justify-between">
+              <Button variant="ghost" onClick={() => setStep('confirm')}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>
+              <Button onClick={() => setStep('pin')}>I have funds, next step <ArrowRight className="ml-2 h-4 w-4" /></Button>
+            </CardFooter>
+          </Card>
+        );
+
       case 'pin':
         return (
           <Card className="w-full max-w-sm">
@@ -209,7 +249,7 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
               </div>
             </CardContent>
             <CardFooter className="justify-between">
-              <Button variant="ghost" onClick={() => setStep('confirm')}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>
+              <Button variant="ghost" onClick={() => setStep('fund')}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>
               <Button onClick={handleCreateWallet} disabled={isLoading}>
                 {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                 Create Wallet
