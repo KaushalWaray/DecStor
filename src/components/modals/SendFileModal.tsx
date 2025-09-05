@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -15,8 +15,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import algosdk from 'algosdk';
-import { LoaderCircle, FileText, Send } from 'lucide-react';
-import { FileMetadata } from '@/types';
+import { LoaderCircle, FileText, Send, UserPlus } from 'lucide-react';
+import type { FileMetadata, Contact, AlgorandAccount } from '@/types';
+import { getContacts } from '@/lib/api';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Separator } from '../ui/separator';
 
 interface SendFileModalProps {
   isOpen: boolean;
@@ -24,11 +27,27 @@ interface SendFileModalProps {
   onConfirm: (recipient: string) => void;
   isLoading: boolean;
   file: FileMetadata;
+  account: AlgorandAccount;
 }
 
-export default function SendFileModal({ isOpen, onOpenChange, onConfirm, isLoading, file }: SendFileModalProps) {
+export default function SendFileModal({ isOpen, onOpenChange, onConfirm, isLoading, file, account }: SendFileModalProps) {
   const [recipient, setRecipient] = useState('');
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (isOpen) {
+      const fetchContacts = async () => {
+        try {
+          const response = await getContacts(account.addr);
+          setContacts(response.contacts);
+        } catch (error) {
+          console.error("Failed to fetch contacts", error);
+        }
+      };
+      fetchContacts();
+    }
+  }, [isOpen, account.addr]);
 
   const handleConfirm = () => {
     if (!algosdk.isValidAddress(recipient)) {
@@ -40,7 +59,7 @@ export default function SendFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Send/>Send File</DialogTitle>
           <DialogDescription>Enter the recipient's Algorand address to send this file.</DialogDescription>
@@ -50,6 +69,30 @@ export default function SendFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
                 <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                 <span className="font-medium truncate">{file.filename}</span>
             </div>
+
+            {contacts.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="contact-select">Select from Contacts</Label>
+                <Select onValueChange={(value) => setRecipient(value)}>
+                  <SelectTrigger id="contact-select">
+                    <SelectValue placeholder="Choose a saved contact..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contacts.map((contact) => (
+                      <SelectItem key={contact._id} value={contact.address}>
+                        {contact.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                 <div className="flex items-center gap-2">
+                    <Separator className="flex-1" />
+                    <span className="text-xs text-muted-foreground">OR</span>
+                    <Separator className="flex-1" />
+                 </div>
+              </div>
+            )}
+
             <div className="space-y-2">
                 <Label htmlFor="recipient-address">
                 Recipient Address

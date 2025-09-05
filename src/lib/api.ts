@@ -1,6 +1,6 @@
 
 import { BACKEND_URL } from './constants';
-import type { FileMetadata, Folder, FilesAndStorageInfo, StorageInfo, Activity, Share, ActivityLogInfo, User } from '@/types';
+import type { FileMetadata, Folder, FilesAndStorageInfo, StorageInfo, Activity, Share, ActivityLogInfo, User, Contact, ShareRecord } from '@/types';
 
 const api = {
   get: async (path: string) => {
@@ -153,6 +153,26 @@ export const getNotifications = async (ownerAddress: string): Promise<ActivityLo
 // Mark notifications as read
 export const markNotificationsAsRead = async (ownerAddress: string): Promise<{ message: string }> => {
     return api.post('/activity/mark-read', { ownerAddress });
+}
+
+// Get sent shares
+export const getSentShares = async (ownerAddress: string): Promise<{ shares: ShareRecord[] }> => {
+    return api.get(`/shares/${ownerAddress}`);
+}
+
+
+// Contacts API
+export const getContacts = async (ownerAddress: string): Promise<{ contacts: Contact[] }> => {
+    return api.get(`/contacts/${ownerAddress}`);
+}
+export const createContact = async (data: { owner: string; name: string; address: string }): Promise<{ contact: Contact }> => {
+    return api.post('/contacts', data);
+}
+export const updateContact = async (contactId: string, data: { owner: string; name: string; address: string }) => {
+    return api.put(`/contacts/${contactId}`, data);
+}
+export const deleteContact = async (contactId: string, ownerAddress: string) => {
+    return api.delete(`/contacts/${contactId}`, { owner: ownerAddress });
 }
 
 

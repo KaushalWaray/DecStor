@@ -7,7 +7,7 @@ import { getFilesByOwner, confirmPayment, getStorageServiceAddress, createFolder
 import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
-import { LoaderCircle, HardDrive, FileSearch, Search, AlertTriangle, FolderPlus, List, LayoutGrid, RefreshCw } from 'lucide-react';
+import { LoaderCircle, HardDrive, FileSearch, Search, AlertTriangle, FolderPlus, List, LayoutGrid, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import SendFileModal from '../modals/SendFileModal';
 import FileDetailsModal from '../modals/FileDetailsModal';
 import CreateFolderModal from '../modals/CreateFolderModal';
@@ -25,6 +25,9 @@ import Breadcrumbs from './Breadcrumbs';
 import RenameModal from '../modals/RenameModal';
 import BulkActionBar from './BulkActionBar';
 import MediaPreviewModal from '../modals/MediaPreviewModal';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
+
+type FileTypeFilter = 'all' | 'image' | 'video' | 'audio' | 'other';
 
 
 interface MyVaultProps {
@@ -79,6 +82,7 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
   // New state for multi-select and view
   const [selectedItems, setSelectedItems] = useState<(FileMetadata | Folder)[]>([]);
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  const [fileTypeFilter, setFileTypeFilter] = useState<FileTypeFilter>('all');
 
   const { toast } = useToast();
 
@@ -91,15 +95,32 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
     let files = allFiles;
     let folders = allFolders;
 
+    const filterLogic = (item: FileMetadata | Folder) => {
+        const name = 'filename' in item ? item.filename : item.name;
+        const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase());
+        if (!matchesSearch) return false;
+
+        if ('cid' in item) { // It's a file, apply file type filter
+            if (fileTypeFilter === 'all') return true;
+            if (fileTypeFilter === 'image') return item.fileType.startsWith('image/');
+            if (fileTypeFilter === 'video') return item.fileType.startsWith('video/');
+            if (fileTypeFilter === 'audio') return item.fileType.startsWith('audio/');
+            if (fileTypeFilter === 'other') {
+                return !item.fileType.startsWith('image/') && !item.fileType.startsWith('video/') && !item.fileType.startsWith('audio/');
+            }
+        }
+        return true; // Always show folders unless filtered by search
+    }
+
     if (isGlobalSearch) {
-      files = files.filter(file => file.filename.toLowerCase().includes(searchTerm.toLowerCase()));
-      folders = folders.filter(folder => folder.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        files = files.filter(f => filterLogic(f));
+        folders = folders.filter(f => filterLogic(f));
     } else {
-      files = files.filter(file => file.path === currentPath && file.filename.toLowerCase().includes(searchTerm.toLowerCase()));
-      folders = folders.filter(folder => folder.path === currentPath && folder.name.toLowerCase().includes(searchTerm.toLowerCase()));
+        files = files.filter(file => file.path === currentPath && filterLogic(file));
+        folders = folders.filter(folder => folder.path === currentPath && filterLogic(folder));
     }
     return { files, folders };
-  }, [allFiles, allFolders, searchTerm, currentPath, isGlobalSearch]);
+  }, [allFiles, allFolders, searchTerm, currentPath, isGlobalSearch, fileTypeFilter]);
 
   const fetchFilesAndStorage = useCallback(async (isInitialLoad = false) => {
     if (!isInitialLoad) {
@@ -128,6 +149,7 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
   useEffect(() => {
     if (searchTerm) {
         setIsGlobalSearch(true);
+        setFileTypeFilter('all'); // Reset filter when doing a global search
     } else {
         setIsGlobalSearch(false);
     }
@@ -341,8 +363,8 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
   };
 
   const getEmptyState = () => {
-    if (searchTerm) {
-        return { title: 'No Results Found', description: 'Your search did not match any files or folders.', icon: FileSearch };
+    if (searchTerm || fileTypeFilter !== 'all') {
+        return { title: 'No Results Found', description: 'Your search and filter criteria did not match any items.', icon: FileSearch };
     }
     return { title: 'This Folder is Empty', description: 'Upload a file or create a folder to get started.', icon: HardDrive };
   };
@@ -377,6 +399,23 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
+                 <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="icon" title="Filter by file type" disabled={isGlobalSearch}>
+                            <SlidersHorizontal />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuRadioGroup value={fileTypeFilter} onValueChange={(v) => setFileTypeFilter(v as FileTypeFilter)}>
+                            <DropdownMenuRadioItem value="all">All File Types</DropdownMenuRadioItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuRadioItem value="image">Images</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="video">Videos</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="audio">Audio</DropdownMenuRadioItem>
+                            <DropdownMenuRadioItem value="other">Other</DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                </DropdownMenu>
                  <Button variant="outline" size="icon" onClick={() => setView(v => v === 'grid' ? 'list' : 'grid')} title={view === 'grid' ? 'Switch to List View' : 'Switch to Grid View'}>
                     {view === 'grid' ? <List /> : <LayoutGrid />}
                 </Button>
@@ -429,6 +468,7 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
             onConfirm={handleInitiateSend}
             isLoading={isSending}
             file={selectedFile}
+            account={account}
             />
             <FileDetailsModal
                 isOpen={isDetailsModalOpen}

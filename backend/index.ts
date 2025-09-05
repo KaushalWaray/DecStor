@@ -35,7 +35,7 @@ export interface Share {
 }
 
 export interface User {
-  _id?: ObjectId;
+  _id: ObjectId;
   address: string;
   walletName: string;
   storageUsed: number;
@@ -62,6 +62,14 @@ export interface Activity {
   };
   isRead: boolean;
 }
+
+export interface Contact {
+  _id: ObjectId;
+  owner: string;
+  name: string;
+  address: string;
+  createdAt: string;
+}
 // --- END OF TYPE DEFINITIONS ---
 
 
@@ -86,6 +94,7 @@ let filesCollection: Collection<FileMetadata>;
 let sharesCollection: Collection<Share>;
 let foldersCollection: Collection<Folder>;
 let activitiesCollection: Collection<Activity>;
+let contactsCollection: Collection<Contact>;
 
 async function connectToDatabase() {
     try {
@@ -97,9 +106,12 @@ async function connectToDatabase() {
         sharesCollection = db.collection<Share>('shares');
         foldersCollection = db.collection<Folder>('folders');
         activitiesCollection = db.collection<Activity>('activities');
+        contactsCollection = db.collection<Contact>('contacts');
 
         // Create index on address for fast lookups
         await usersCollection.createIndex({ address: 1 }, { unique: true });
+        await contactsCollection.createIndex({ owner: 1 });
+
 
         console.log(`[Backend] Successfully connected to MongoDB database: ${db.databaseName}`);
     } catch (error) {
@@ -271,7 +283,6 @@ apiRouter.put('/users/:address/rename', async (req, res) => {
 
         const user = await usersCollection.findOne({ address });
         if (!user) {
-            // This case should ideally not happen if matchedCount > 0, but it's a good safeguard.
             return res.status(404).json({ error: 'User not found after update.' });
         }
         
@@ -341,7 +352,7 @@ apiRouter.get('/files/:ownerAddress', async (req, res) => {
         const ownedFiles = await filesCollection.find(ownedFilesQuery).toArray();
         const ownedFolders = await foldersCollection.find(ownedFoldersQuery).toArray();
 
-        const sharedCids = await sharesCollection.find({ recipientAddress: ownerAddress }).map((s) => s.cid).toArray();
+        const sharedCids = await sharesCollection.find({ recipientAddress: ownerAddress }).map((s: Share) => s.cid).toArray();
         const sharedFiles = await filesCollection.find({ cid: { $in: sharedCids } }).toArray();
         
         const user = await findOrCreateUser(ownerAddress);
@@ -401,6 +412,34 @@ apiRouter.post('/share', async (req, res) => {
         res.status(500).json({ error: 'Internal server error while sharing file.' });
     }
 });
+
+// NEW: Get all shares made BY a user
+apiRouter.get('/shares/:ownerAddress', async (req, res) => {
+    try {
+        const { ownerAddress } = req.params;
+        const sentShares = await sharesCollection.find({ senderAddress: ownerAddress }).toArray();
+
+        const fileCids = sentShares.map(s => s.cid);
+        const files = await filesCollection.find({ cid: { $in: fileCids } }).toArray();
+        const fileMap = new Map(files.map(f => [f.cid, f]));
+
+        const results = sentShares.map(share => {
+            const file = fileMap.get(share.cid);
+            return {
+                ...share,
+                filename: file?.filename,
+                fileType: file?.fileType,
+            };
+        });
+        
+        res.status(200).json({ shares: results });
+
+    } catch(error) {
+        console.error('[Backend] Error fetching sent shares:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
 
 // 5. Confirm a payment and upgrade user's storage
 apiRouter.post('/payment/confirm', async (req, res) => {
@@ -606,8 +645,8 @@ apiRouter.post('/items/delete', async (req, res) => {
         const initialFiles = await filesCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
         const initialFolders = await foldersCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
 
-        initialFiles.forEach((f) => filesToDeleteIds.add(f._id.toString()));
-        initialFolders.forEach((f) => foldersToDeleteIds.add(f._id.toString()));
+        initialFiles.forEach((f: FileMetadata) => filesToDeleteIds.add(f._id.toString()));
+        initialFolders.forEach((f: Folder) => foldersToDeleteIds.add(f._id.toString()));
 
         const foldersToScan = [...initialFolders];
         while(foldersToScan.length > 0) {
@@ -625,7 +664,7 @@ apiRouter.post('/items/delete', async (req, res) => {
             }
 
             const filesInFolder = await filesCollection.find({ path: { $regex: `^${currentPath}` }, owner: ownerAddress }).toArray();
-            filesInFolder.forEach((file) => filesToDeleteIds.add(file._id.toString()));
+            filesInFolder.forEach((file: FileMetadata) => filesToDeleteIds.add(file._id.toString()));
         }
         
         const finalFileIdsToDelete = Array.from(filesToDeleteIds).map(id => new ObjectId(id));
@@ -634,7 +673,7 @@ apiRouter.post('/items/delete', async (req, res) => {
         const filesToDeleteResult = await filesCollection.find({ _id: { $in: finalFileIdsToDelete } }).toArray();
         let totalSizeDeleted = filesToDeleteResult.reduce((sum, file) => sum + file.size, 0);
 
-        const cidsToDelete = filesToDeleteResult.map((f) => f.cid);
+        const cidsToDelete = filesToDeleteResult.map((f: FileMetadata) => f.cid);
 
         await filesCollection.deleteMany({ _id: { $in: finalFileIdsToDelete } });
         await foldersCollection.deleteMany({ _id: { $in: finalFolderIdsToDelete } });
@@ -699,6 +738,103 @@ apiRouter.post('/activity/mark-read', async (req, res) => {
 });
 
 
+// === NEW: CONTACTS API ===
+
+// 16. Get all contacts for a user
+apiRouter.get('/contacts/:ownerAddress', async (req, res) => {
+    try {
+        const { ownerAddress } = req.params;
+        const contacts = await contactsCollection.find({ owner: ownerAddress }).sort({ name: 1 }).toArray();
+        res.status(200).json({ contacts });
+    } catch (error) {
+        console.error('[Backend] Error fetching contacts:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+// 17. Create a new contact
+apiRouter.post('/contacts', async (req, res) => {
+    try {
+        const { owner, name, address } = req.body;
+        if (!owner || !name || !address) {
+            return res.status(400).json({ error: 'Owner, name, and address are required.' });
+        }
+        
+        if (!algosdk.isValidAddress(address)) {
+            return res.status(400).json({ error: 'Invalid Algorand address provided.' });
+        }
+
+        const existingContact = await contactsCollection.findOne({ owner, address });
+        if (existingContact) {
+            return res.status(409).json({ error: 'A contact with this address already exists.' });
+        }
+
+        const newContact: Omit<Contact, '_id'> = {
+            owner,
+            name,
+            address,
+            createdAt: new Date().toISOString(),
+        };
+
+        const result = await contactsCollection.insertOne(newContact as Contact);
+        res.status(201).json({ message: 'Contact created successfully.', contact: { ...newContact, _id: result.insertedId } });
+    } catch (error) {
+        console.error('[Backend] Error creating contact:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+// 18. Update a contact
+apiRouter.put('/contacts/:contactId', async (req, res) => {
+    try {
+        const { contactId } = req.params;
+        const { owner, name, address } = req.body;
+
+        if (!owner || !name || !address) {
+            return res.status(400).json({ error: 'Owner, name, and address are required.' });
+        }
+
+        const result = await contactsCollection.updateOne(
+            { _id: new ObjectId(contactId), owner: owner },
+            { $set: { name, address } }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ error: 'Contact not found or you do not have permission to edit it.' });
+        }
+
+        res.status(200).json({ message: 'Contact updated successfully.' });
+    } catch (error) {
+        console.error('[Backend] Error updating contact:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+
+// 19. Delete a contact
+apiRouter.delete('/contacts/:contactId', async (req, res) => {
+    try {
+        const { contactId } = req.params;
+        const { owner } = req.body; // Owner must be passed in body for verification
+
+        if (!owner) {
+             return res.status(400).json({ error: 'Owner is required for deletion.' });
+        }
+
+        const result = await contactsCollection.deleteOne({ _id: new ObjectId(contactId), owner: owner });
+
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ error: 'Contact not found or you do not have permission to delete it.' });
+        }
+        res.status(200).json({ message: 'Contact deleted successfully.' });
+    } catch (error) {
+        console.error('[Backend] Error deleting contact:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+
+
 // Mount the API router at the /api prefix
 app.use('/api', apiRouter);
 
@@ -712,5 +848,3 @@ const startServer = async () => {
 };
 
 startServer();
-
-    

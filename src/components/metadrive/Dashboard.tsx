@@ -29,7 +29,7 @@ export default function Dashboard({ account, user, pin, onLock, onGoToManager, o
         onRenameWallet={onRenameWallet}
       />
       <main className="flex-grow">
-        <FileTabs account={account} pin={pin} onConfirmSendFile={onConfirmSendFile} />
+        <FileTabs account={account} pin={pin} onConfirmSendFile={onConfirmSendFile} onConfirmSendAlgo={onConfirmSendAlgo} />
       </main>
     </div>
   );

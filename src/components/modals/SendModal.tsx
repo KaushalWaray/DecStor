@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -17,6 +17,10 @@ import { useToast } from '@/hooks/use-toast';
 import algosdk from 'algosdk';
 import { LoaderCircle, Send, Wallet } from 'lucide-react';
 import { ALGO_NETWORK_FEE } from '@/lib/constants';
+import type { Contact, AlgorandAccount } from '@/types';
+import { getContacts } from '@/lib/api';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Separator } from '../ui/separator';
 
 interface SendModalProps {
   isOpen: boolean;
@@ -24,12 +28,33 @@ interface SendModalProps {
   onConfirm: (recipient: string, amount: number) => void;
   isLoading: boolean;
   balance: number;
+  account?: AlgorandAccount;
 }
 
-export default function SendModal({ isOpen, onOpenChange, onConfirm, isLoading, balance }: SendModalProps) {
+export default function SendModal({ isOpen, onOpenChange, onConfirm, isLoading, balance, account }: SendModalProps) {
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (isOpen) {
+      const fetchContacts = async () => {
+        try {
+          if (!account) return;
+          const response = await getContacts(account.addr);
+          setContacts(response.contacts);
+        } catch (error) {
+          console.error("Failed to fetch contacts", error);
+        }
+      };
+      fetchContacts();
+    } else {
+        // Reset form on close
+        setRecipient('');
+        setAmount('');
+    }
+  }, [isOpen, account]);
 
   const handleConfirm = () => {
     if (!algosdk.isValidAddress(recipient)) {
@@ -51,7 +76,7 @@ export default function SendModal({ isOpen, onOpenChange, onConfirm, isLoading, 
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Send/>Send ALGO</DialogTitle>
           <DialogDescription>Enter the recipient's address and the amount to send.</DialogDescription>
@@ -69,6 +94,30 @@ export default function SendModal({ isOpen, onOpenChange, onConfirm, isLoading, 
                     <span className="font-medium">{ALGO_NETWORK_FEE} ALGO</span>
                 </div>
             </div>
+
+             {contacts.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="contact-select">Select from Contacts</Label>
+                <Select onValueChange={(value) => setRecipient(value)}>
+                  <SelectTrigger id="contact-select">
+                    <SelectValue placeholder="Choose a saved contact..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {contacts.map((contact) => (
+                      <SelectItem key={contact._id} value={contact.address}>
+                        {contact.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                 <div className="flex items-center gap-2">
+                    <Separator className="flex-1" />
+                    <span className="text-xs text-muted-foreground">OR</span>
+                    <Separator className="flex-1" />
+                 </div>
+              </div>
+            )}
+            
             <div className="space-y-2">
                 <Label htmlFor="recipient-address">
                 Recipient Address

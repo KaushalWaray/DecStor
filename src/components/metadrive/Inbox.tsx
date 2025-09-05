@@ -6,10 +6,13 @@ import type { AlgorandAccount, FileMetadata, Folder } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { LoaderCircle, RefreshCw, Inbox as InboxIcon, FileSearch, Search, List, LayoutGrid } from 'lucide-react';
+import { LoaderCircle, RefreshCw, Inbox as InboxIcon, FileSearch, Search, List, LayoutGrid, SlidersHorizontal } from 'lucide-react';
 import FileGrid from './FileGrid';
 import { getFilesByOwner } from '@/lib/api';
 import MediaPreviewModal from '../modals/MediaPreviewModal';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
+
+type FileTypeFilter = 'all' | 'image' | 'video' | 'audio' | 'other';
 
 interface InboxProps {
   account: AlgorandAccount;
@@ -23,6 +26,7 @@ export default function Inbox({ account, pin }: InboxProps) {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [fileToPreview, setFileToPreview] = useState<FileMetadata | null>(null);
   const [isMediaPreviewModalOpen, setIsMediaPreviewModalOpen] = useState(false);
+  const [fileTypeFilter, setFileTypeFilter] = useState<FileTypeFilter>('all');
   const { toast } = useToast();
 
   const inboxFiles = useMemo(() => {
@@ -38,10 +42,20 @@ export default function Inbox({ account, pin }: InboxProps) {
   }, [allFiles, account.addr]);
 
   const filteredFiles = useMemo(() => {
-    return inboxFiles.filter(file => 
-      file.filename.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [inboxFiles, searchTerm]);
+    return inboxFiles.filter(file => {
+        const matchesSearch = file.filename.toLowerCase().includes(searchTerm.toLowerCase());
+        if (!matchesSearch) return false;
+
+        if (fileTypeFilter === 'all') return true;
+        if (fileTypeFilter === 'image') return file.fileType.startsWith('image/');
+        if (fileTypeFilter === 'video') return file.fileType.startsWith('video/');
+        if (fileTypeFilter === 'audio') return file.fileType.startsWith('audio/');
+        if (fileTypeFilter === 'other') {
+            return !file.fileType.startsWith('image/') && !file.fileType.startsWith('video/') && !file.fileType.startsWith('audio/');
+        }
+        return true;
+    });
+  }, [inboxFiles, searchTerm, fileTypeFilter]);
 
   const handleRefresh = useCallback(async (isInitialLoad = false) => {
     setIsLoading(true);
@@ -67,8 +81,8 @@ export default function Inbox({ account, pin }: InboxProps) {
 
 
   const getEmptyState = () => {
-    if (searchTerm) {
-        return { title: 'No Results Found', description: 'Your search did not match any files in your inbox.', icon: FileSearch };
+    if (searchTerm || fileTypeFilter !== 'all') {
+        return { title: 'No Results Found', description: 'Your search and filter criteria did not match any files.', icon: FileSearch };
     }
     return { title: 'Your Inbox is Empty', description: 'Files shared with you by other users will appear here.', icon: InboxIcon };
   };
@@ -95,6 +109,23 @@ export default function Inbox({ account, pin }: InboxProps) {
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" title="Filter by file type">
+                  <SlidersHorizontal />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuRadioGroup value={fileTypeFilter} onValueChange={(v) => setFileTypeFilter(v as FileTypeFilter)}>
+                  <DropdownMenuRadioItem value="all">All File Types</DropdownMenuRadioItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuRadioItem value="image">Images</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="video">Videos</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="audio">Audio</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="other">Other</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="outline" size="icon" onClick={() => setView(v => v === 'grid' ? 'list' : 'grid')} title={view === 'grid' ? 'Switch to List View' : 'Switch to Grid View'}>
                 {view === 'grid' ? <List /> : <LayoutGrid />}
             </Button>

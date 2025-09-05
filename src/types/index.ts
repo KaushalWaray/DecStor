@@ -34,6 +34,12 @@ export interface Share {
   createdAt: string;
 }
 
+export interface ShareRecord extends Share {
+    _id: string;
+    filename: string;
+    fileType: string;
+}
+
 export interface DecodedInbox {
   [address: string]: string[];
 }
@@ -89,4 +95,10 @@ export interface ActivityLogInfo {
     activities: Activity[];
 }
 
-    
+export interface Contact {
+    _id: string;
+    owner: string;
+    name: string;
+    address: string;
+    createdAt: string;
+}
