@@ -8,7 +8,7 @@
     {
       "address": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
       "storageLimit": 104857600,
-      "storageUsed": 62437
+      "storageUsed": 543679
     }
   ],
   "files": [
@@ -31,6 +31,16 @@
       "owner": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
       "path": "/",
       "createdAt": "2025-09-05T10:57:48.257Z"
+    },
+    {
+      "_id": "2025-09-05T11:28:23.445Z0.28672588570497304",
+      "filename": "suits_theme_song.mp3",
+      "cid": "QmWepexMozGgVC4YN9UuMFgdbvR8WcZsVQ92NAGssdmVrY",
+      "size": 481242,
+      "fileType": "audio/mpeg",
+      "owner": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
+      "path": "/",
+      "createdAt": "2025-09-05T11:28:23.445Z"
     }
   ],
   "shares": [],

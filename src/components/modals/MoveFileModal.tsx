@@ -47,35 +47,30 @@ export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
   }, [isOpen]);
 
   const availableFolders = useMemo(() => {
-    // Paths of the folders being moved, e.g., ["/Work/", "/Personal/Photos/"]
     const movingFolderPaths = itemsToMove
-        .filter((item): item is FolderType => !('cid' in item))
-        .map(folder => `${folder.path}${folder.name}/`);
+      .filter((item): item is FolderType => !('cid' in item))
+      .map(folder => `${folder.path}${folder.name}/`);
 
-    // Paths of the parent folders of files being moved. We can't move a file to its current location.
-    const currentFilePaths = itemsToMove
-        .filter((item): item is FileMetadata => 'cid' in item)
-        .map(file => file.path);
-        
     const allPossibleFolders = [
       { name: 'My Vault (Root)', path: '/' },
-      ...allFolders.map(f => ({ name: f.path + f.name, path: `${f.path}${f.name}/` }))
+      ...allFolders.map(f => ({ name: `${f.path}${f.name}`, path: `${f.path}${f.name}/` }))
     ];
-
+    
     return allPossibleFolders.filter(destFolder => {
-        // Can't move a folder into itself or one of its own children.
-        if (movingFolderPaths.some(movingPath => destFolder.path.startsWith(movingPath))) {
-            return false;
-        }
+      // An item cannot be moved to its current location.
+      // This is a simple check; for bulk moves, it's more complex.
+      // If every item being moved is already in the destination, disable it.
+      const allInDest = itemsToMove.every(item => item.path === destFolder.path);
+      if (allInDest) {
+          return false;
+      }
 
-        // If we are ONLY moving files (no folders), we can't move them to their current directory.
-        if (movingFolderPaths.length === 0 && itemsToMove.length > 0) {
-            if (currentFilePaths.every(path => path === destFolder.path)) {
-                return false;
-            }
-        }
-        
-        return true;
+      // A folder cannot be moved into itself or one of its own children.
+      if (movingFolderPaths.some(movingPath => destFolder.path.startsWith(movingPath))) {
+        return false;
+      }
+
+      return true;
     });
   }, [allFolders, itemsToMove]);
 
