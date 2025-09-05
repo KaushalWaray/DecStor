@@ -120,7 +120,7 @@ export default function Notifications({ account, isTabActive, onNotificationsVie
                     {activities.map(activity => {
                         const Icon = ICONS[activity.type] || History;
                         return (
-                            <li key={activity._id} className={cn("flex items-start gap-4 p-3 rounded-md transition-colors", !activity.isRead && 'bg-primary/10')}>
+                            <li key={activity._id} className={cn("flex items-start gap-4 p-3 rounded-md transition-colors relative", !activity.isRead && 'bg-primary/10')}>
                                 {!activity.isRead && <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-l-md" />}
                                 <div className={cn("relative p-2 bg-muted rounded-full mt-1", !activity.isRead && 'bg-primary/20')}>
                                     <Icon className="h-5 w-5 text-muted-foreground" />

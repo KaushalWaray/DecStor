@@ -66,10 +66,11 @@ export interface Activity {
     cid?: string;
     recipient?: string;
     itemCount?: number;
+    senderAddress?: string; // Added for received shares
   };
+  isRead: boolean;
 }
 
 export interface ActivityLogInfo {
     activities: Activity[];
-    shares: Share[];
 }

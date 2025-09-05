@@ -1,6 +1,6 @@
 
 import { BACKEND_URL } from './constants';
-import type { FileMetadata, Folder, FilesAndStorageInfo, StorageInfo, Activity, Share } from '@/types';
+import type { FileMetadata, Folder, FilesAndStorageInfo, StorageInfo, Activity, Share, ActivityLogInfo } from '@/types';
 
 const api = {
   get: async (path: string) => {
@@ -138,9 +138,14 @@ export const deleteItems = async (ownerAddress: string, itemIds: string[]) => {
     return api.post('/items/delete', { ownerAddress, itemIds });
 }
 
-// NEW: Get activity logs
-export const getActivityLogs = async (ownerAddress: string): Promise<{ activities: Activity[], shares: Share[] }> => {
+// Get notifications/activity logs
+export const getNotifications = async (ownerAddress: string): Promise<ActivityLogInfo> => {
     return api.get(`/activity/${ownerAddress}`);
+}
+
+// Mark notifications as read
+export const markNotificationsAsRead = async (ownerAddress: string): Promise<{ message: string }> => {
+    return api.post('/activity/mark-read', { ownerAddress });
 }
 
 
