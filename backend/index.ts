@@ -3,7 +3,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import algosdk from 'algosdk';
-import { Collection, Db, MongoClient, ObjectId } from 'mongodb';
+import { Collection, Db, MongoClient, ObjectId, WithId } from 'mongodb';
 
 // --- SELF-CONTAINED TYPE DEFINITIONS ---
 export interface FileMetadata {
@@ -35,7 +35,7 @@ export interface Share {
 }
 
 export interface User {
-  _id?: ObjectId;
+  _id: ObjectId;
   address: string;
   storageUsed: number;
   storageTier: 'free' | 'pro';
@@ -152,23 +152,11 @@ const getStorageLimit = (tier: 'free' | 'pro') => {
 };
 
 const findOrCreateUser = async (address: string): Promise<User & { storageLimit: number }> => {
-    let user = await usersCollection.findOne({ address });
+    const user = await usersCollection.findOne({ address });
     const now = new Date().toISOString();
 
-    if (!user) {
-        const newUser: User = {
-            address,
-            storageUsed: 0,
-            storageTier: 'free',
-            createdAt: now,
-            updatedAt: now,
-            lastLogin: now,
-        };
-        await usersCollection.insertOne(newUser);
-        console.log(`[Backend] Created new user ${address.substring(0,10)}... with free tier.`);
-        user = newUser;
-    } else {
-        // Recalculate storage just in case and update timestamps
+    if (user) {
+        // --- Existing User Logic ---
         const aggregationResult = await filesCollection.aggregate([
             { $match: { owner: address } },
             { $group: { _id: null, totalSize: { $sum: "$size" } } }
@@ -191,13 +179,40 @@ const findOrCreateUser = async (address: string): Promise<User & { storageLimit:
             { $set: updates },
             { returnDocument: 'after' }
         );
-        user = result!;
+        
+        if (!result) {
+            // This should ideally not happen if user was found, but it's good practice to check
+            throw new Error("Failed to update and retrieve user.");
+        }
+
+        return {
+            ...result,
+            storageLimit: getStorageLimit(result.storageTier),
+        };
+
+    } else {
+        // --- New User Logic ---
+        const newUser: Omit<User, '_id'> = {
+            address,
+            storageUsed: 0,
+            storageTier: 'free',
+            createdAt: now,
+            updatedAt: now,
+            lastLogin: now,
+        };
+        const insertResult = await usersCollection.insertOne(newUser as User);
+        console.log(`[Backend] Created new user ${address.substring(0,10)}... with free tier.`);
+
+        const createdUser = await usersCollection.findOne({ _id: insertResult.insertedId });
+        if (!createdUser) {
+            throw new Error("Failed to create and retrieve new user.");
+        }
+        
+        return {
+            ...createdUser,
+            storageLimit: getStorageLimit(createdUser.storageTier),
+        };
     }
-    
-    return {
-        ...user,
-        storageLimit: getStorageLimit(user.storageTier),
-    };
 };
 
 
@@ -663,3 +678,4 @@ const startServer = async () => {
 };
 
 startServer();
+
