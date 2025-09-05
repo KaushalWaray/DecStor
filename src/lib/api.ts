@@ -1,6 +1,6 @@
 
 import { BACKEND_URL } from './constants';
-import type { FileMetadata, Folder, FilesAndStorageInfo, StorageInfo, Activity } from '@/types';
+import type { FileMetadata, Folder, FilesAndStorageInfo, StorageInfo, Activity, Share } from '@/types';
 
 const api = {
   get: async (path: string) => {
@@ -139,7 +139,7 @@ export const deleteItems = async (ownerAddress: string, itemIds: string[]) => {
 }
 
 // NEW: Get activity logs
-export const getActivityLogs = async (ownerAddress: string): Promise<{ activities: Activity[] }> => {
+export const getActivityLogs = async (ownerAddress: string): Promise<{ activities: Activity[], shares: Share[] }> => {
     return api.get(`/activity/${ownerAddress}`);
 }
 

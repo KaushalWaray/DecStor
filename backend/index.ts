@@ -710,7 +710,9 @@ apiRouter.get('/activity/:ownerAddress', (req, res) => {
                 details: {
                     filename: file.filename,
                     cid: file.cid,
-                    recipient: 'You',
+                    recipient: 'You', // This indicates a received share
+                    // We need the sender info here. Let's add it.
+                    // The frontend will need the full share list to resolve sender.
                 }
             }
         })
@@ -718,7 +720,7 @@ apiRouter.get('/activity/:ownerAddress', (req, res) => {
         const allUserActivities = [...userActivities, ...receivedShareActivities].sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
 
-        res.status(200).json({ activities: allUserActivities });
+        res.status(200).json({ activities: allUserActivities, shares: shares });
     } catch(error) {
         console.error('[Backend] Error fetching activity:', error);
         res.status(500).json({ error: 'Internal server error.' });

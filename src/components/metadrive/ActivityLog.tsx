@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import type { AlgorandAccount, Activity } from '@/types';
+import type { AlgorandAccount, Activity, Share } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { getActivityLogs } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,6 +40,7 @@ const getActionText = (activity: Activity) => {
 
 export default function ActivityLog({ account }: ActivityLogProps) {
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [shares, setShares] = useState<Share[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -48,6 +49,7 @@ export default function ActivityLog({ account }: ActivityLogProps) {
     try {
       const response = await getActivityLogs(account.addr);
       setActivities(response.activities || []);
+      setShares(response.shares || []); // Store the shares
       if (!isInitialLoad) {
           toast({ title: "Activity log refreshed!" });
       }
@@ -102,7 +104,7 @@ export default function ActivityLog({ account }: ActivityLogProps) {
                                 <div className="flex-grow">
                                     <p className="text-sm">
                                         {activity.type === 'SHARE' && activity.details.recipient === 'You' ? 
-                                            <span className="font-mono text-xs text-accent">{truncateAddress(shareSender!)}</span> : 
+                                            <span className="font-mono text-xs text-accent">{shareSender ? truncateAddress(shareSender) : 'An unknown user'}</span> : 
                                             "You"
                                         } {getActionText(activity)}
                                     </p>

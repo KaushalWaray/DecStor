@@ -68,3 +68,8 @@ export interface Activity {
     itemCount?: number;
   };
 }
+
+export interface ActivityLogInfo {
+    activities: Activity[];
+    shares: Share[];
+}
