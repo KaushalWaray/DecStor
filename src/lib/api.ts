@@ -1,6 +1,6 @@
 
 import { BACKEND_URL } from './constants';
-import type { FileMetadata, Folder, FilesAndStorageInfo, StorageInfo, Activity, Share, ActivityLogInfo } from '@/types';
+import type { FileMetadata, Folder, FilesAndStorageInfo, StorageInfo, Activity, Share, ActivityLogInfo, User } from '@/types';
 
 const api = {
   get: async (path: string) => {
@@ -109,9 +109,13 @@ export const recordShareInDb = async (cid: string, recipientAddress: string) => 
     return api.post('/share', { cid, recipientAddress });
 };
 
-export const findOrCreateUserInDb = async (address: string) => {
-    return api.post('/users/find-or-create', { address });
+export const findOrCreateUserInDb = async (address: string, walletName?: string): Promise<{user: User}> => {
+    return api.post('/users/find-or-create', { address, walletName });
 };
+
+export const renameWallet = async (address: string, newName: string): Promise<{ user: User }> => {
+    return api.put(`/users/${address}/rename`, { newName });
+}
 
 export const confirmPayment = async (senderAddress: string, txId: string, recipientAddress: string, amount: number): Promise<{ storageInfo: StorageInfo }> => {
     return api.post('/payment/confirm', { senderAddress, txId, recipientAddress, amount });

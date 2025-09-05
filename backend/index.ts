@@ -37,6 +37,7 @@ export interface Share {
 export interface User {
   _id: ObjectId;
   address: string;
+  walletName: string;
   storageUsed: number;
   storageTier: 'free' | 'pro';
   createdAt: string;
@@ -151,7 +152,7 @@ const getStorageLimit = (tier: 'free' | 'pro') => {
     return tier === 'pro' ? PRO_TIER_LIMIT : FREE_TIER_LIMIT;
 };
 
-const findOrCreateUser = async (address: string): Promise<User & { storageLimit: number }> => {
+const findOrCreateUser = async (address: string, walletName?: string): Promise<User & { storageLimit: number }> => {
     let user = await usersCollection.findOne({ address });
     const now = new Date().toISOString();
 
@@ -187,8 +188,10 @@ const findOrCreateUser = async (address: string): Promise<User & { storageLimit:
 
     } else {
         // --- New User Logic ---
+        const defaultName = walletName || `Wallet ${address.substring(address.length - 4)}`;
         const newUser: Omit<User, '_id'> = {
             address,
+            walletName: defaultName,
             storageUsed: 0,
             storageTier: 'free',
             createdAt: now,
@@ -196,7 +199,7 @@ const findOrCreateUser = async (address: string): Promise<User & { storageLimit:
             lastLogin: now,
         };
         const insertResult = await usersCollection.insertOne(newUser as User);
-        console.log(`[Backend] Created new user ${address.substring(0,10)}... with free tier.`);
+        console.log(`[Backend] Created new user ${address.substring(0,10)}... with name "${defaultName}" and free tier.`);
 
         const createdUser = await usersCollection.findOne({ _id: insertResult.insertedId });
         if (!createdUser) {
@@ -236,15 +239,43 @@ apiRouter.get('/service-address', (req, res) => {
 // NEW: Endpoint to ensure a user exists upon wallet import/creation
 apiRouter.post('/users/find-or-create', async (req, res) => {
     try {
-        const { address } = req.body;
+        const { address, walletName } = req.body;
         if (!address) {
             return res.status(400).json({ error: 'Address is required.' });
         }
-        const user = await findOrCreateUser(address);
+        const user = await findOrCreateUser(address, walletName);
         res.status(200).json({ user });
     } catch (error) {
         console.error('[Backend] Error finding or creating user:', error);
         res.status(500).json({ error: 'Internal server error while finding or creating user.' });
+    }
+});
+
+// NEW: Rename a wallet
+apiRouter.put('/users/:address/rename', async (req, res) => {
+    try {
+        const { address } = req.params;
+        const { newName } = req.body;
+        if (!newName) {
+            return res.status(400).json({ error: 'New name is required.' });
+        }
+
+        const result = await usersCollection.updateOne(
+            { address },
+            { $set: { walletName: newName, updatedAt: new Date().toISOString() } }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        const user = await usersCollection.findOne({ address });
+        console.log(`[Backend] Renamed wallet for ${address.substring(0,10)}... to "${newName}"`);
+        res.status(200).json({ message: 'Wallet renamed successfully.', user });
+
+    } catch (error) {
+        console.error('[Backend] Error renaming wallet:', error);
+        res.status(500).json({ error: 'Internal server error while renaming wallet.' });
     }
 });
 
@@ -305,7 +336,7 @@ apiRouter.get('/files/:ownerAddress', async (req, res) => {
         const ownedFiles = await filesCollection.find(ownedFilesQuery).toArray();
         const ownedFolders = await foldersCollection.find(ownedFoldersQuery).toArray();
 
-        const sharedCids = await sharesCollection.find({ recipientAddress: ownerAddress }).map((s: Share) => s.cid).toArray();
+        const sharedCids = await sharesCollection.find({ recipientAddress: ownerAddress }).map((s: WithId<Share>) => s.cid).toArray();
         const sharedFiles = await filesCollection.find({ cid: { $in: sharedCids } }).toArray();
         
         const user = await findOrCreateUser(ownerAddress);
@@ -676,4 +707,3 @@ const startServer = async () => {
 };
 
 startServer();
-

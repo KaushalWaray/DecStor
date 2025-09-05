@@ -2,12 +2,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import type { AlgorandAccount, WalletState, WalletEntry, FileMetadata } from '@/types';
+import type { AlgorandAccount, WalletState, WalletEntry, FileMetadata, User } from '@/types';
 import { encryptMnemonic, decryptMnemonic } from '@/lib/crypto';
 import { mnemonicToAccount, isValidMnemonic, sendPayment, sendFile } from '@/lib/algorand';
 import { useToast } from '@/hooks/use-toast';
 import { truncateAddress } from '@/lib/utils';
-import { findOrCreateUserInDb, confirmPayment } from '@/lib/api';
+import { findOrCreateUserInDb, confirmPayment, renameWallet as apiRenameWallet } from '@/lib/api';
 
 import WelcomeScreen from '@/components/metadrive/WelcomeScreen';
 import CreateWalletFlow from '@/components/metadrive/CreateWalletFlow';
@@ -20,6 +20,7 @@ export default function Home() {
   const [walletState, setWalletState] = useState<WalletState>('loading');
   const [wallets, setWallets] = useState<WalletEntry[]>([]);
   const [account, setAccount] = useState<AlgorandAccount | null>(null);
+  const [accountUser, setAccountUser] = useState<User | null>(null);
   const [pin, setPin] = useState<string>('');
   const [selectedWallet, setSelectedWallet] = useState<string>('');
   const { toast } = useToast();
@@ -45,10 +46,10 @@ export default function Home() {
     }
   }, []);
 
-  const saveWallet = useCallback(async (accountToSave: AlgorandAccount, pinToSave: string) => {
+  const saveWallet = useCallback(async (accountToSave: AlgorandAccount, pinToSave: string, walletName: string) => {
     try {
       const encryptedMnemonic = await encryptMnemonic(accountToSave.mnemonic, pinToSave);
-      const newWalletEntry: WalletEntry = { address: accountToSave.addr, encryptedMnemonic };
+      const newWalletEntry: WalletEntry = { name: walletName, address: accountToSave.addr, encryptedMnemonic };
 
       const storedWallets = localStorage.getItem('decstor_wallets');
       let currentWallets: WalletEntry[] = storedWallets ? JSON.parse(storedWallets) : [];
@@ -76,13 +77,14 @@ export default function Home() {
   }, [toast]);
 
 
-  const handleCreateWallet = async (mnemonic: string, newPin: string) => {
+  const handleCreateWallet = async (mnemonic: string, newPin: string, walletName: string) => {
     try {
       const newAccount = mnemonicToAccount(mnemonic);
-      await saveWallet(newAccount, newPin);
+      await saveWallet(newAccount, newPin, walletName);
       // Also ensure user exists in DB
-      await findOrCreateUserInDb(newAccount.addr);
+      const { user } = await findOrCreateUserInDb(newAccount.addr, walletName);
       setAccount(newAccount);
+      setAccountUser(user);
       setPin(newPin);
       setWalletState('unlocked');
     } catch (error) {
@@ -96,7 +98,7 @@ export default function Home() {
     }
   };
   
-  const handleImportWallet = async (mnemonic: string, newPin: string) => {
+  const handleImportWallet = async (mnemonic: string, newPin: string, walletName: string) => {
     if (!isValidMnemonic(mnemonic)) {
       toast({
         variant: 'destructive',
@@ -113,11 +115,12 @@ export default function Home() {
         return;
       }
       
-      await saveWallet(newAccount, newPin);
+      await saveWallet(newAccount, newPin, walletName);
       // Ensure user exists in the database on import
-      await findOrCreateUserInDb(newAccount.addr);
+      const { user } = await findOrCreateUserInDb(newAccount.addr, walletName);
 
       setAccount(newAccount);
+      setAccountUser(user);
       setPin(newPin);
       setWalletState('unlocked');
     } catch (error: any) {
@@ -144,10 +147,15 @@ export default function Home() {
          throw new Error('Decryption failed or invalid mnemonic');
       }
       const unlockedAccount = mnemonicToAccount(mnemonic);
+
+      // Fetch user data from DB on unlock
+      const { user } = await findOrCreateUserInDb(unlockedAccount.addr, walletToUnlock.name);
+
       setAccount(unlockedAccount);
+      setAccountUser(user);
       setPin(unlockPin);
       setWalletState('unlocked');
-      toast({ title: 'Wallet Unlocked', description: 'Welcome back!' });
+      toast({ title: 'Wallet Unlocked', description: `Welcome back, ${user.walletName}!` });
     } catch (error) {
       console.error(error);
       toast({
@@ -160,12 +168,14 @@ export default function Home() {
   
   const handleLock = () => {
     setAccount(null);
+    setAccountUser(null);
     setPin('');
     setWalletState('locked');
   };
 
   const handleGoToManager = () => {
     setAccount(null);
+    setAccountUser(null);
     setPin('');
     if (wallets.length > 0) {
       setWalletState('locked');
@@ -179,6 +189,7 @@ export default function Home() {
       localStorage.removeItem('decstor_wallets');
       setWallets([]);
       setAccount(null);
+      setAccountUser(null);
       setPin('');
       setSelectedWallet('');
       setWalletState('no_wallet');
@@ -253,6 +264,32 @@ export default function Home() {
       return false;
     }
   }, [getSenderAccount, toast]);
+
+  const handleRenameWallet = useCallback(async (newName: string): Promise<boolean> => {
+    if (!account || !accountUser) return false;
+    if (newName === accountUser.walletName) return true; // No change needed
+
+    try {
+        // 1. Update backend
+        const { user: updatedUser } = await apiRenameWallet(account.addr, newName);
+        
+        // 2. Update local storage
+        const newWallets = wallets.map(w => w.address === account.addr ? { ...w, name: newName } : w);
+        localStorage.setItem('decstor_wallets', JSON.stringify(newWallets));
+
+        // 3. Update component state
+        setWallets(newWallets);
+        setAccountUser(updatedUser);
+
+        toast({ title: "Wallet Renamed", description: `Your wallet is now named "${newName}".` });
+        return true;
+    } catch (error: any) {
+        console.error("Rename failed:", error);
+        toast({ variant: "destructive", title: "Rename Failed", description: error.message || "Could not rename the wallet." });
+        return false;
+    }
+}, [account, accountUser, wallets, toast]);
+
   // --- END ---
 
   const renderContent = () => {
@@ -286,17 +323,19 @@ export default function Home() {
                     onDeleteWallet={handleDeleteWallet} 
                 />;
       case 'unlocked':
-        if (!account || !pin) {
+        if (!account || !pin || !accountUser) {
           handleLock();
           return null;
         }
         return <Dashboard 
                   account={account} 
+                  user={accountUser}
                   pin={pin} 
                   onLock={handleLock} 
                   onGoToManager={handleGoToManager}
                   onConfirmSendAlgo={handleConfirmSendAlgo}
                   onConfirmSendFile={handleConfirmSendFile}
+                  onRenameWallet={handleRenameWallet}
                 />;
       default:
         return null;

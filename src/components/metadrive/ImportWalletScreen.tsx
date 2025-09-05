@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -8,19 +9,32 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Eye, EyeOff, LoaderCircle } from 'lucide-react';
-import { isValidMnemonic } from '@/lib/algorand';
+import { isValidMnemonic, mnemonicToAccount } from '@/lib/algorand';
+import { truncateAddress } from '@/lib/utils';
 
 interface ImportWalletScreenProps {
-  onImport: (mnemonic: string, pin: string) => Promise<void>;
+  onImport: (mnemonic: string, pin: string, name: string) => Promise<void>;
   onBack: () => void;
 }
 
 export default function ImportWalletScreen({ onImport, onBack }: ImportWalletScreenProps) {
   const [mnemonic, setMnemonic] = useState('');
+  const [walletName, setWalletName] = useState('');
   const [pin, setPin] = useState('');
   const [isPinVisible, setIsPinVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  const handleMnemonicChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newMnemonic = e.target.value;
+    setMnemonic(newMnemonic);
+    if (isValidMnemonic(newMnemonic)) {
+      const account = mnemonicToAccount(newMnemonic);
+      setWalletName(`Wallet ${truncateAddress(account.addr, 4, 4)}`);
+    } else {
+      setWalletName('');
+    }
+  }
 
   const handleImport = async () => {
     const trimmedMnemonic = mnemonic.trim();
@@ -28,12 +42,16 @@ export default function ImportWalletScreen({ onImport, onBack }: ImportWalletScr
       toast({ variant: 'destructive', title: 'Invalid Phrase', description: 'Please enter a valid 25-word recovery phrase.' });
       return;
     }
+     if (!walletName.trim()) {
+      toast({ variant: 'destructive', title: 'Invalid Name', description: 'Wallet name cannot be empty.' });
+      return;
+    }
     if (pin.length < 6) {
       toast({ variant: 'destructive', title: 'Invalid PIN', description: 'PIN must be at least 6 digits long.' });
       return;
     }
     setIsLoading(true);
-    await onImport(trimmedMnemonic, pin);
+    await onImport(trimmedMnemonic, pin, walletName);
     // No need to set loading to false as the component will unmount or be replaced
   };
 
@@ -42,7 +60,7 @@ export default function ImportWalletScreen({ onImport, onBack }: ImportWalletScr
       <Card className="w-full max-w-lg">
         <CardHeader>
           <CardTitle className="font-headline text-2xl">Import Existing Wallet</CardTitle>
-          <CardDescription>Enter your 25-word secret recovery phrase and set a new PIN for this device.</CardDescription>
+          <CardDescription>Enter your 25-word secret recovery phrase, name the wallet, and set a new PIN for this device.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -52,8 +70,12 @@ export default function ImportWalletScreen({ onImport, onBack }: ImportWalletScr
               placeholder="Enter your 25 words..."
               className="font-code h-40"
               value={mnemonic}
-              onChange={(e) => setMnemonic(e.target.value)}
+              onChange={handleMnemonicChange}
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="wallet-name">Wallet Name</Label>
+            <Input id="wallet-name" value={walletName} onChange={(e) => setWalletName(e.target.value)} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="pin">New PIN (6+ digits)</Label>

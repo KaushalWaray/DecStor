@@ -41,6 +41,7 @@ export interface DecodedInbox {
 export interface WalletEntry {
   address: string;
   encryptedMnemonic: string;
+  name: string;
 }
 
 export interface StorageInfo {
@@ -58,6 +59,7 @@ export interface FilesAndStorageInfo {
 export interface User {
   _id?: any; // Allow for MongoDB's ObjectId
   address: string;
+  walletName: string;
   storageUsed: number;
   storageTier: 'free' | 'pro';
   createdAt: string;

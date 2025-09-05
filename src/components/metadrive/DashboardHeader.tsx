@@ -5,25 +5,29 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { getAccountBalance } from '@/lib/algorand';
 import { truncateAddress } from '@/lib/utils';
-import type { AlgorandAccount } from '@/types';
-import { LogOut, Shield, Copy, LoaderCircle, Users, ChevronDown, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import type { AlgorandAccount, User } from '@/types';
+import { LogOut, Shield, Copy, LoaderCircle, Users, ChevronDown, ArrowUpRight, ArrowDownLeft, Edit } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import ReceiveModal from '../modals/ReceiveModal';
 import SendModal from '../modals/SendModal';
 import ApproveTransactionModal from '../modals/ApproveTransactionModal';
+import RenameWalletModal from '../modals/RenameWalletModal';
 
 interface DashboardHeaderProps {
   account: AlgorandAccount;
+  user: User;
   onLock: () => void;
   onGoToManager: () => void;
   onConfirmSend: (recipient: string, amount: number) => Promise<boolean>;
+  onRenameWallet: (newName: string) => Promise<boolean>;
 }
 
-export default function DashboardHeader({ account, onLock, onGoToManager, onConfirmSend }: DashboardHeaderProps) {
+export default function DashboardHeader({ account, user, onLock, onGoToManager, onConfirmSend, onRenameWallet }: DashboardHeaderProps) {
   const [balance, setBalance] = useState<number | null>(null);
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   
   // State for sending ALGO
   const [isApproveSendModalOpen, setIsApproveSendModalOpen] = useState(false);
@@ -89,21 +93,30 @@ export default function DashboardHeader({ account, onLock, onGoToManager, onConf
             <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="h-10">
                     <div className="flex items-center gap-2">
-                        <div className="text-right hidden sm:block">
-                            <p className="font-code text-xs text-muted-foreground">{truncateAddress(account.addr)}</p>
-                            <p className="font-semibold text-sm">
-                                {balance === null ? (
-                                <LoaderCircle className="h-4 w-4 animate-spin inline-block" />
-                                ) : (
-                                `${balance.toFixed(4)} ALGO`
-                                )}
-                            </p>
+                        <div className="text-right">
+                            <p className="font-semibold text-sm">{user.walletName}</p>
+                             <p className="font-code text-xs text-muted-foreground hidden sm:block">{truncateAddress(account.addr)}</p>
                         </div>
                          <ChevronDown className="h-4 w-4 text-muted-foreground"/>
                     </div>
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
+                 <DropdownMenuItem className="flex-col items-start disabled:opacity-100" disabled>
+                    <div className="font-semibold">Balance</div>
+                    <div className="font-semibold text-primary text-lg">
+                        {balance === null ? (
+                        <LoaderCircle className="h-4 w-4 animate-spin inline-block" />
+                        ) : (
+                        `${balance.toFixed(4)} ALGO`
+                        )}
+                    </div>
+                 </DropdownMenuItem>
+                 <DropdownMenuSeparator />
+                 <DropdownMenuItem onClick={() => setIsRenameModalOpen(true)}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    <span>Rename Wallet</span>
+                </DropdownMenuItem>
                  <DropdownMenuItem onClick={handleCopyAddress}>
                     <Copy className="mr-2 h-4 w-4" />
                     <span>Copy Address</span>
@@ -149,6 +162,13 @@ export default function DashboardHeader({ account, onLock, onGoToManager, onConf
             amount={sendDetails.amount}
       />
     )}
+
+    <RenameWalletModal
+      isOpen={isRenameModalOpen}
+      onOpenChange={setIsRenameModalOpen}
+      currentName={user.walletName}
+      onConfirm={onRenameWallet}
+    />
 
     </>
   );

@@ -13,7 +13,7 @@ import { truncateAddress } from '@/lib/utils';
 import Link from 'next/link';
 
 interface CreateWalletFlowProps {
-  onWalletCreated: (mnemonic: string, pin: string) => void;
+  onWalletCreated: (mnemonic: string, pin: string, name: string) => void;
   onBack: () => void;
 }
 
@@ -28,8 +28,9 @@ const shuffleArray = <T,>(array: T[]): T[] => {
 };
 
 export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWalletFlowProps) {
-  const [step, setStep] = useState<'display' | 'confirm' | 'fund' | 'pin'>('display');
+  const [step, setStep] = useState<'display' | 'confirm' | 'fund' | 'name_and_pin'>('display');
   const [mnemonic, setMnemonic] = useState('');
+  const [walletName, setWalletName] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [isPinVisible, setIsPinVisible] = useState(false);
@@ -44,7 +45,10 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
   const mnemonicWords = useMemo(() => mnemonic.split(' '), [mnemonic]);
   const newAddress = useMemo(() => {
     if (!mnemonic) return '';
-    return mnemonicToAccount(mnemonic).addr;
+    const account = mnemonicToAccount(mnemonic);
+    // Set a default wallet name when the address is generated
+    setWalletName(`Wallet ${truncateAddress(account.addr, 4, 4)}`);
+    return account.addr;
   }, [mnemonic]);
 
   useMemo(() => {
@@ -92,6 +96,10 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
   };
 
   const handleCreateWallet = async () => {
+    if (!walletName.trim()) {
+      toast({ variant: 'destructive', title: 'Invalid Name', description: 'Wallet name cannot be empty.' });
+      return;
+    }
     if (pin.length < 6) {
       toast({ variant: 'destructive', title: 'Invalid PIN', description: 'PIN must be at least 6 digits long.' });
       return;
@@ -102,7 +110,7 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
     }
 
     setIsLoading(true);
-    await onWalletCreated(mnemonic, pin);
+    await onWalletCreated(mnemonic, pin, walletName);
   };
   
   const renderStep = () => {
@@ -221,19 +229,23 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
             </CardContent>
             <CardFooter className="justify-between">
               <Button variant="ghost" onClick={() => setStep('confirm')}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>
-              <Button onClick={() => setStep('pin')}>I have funds, next step <ArrowRight className="ml-2 h-4 w-4" /></Button>
+              <Button onClick={() => setStep('name_and_pin')}>I have funds, next step <ArrowRight className="ml-2 h-4 w-4" /></Button>
             </CardFooter>
           </Card>
         );
 
-      case 'pin':
+      case 'name_and_pin':
         return (
           <Card className="w-full max-w-sm">
             <CardHeader>
-              <CardTitle className="font-headline text-2xl">Create a PIN</CardTitle>
-              <CardDescription>This PIN will be used to unlock your wallet on this device.</CardDescription>
+              <CardTitle className="font-headline text-2xl">Final Step</CardTitle>
+              <CardDescription>Name your wallet and create a PIN to unlock it on this device.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+               <div className="space-y-2">
+                <Label htmlFor="wallet-name">Wallet Name</Label>
+                <Input id="wallet-name" value={walletName} onChange={(e) => setWalletName(e.target.value)} />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="pin">New PIN (6+ digits)</Label>
                  <div className="relative">
@@ -262,4 +274,3 @@ export default function CreateWalletFlow({ onWalletCreated, onBack }: CreateWall
 
   return <div className="flex flex-col items-center justify-center h-full">{renderStep()}</div>;
 }
-

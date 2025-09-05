@@ -68,7 +68,10 @@ export default function LockScreen({ wallets, selectedWallet, onSetSelectedWalle
             <SelectContent>
               {wallets.map((wallet) => (
                 <SelectItem key={wallet.address} value={wallet.address}>
-                  {truncateAddress(wallet.address)}
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{wallet.name || 'Unnamed Wallet'}</span>
+                    <span className="text-muted-foreground font-code text-xs">{truncateAddress(wallet.address)}</span>
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
