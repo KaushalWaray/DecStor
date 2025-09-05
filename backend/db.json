@@ -8,7 +8,7 @@
     {
       "address": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
       "storageLimit": 104857600,
-      "storageUsed": 35335
+      "storageUsed": 62437
     }
   ],
   "files": [
@@ -21,6 +21,16 @@
       "owner": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
       "path": "/IMP_Documents/",
       "createdAt": "2025-09-05T10:25:45.398Z"
+    },
+    {
+      "_id": "2025-09-05T10:57:48.257Z0.9269023637026046",
+      "filename": "profilepic.jpg",
+      "cid": "QmXexKziV7Hu1xjbK34LyozvgXwmwd1SffJ6A2VDduoNzJ",
+      "size": 27102,
+      "fileType": "image/jpeg",
+      "owner": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
+      "path": "/",
+      "createdAt": "2025-09-05T10:57:48.257Z"
     }
   ],
   "shares": [],

@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
 import { LoaderCircle, HardDrive, FileSearch, Search, AlertTriangle, FolderPlus } from 'lucide-react';
-import SendModal from '../modals/SendModal';
+import SendFileModal from '../modals/SendFileModal';
 import FileDetailsModal from '../modals/FileDetailsModal';
 import CreateFolderModal from '../modals/CreateFolderModal';
 import MoveFileModal from '../modals/MoveFileModal';
@@ -395,7 +395,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
 
       {selectedFile && (
         <>
-            <SendModal
+            <SendFileModal
             isOpen={isSendModalOpen}
             onOpenChange={setIsSendModalOpen}
             onConfirm={handleConfirmSend}

@@ -1,5 +1,4 @@
 
-
 import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, waitForConfirmation, isValidAddress, makeApplicationNoOpTxnFromObject, makePaymentTxnWithSuggestedParamsFromObject, OnApplicationComplete} from 'algosdk';
 import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID, UPGRADE_COST_ALGOS } from './constants';
 import type { AlgorandAccount } from '@/types';
@@ -36,6 +35,31 @@ export const getAccountBalance = async (address: string): Promise<number> => {
     return 0;
   }
 };
+
+
+export const sendPayment = async (sender: AlgorandAccount, recipientAddress: string, amountAlgos: number) => {
+    console.log(`[Algorand] Initiating payment of ${amountAlgos} ALGO to ${recipientAddress}`);
+    
+    const params = await algodClient.getTransactionParams().do();
+    const amountMicroAlgos = amountAlgos * 1_000_000;
+
+    const paymentTxn = makePaymentTxnWithSuggestedParamsFromObject({
+        from: sender.addr,
+        to: recipientAddress,
+        amount: amountMicroAlgos,
+        suggestedParams: params,
+    });
+
+    const signedTxn = paymentTxn.signTxn(sender.sk);
+    const txId = paymentTxn.txID().toString();
+    
+    await algodClient.sendRawTransaction(signedTxn).do();
+    await waitForConfirmation(algodClient, txId, 4);
+    
+    console.log(`[Algorand] Payment transaction ${txId} confirmed.`);
+    return { txId };
+};
+
 
 export const sendFile = async (
   sender: AlgorandAccount,

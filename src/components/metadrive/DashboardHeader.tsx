@@ -3,32 +3,42 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { getAccountBalance } from '@/lib/algorand';
+import { getAccountBalance, sendPayment } from '@/lib/algorand';
 import { truncateAddress } from '@/lib/utils';
-import type { AlgorandAccount } from '@/types';
+import type { AlgorandAccount, WalletEntry } from '@/types';
 import { LogOut, Shield, Copy, LoaderCircle, Users, ChevronDown, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import ReceiveModal from '../modals/ReceiveModal';
 import SendModal from '../modals/SendModal';
+import { decryptMnemonic, mnemonicToAccount } from '@/lib/crypto';
+import ApproveTransactionModal from '../modals/ApproveTransactionModal';
 
 interface DashboardHeaderProps {
   account: AlgorandAccount;
+  pin: string;
   onLock: () => void;
   onGoToManager: () => void;
 }
 
-export default function DashboardHeader({ account, onLock, onGoToManager }: DashboardHeaderProps) {
+export default function DashboardHeader({ account, pin, onLock, onGoToManager }: DashboardHeaderProps) {
   const [balance, setBalance] = useState<number | null>(null);
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+  
+  // State for sending ALGO
+  const [isApproveSendModalOpen, setIsApproveSendModalOpen] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [sendDetails, setSendDetails] = useState<{recipient: string, amount: number} | null>(null);
+
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchBalance = async () => {
+  const fetchBalance = async () => {
       const bal = await getAccountBalance(account.addr);
       setBalance(bal);
-    };
+  };
+
+  useEffect(() => {
     fetchBalance();
   }, [account.addr]);
   
@@ -36,6 +46,44 @@ export default function DashboardHeader({ account, onLock, onGoToManager }: Dash
     navigator.clipboard.writeText(account.addr);
     toast({ title: "Address copied!" });
   };
+
+  const handleInitiateSend = (recipient: string, amount: number) => {
+    setSendDetails({ recipient, amount });
+    setIsSendModalOpen(false);
+    setIsApproveSendModalOpen(true);
+  };
+
+  const handleConfirmSend = async () => {
+    if (!sendDetails) return;
+    
+    setIsSending(true);
+    try {
+        toast({ title: "Sending Transaction...", description: "Please wait while we send your transaction." });
+        const storedWallets: WalletEntry[] = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
+        const walletEntry = storedWallets.find(w => w.address === account.addr);
+        
+        if (!walletEntry) throw new Error("Could not find wallet credentials.");
+
+        const mnemonic = await decryptMnemonic(walletEntry.encryptedMnemonic, pin);
+        if (!mnemonic) throw new Error("Decryption failed.");
+        
+        const senderAccount = mnemonicToAccount(mnemonic);
+
+        const { txId } = await sendPayment(senderAccount, sendDetails.recipient, sendDetails.amount);
+
+        toast({ title: "Transaction Sent!", description: `Successfully sent ${sendDetails.amount} ALGO. TxID: ${truncateAddress(txId, 6, 4)}` });
+        await fetchBalance(); // Refresh balance after sending
+
+    } catch (error: any) {
+        console.error("Send failed:", error);
+        toast({ variant: "destructive", title: "Send Failed", description: error.message || "An unknown error occurred." });
+    } finally {
+        setIsSending(false);
+        setIsApproveSendModalOpen(false);
+        setSendDetails(null);
+    }
+  };
+
 
   return (
     <>
@@ -97,7 +145,29 @@ export default function DashboardHeader({ account, onLock, onGoToManager }: Dash
         onOpenChange={setIsReceiveModalOpen}
         address={account.addr}
     />
-    {/* We'll need a way to trigger the send modal, likely from a file */}
+    
+    <SendModal 
+        isOpen={isSendModalOpen}
+        onOpenChange={setIsSendModalOpen}
+        onConfirm={handleInitiateSend}
+        isLoading={isSending}
+        balance={balance ?? 0}
+    />
+
+    {sendDetails && (
+        <ApproveTransactionModal
+            isOpen={isApproveSendModalOpen}
+            onOpenChange={setIsApproveSendModalOpen}
+            onApprove={handleConfirmSend}
+            isLoading={isSending}
+            title="Approve Transaction"
+            description="You are about to send ALGO to another wallet. Please review the details carefully."
+            actionText={`Send ${sendDetails.amount} ALGO`}
+            recipientAddress={sendDetails.recipient}
+            amount={sendDetails.amount}
+      />
+    )}
+
     </>
   );
 }
