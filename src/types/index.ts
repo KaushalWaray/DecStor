@@ -55,6 +55,15 @@ export interface FilesAndStorageInfo {
     sharedFiles: FileMetadata[];
 }
 
+export interface User {
+  address: string;
+  storageUsed: number;
+  storageTier: 'free' | 'pro';
+  createdAt: string;
+  updatedAt: string;
+  lastLogin: string;
+}
+
 export interface Activity {
   _id: string;
   type: 'UPLOAD' | 'SHARE' | 'DELETE' | 'SEND_ALGO' | 'RECEIVE_ALGO';

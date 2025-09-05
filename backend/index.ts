@@ -3,7 +3,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import algosdk from 'algosdk';
-import { Collection, Db, MongoClient } from 'mongodb';
+import { Collection, Db, MongoClient, ObjectId } from 'mongodb';
 
 // --- SELF-CONTAINED TYPE DEFINITIONS ---
 export interface FileMetadata {
@@ -34,9 +34,13 @@ export interface Share {
 }
 
 export interface User {
-    address: string;
-    storageLimit: number;
-    storageUsed: number;
+  _id?: ObjectId;
+  address: string;
+  storageUsed: number;
+  storageTier: 'free' | 'pro';
+  createdAt: string;
+  updatedAt: string;
+  lastLogin: string;
 }
 
 export interface Activity {
@@ -92,6 +96,9 @@ async function connectToDatabase() {
         foldersCollection = db.collection<Folder>('folders');
         activitiesCollection = db.collection<Activity>('activities');
 
+        // Create index on address for fast lookups
+        await usersCollection.createIndex({ address: 1 }, { unique: true });
+
         console.log(`[Backend] Successfully connected to MongoDB database: ${db.databaseName}`);
     } catch (error) {
         console.error('[Backend] CRITICAL: Failed to connect to MongoDB!', error);
@@ -136,32 +143,56 @@ const createActivity = async (owner: string, type: Activity['type'], details: Ac
         timestamp: new Date().toISOString(),
         isRead,
     };
-    // Insert at the database level. No more local array.
     await activitiesCollection.insertOne(newActivity as Activity);
 };
 
-const findOrCreateUser = async (address: string): Promise<User> => {
+const getStorageLimit = (tier: 'free' | 'pro') => {
+    return tier === 'pro' ? PRO_TIER_LIMIT : FREE_TIER_LIMIT;
+};
+
+const findOrCreateUser = async (address: string): Promise<User & { storageLimit: number }> => {
     let user = await usersCollection.findOne({ address });
+    const now = new Date().toISOString();
 
     if (!user) {
-        user = {
+        const newUser: User = {
             address,
-            storageLimit: FREE_TIER_LIMIT,
             storageUsed: 0,
+            storageTier: 'free',
+            createdAt: now,
+            updatedAt: now,
+            lastLogin: now,
         };
-        await usersCollection.insertOne(user);
+        await usersCollection.insertOne(newUser);
         console.log(`[Backend] Created new user ${address.substring(0,10)}... with free tier.`);
+        user = newUser;
     } else {
+        // Recalculate storage just in case and update timestamps
         const userFiles = await filesCollection.find({ owner: address }).toArray();
         const totalSize = userFiles.reduce((acc, file) => acc + file.size, 0);
-        
-        if(user.storageUsed !== totalSize) {
+
+        const updates: Partial<User> = {
+            updatedAt: now,
+            lastLogin: now,
+        };
+
+        if (user.storageUsed !== totalSize) {
+            updates.storageUsed = totalSize;
             console.log(`[Backend] Recalculating storage for ${address.substring(0,10)}... Old: ${user.storageUsed}, New: ${totalSize}`);
-            await usersCollection.updateOne({ address }, { $set: { storageUsed: totalSize } });
-            user.storageUsed = totalSize;
         }
+        
+        const result = await usersCollection.findOneAndUpdate(
+            { address }, 
+            { $set: updates },
+            { returnDocument: 'after' }
+        );
+        user = result!;
     }
-    return user;
+    
+    return {
+        ...user,
+        storageLimit: getStorageLimit(user.storageTier),
+    };
 };
 
 
@@ -212,11 +243,13 @@ apiRouter.post('/files/metadata', async (req, res) => {
         }
         
         const user = await findOrCreateUser(owner);
-        if (user.storageUsed + size > user.storageLimit) {
+        const storageLimit = getStorageLimit(user.storageTier);
+
+        if (user.storageUsed + size > storageLimit) {
             console.log(`[Backend] Quota exceeded for ${owner.substring(0,10)}...`);
             return res.status(413).json({
                 error: 'Storage quota exceeded.',
-                details: `You have used ${user.storageUsed} of ${user.storageLimit} bytes.`
+                details: `You have used ${user.storageUsed} of ${storageLimit} bytes.`
             });
         }
         
@@ -231,7 +264,7 @@ apiRouter.post('/files/metadata', async (req, res) => {
         };
 
         const result = await filesCollection.insertOne(newFile as FileMetadata);
-        await usersCollection.updateOne({ address: owner }, { $inc: { storageUsed: size } });
+        await usersCollection.updateOne({ address: owner }, { $inc: { storageUsed: size }, $set: { updatedAt: new Date().toISOString() } });
         
         await createActivity(owner, 'UPLOAD', { filename, cid }, true);
         
@@ -326,17 +359,17 @@ apiRouter.post('/payment/confirm', async (req, res) => {
         }
 
         console.log(`[Backend] Received payment confirmation for tx: ${txId.substring(0,10)}... from ${senderAddress.substring(0,10)}...`);
-
-        const user = await findOrCreateUser(senderAddress);
         
         if (amount === 0.1 && recipientAddress === storageServiceAccount.addr) {
-            await usersCollection.updateOne({ address: senderAddress }, { $set: { storageLimit: PRO_TIER_LIMIT } });
-            user.storageLimit = PRO_TIER_LIMIT;
-            console.log(`[Backend] Upgraded ${user.address.substring(0,10)}... to Pro tier.`);
+            await usersCollection.updateOne({ address: senderAddress }, { $set: { storageTier: 'pro', updatedAt: new Date().toISOString() } });
+            console.log(`[Backend] Upgraded ${senderAddress.substring(0,10)}... to Pro tier.`);
         }
         
         await createActivity(senderAddress, 'SEND_ALGO', { recipient: recipientAddress, amount }, true);
         await createActivity(recipientAddress, 'RECEIVE_ALGO', { sender: senderAddress, amount }, false);
+
+        // Fetch the updated user to return the new storage limit
+        const user = await findOrCreateUser(senderAddress);
 
         res.status(200).json({
             message: "Payment confirmed and storage updated successfully!",
@@ -396,7 +429,7 @@ apiRouter.put('/folders/:folderId/rename', async (req, res) => {
             return res.status(400).json({ error: 'Folder ID, owner address, and new name are required.' });
         }
 
-        const folderToRename = await foldersCollection.findOne({ _id: folderId as any, owner: ownerAddress });
+        const folderToRename = await foldersCollection.findOne({ _id: new ObjectId(folderId), owner: ownerAddress });
         if (!folderToRename) {
             return res.status(404).json({ error: 'Folder not found or you do not have permission to rename it.' });
         }
@@ -419,7 +452,7 @@ apiRouter.put('/folders/:folderId/rename', async (req, res) => {
             [{ $set: { path: { $replaceOne: { input: "$path", find: oldPathPrefix, replacement: newPathPrefix } } } }]
         );
 
-        await foldersCollection.updateOne({ _id: folderToRename._id as any }, { $set: { name: newName } });
+        await foldersCollection.updateOne({ _id: folderToRename._id }, { $set: { name: newName } });
 
         console.log(`[Backend] Renamed folder ${folderId} to ${newName}`);
         res.status(200).json({ message: 'Folder renamed successfully.', folder: { ...folderToRename, name: newName } });
@@ -469,12 +502,12 @@ apiRouter.put('/items/move', async (req, res) => {
             return res.status(400).json({ error: 'Owner, item IDs, item types, and new path are required.' });
         }
         
-        const fileIds = itemIds.filter((id: string, i: number) => itemTypes[i] === 'file');
-        const folderIds = itemIds.filter((id: string, i: number) => itemTypes[i] === 'folder');
+        const fileIds = itemIds.filter((id: string, i: number) => itemTypes[i] === 'file').map(id => new ObjectId(id));
+        const folderIds = itemIds.filter((id: string, i: number) => itemTypes[i] === 'folder').map(id => new ObjectId(id));
 
-        await filesCollection.updateMany({ _id: { $in: fileIds.map((id:string) => id as any) } }, { $set: { path: newPath } });
+        await filesCollection.updateMany({ _id: { $in: fileIds } }, { $set: { path: newPath } });
 
-        const foldersToMove = await foldersCollection.find({ _id: { $in: folderIds.map((id:string) => id as any) } }).toArray();
+        const foldersToMove = await foldersCollection.find({ _id: { $in: folderIds } }).toArray();
 
         for (const folderToMove of foldersToMove) {
             const oldPathPrefix = `${folderToMove.path}${folderToMove.name}/`;
@@ -491,7 +524,7 @@ apiRouter.put('/items/move', async (req, res) => {
                 [{ $set: { path: { $replaceOne: { input: "$path", find: oldPathPrefix, replacement: newPathPrefix } } } }]
             );
             
-            await foldersCollection.updateOne({ _id: folderToMove._id as any }, { $set: { path: newPath } });
+            await foldersCollection.updateOne({ _id: folderToMove._id }, { $set: { path: newPath } });
         }
 
         res.status(200).json({ message: 'Items moved successfully.' });
@@ -511,11 +544,13 @@ apiRouter.post('/items/delete', async (req, res) => {
             return res.status(400).json({ error: 'Owner and item IDs are required.' });
         }
 
+        const objectItemIds = itemIds.map((id:string) => new ObjectId(id));
+
         const filesToDeleteIds = new Set<string>();
         const foldersToDeleteIds = new Set<string>();
 
-        const initialFiles = await filesCollection.find({ _id: { $in: itemIds.map((id:string) => id as any) }, owner: ownerAddress }).toArray();
-        const initialFolders = await foldersCollection.find({ _id: { $in: itemIds.map((id:string) => id as any) }, owner: ownerAddress }).toArray();
+        const initialFiles = await filesCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
+        const initialFolders = await foldersCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
 
         initialFiles.forEach(f => filesToDeleteIds.add(f._id.toString()));
         initialFolders.forEach(f => foldersToDeleteIds.add(f._id.toString()));
@@ -538,19 +573,22 @@ apiRouter.post('/items/delete', async (req, res) => {
             const filesInFolder = await filesCollection.find({ path: { $regex: `^${currentPath}` }, owner: ownerAddress }).toArray();
             filesInFolder.forEach(file => filesToDeleteIds.add(file._id.toString()));
         }
+        
+        const finalFileIdsToDelete = Array.from(filesToDeleteIds).map(id => new ObjectId(id));
+        const finalFolderIdsToDelete = Array.from(foldersToDeleteIds).map(id => new ObjectId(id));
 
-        const filesToDeleteResult = await filesCollection.find({ _id: { $in: Array.from(filesToDeleteIds).map(id => id as any) } }).toArray();
+        const filesToDeleteResult = await filesCollection.find({ _id: { $in: finalFileIdsToDelete } }).toArray();
         let totalSizeDeleted = filesToDeleteResult.reduce((sum, file) => sum + file.size, 0);
 
         const cidsToDelete = filesToDeleteResult.map(f => f.cid);
 
-        await filesCollection.deleteMany({ _id: { $in: Array.from(filesToDeleteIds).map(id => id as any) } });
-        await foldersCollection.deleteMany({ _id: { $in: Array.from(foldersToDeleteIds).map(id => id as any) } });
+        await filesCollection.deleteMany({ _id: { $in: finalFileIdsToDelete } });
+        await foldersCollection.deleteMany({ _id: { $in: finalFolderIdsToDelete } });
         await sharesCollection.deleteMany({ cid: { $in: cidsToDelete } });
         
         await usersCollection.updateOne({ address: ownerAddress }, { $inc: { storageUsed: -totalSizeDeleted } });
         
-        await createActivity(ownerAddress, 'DELETE', { itemCount: filesToDeleteIds.size + foldersToDeleteIds.size }, true);
+        await createActivity(ownerAddress, 'DELETE', { itemCount: finalFileIdsToDelete.length + finalFolderIdsToDelete.length }, true);
 
         res.status(200).json({ message: 'Items deleted successfully.' });
 
@@ -620,8 +658,3 @@ const startServer = async () => {
 };
 
 startServer();
-    
-
-    
-
-    
