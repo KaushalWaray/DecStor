@@ -14,6 +14,11 @@
       "address": "ZJ24QH4YCG64P2HIRY6LS7IOIM6BBZ6KPM6WYXX7NX5GEIDOAPJPVPF5HY",
       "storageLimit": 1048576,
       "storageUsed": 35335
+    },
+    {
+      "address": "2KXPIJJF3GRTJO35RKIMYAJK5LYLG7L6YQZ36WYYZVVYMCQYY2QBP7FDL4",
+      "storageLimit": 1048576,
+      "storageUsed": 35335
     }
   ],
   "files": [
@@ -76,6 +81,16 @@
       "owner": "ZJ24QH4YCG64P2HIRY6LS7IOIM6BBZ6KPM6WYXX7NX5GEIDOAPJPVPF5HY",
       "path": "/",
       "createdAt": "2025-09-05T13:53:25.050Z"
+    },
+    {
+      "_id": "2025-09-05T13:58:59.420Z0.516379346954986",
+      "filename": "profile_pic.jpg",
+      "cid": "QmZ9gaAA7U7r66yjxjyJKZLLrDExXimhLx7Su5y15QpKM6",
+      "size": 35335,
+      "fileType": "image/jpeg",
+      "owner": "2KXPIJJF3GRTJO35RKIMYAJK5LYLG7L6YQZ36WYYZVVYMCQYY2QBP7FDL4",
+      "path": "/",
+      "createdAt": "2025-09-05T13:58:59.420Z"
     }
   ],
   "shares": [
@@ -109,6 +124,17 @@
     }
   ],
   "activities": [
+    {
+      "_id": "2025-09-05T13:58:59.420Z0.10020085425540382",
+      "owner": "2KXPIJJF3GRTJO35RKIMYAJK5LYLG7L6YQZ36WYYZVVYMCQYY2QBP7FDL4",
+      "type": "UPLOAD",
+      "details": {
+        "filename": "profile_pic.jpg",
+        "cid": "QmZ9gaAA7U7r66yjxjyJKZLLrDExXimhLx7Su5y15QpKM6"
+      },
+      "timestamp": "2025-09-05T13:58:59.420Z",
+      "isRead": true
+    },
     {
       "_id": "2025-09-05T13:53:25.050Z0.17798683536423532",
       "owner": "ZJ24QH4YCG64P2HIRY6LS7IOIM6BBZ6KPM6WYXX7NX5GEIDOAPJPVPF5HY",
