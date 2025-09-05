@@ -1,9 +1,9 @@
 
 {
-  "name": "metadrive-backend",
+  "name": "decstor-backend",
   "version": "1.0.0",
   "type": "module",
-  "description": "Backend service for the MetaDrive decentralized wallet.",
+  "description": "Backend service for the DecStor decentralized wallet.",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -17,7 +17,8 @@
     "algosdk": "^2.7.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "mongodb": "^6.6.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
