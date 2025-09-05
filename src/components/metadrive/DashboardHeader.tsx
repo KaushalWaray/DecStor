@@ -3,25 +3,24 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { getAccountBalance, sendPayment } from '@/lib/algorand';
+import { getAccountBalance } from '@/lib/algorand';
 import { truncateAddress } from '@/lib/utils';
-import type { AlgorandAccount, WalletEntry } from '@/types';
+import type { AlgorandAccount } from '@/types';
 import { LogOut, Shield, Copy, LoaderCircle, Users, ChevronDown, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import ReceiveModal from '../modals/ReceiveModal';
 import SendModal from '../modals/SendModal';
-import { decryptMnemonic, mnemonicToAccount } from '@/lib/crypto';
 import ApproveTransactionModal from '../modals/ApproveTransactionModal';
 
 interface DashboardHeaderProps {
   account: AlgorandAccount;
-  pin: string;
   onLock: () => void;
   onGoToManager: () => void;
+  onConfirmSend: (recipient: string, amount: number) => Promise<boolean>;
 }
 
-export default function DashboardHeader({ account, pin, onLock, onGoToManager }: DashboardHeaderProps) {
+export default function DashboardHeader({ account, onLock, onGoToManager, onConfirmSend }: DashboardHeaderProps) {
   const [balance, setBalance] = useState<number | null>(null);
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
@@ -40,6 +39,7 @@ export default function DashboardHeader({ account, pin, onLock, onGoToManager }:
 
   useEffect(() => {
     fetchBalance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account.addr]);
   
   const handleCopyAddress = () => {
@@ -57,31 +57,13 @@ export default function DashboardHeader({ account, pin, onLock, onGoToManager }:
     if (!sendDetails) return;
     
     setIsSending(true);
-    try {
-        toast({ title: "Sending Transaction...", description: "Please wait while we send your transaction." });
-        const storedWallets: WalletEntry[] = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
-        const walletEntry = storedWallets.find(w => w.address === account.addr);
-        
-        if (!walletEntry) throw new Error("Could not find wallet credentials.");
-
-        const mnemonic = await decryptMnemonic(walletEntry.encryptedMnemonic, pin);
-        if (!mnemonic) throw new Error("Decryption failed.");
-        
-        const senderAccount = mnemonicToAccount(mnemonic);
-
-        const { txId } = await sendPayment(senderAccount, sendDetails.recipient, sendDetails.amount);
-
-        toast({ title: "Transaction Sent!", description: `Successfully sent ${sendDetails.amount} ALGO. TxID: ${truncateAddress(txId, 6, 4)}` });
-        await fetchBalance(); // Refresh balance after sending
-
-    } catch (error: any) {
-        console.error("Send failed:", error);
-        toast({ variant: "destructive", title: "Send Failed", description: error.message || "An unknown error occurred." });
-    } finally {
-        setIsSending(false);
-        setIsApproveSendModalOpen(false);
-        setSendDetails(null);
+    const success = await onConfirmSend(sendDetails.recipient, sendDetails.amount);
+    if(success) {
+      await fetchBalance(); // Refresh balance after successful send
     }
+    setIsSending(false);
+    setIsApproveSendModalOpen(false);
+    setSendDetails(null);
   };
 
 
@@ -171,3 +153,5 @@ export default function DashboardHeader({ account, pin, onLock, onGoToManager }:
     </>
   );
 }
+
+    

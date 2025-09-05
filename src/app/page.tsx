@@ -2,10 +2,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from 'react';
-import type { AlgorandAccount, WalletState, WalletEntry } from '@/types';
+import type { AlgorandAccount, WalletState, WalletEntry, FileMetadata } from '@/types';
 import { encryptMnemonic, decryptMnemonic } from '@/lib/crypto';
-import { mnemonicToAccount, isValidMnemonic } from '@/lib/algorand';
+import { mnemonicToAccount, isValidMnemonic, sendPayment, sendFile } from '@/lib/algorand';
 import { useToast } from '@/hooks/use-toast';
+import { truncateAddress } from '@/lib/utils';
 
 import WelcomeScreen from '@/components/metadrive/WelcomeScreen';
 import CreateWalletFlow from '@/components/metadrive/CreateWalletFlow';
@@ -195,6 +196,53 @@ export default function Home() {
     }
   };
 
+  // --- CENTRALIZED TRANSACTION HANDLERS ---
+  const getSenderAccount = useCallback(async (): Promise<AlgorandAccount> => {
+    if (!account) throw new Error("Wallet not unlocked.");
+
+    const storedWallets: WalletEntry[] = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
+    const walletEntry = storedWallets.find(w => w.address === account.addr);
+    
+    if (!walletEntry) throw new Error("Could not find wallet credentials.");
+
+    const mnemonic = await decryptMnemonic(walletEntry.encryptedMnemonic, pin);
+    if (!mnemonic) throw new Error("Decryption failed.");
+    
+    return mnemonicToAccount(mnemonic);
+  }, [account, pin]);
+
+  const handleConfirmSendAlgo = useCallback(async (recipient: string, amount: number) => {
+    try {
+      toast({ title: "Sending Transaction...", description: "Please wait while we process your transaction." });
+      const senderAccount = await getSenderAccount();
+      const { txId } = await sendPayment(senderAccount, recipient, amount);
+      toast({ title: "Transaction Sent!", description: `Successfully sent ${amount} ALGO. TxID: ${truncateAddress(txId, 6, 4)}` });
+      return true; // Indicate success
+    } catch (error: any) {
+      console.error("Send failed:", error);
+      toast({ variant: "destructive", title: "Send Failed", description: error.message || "An unknown error occurred." });
+      return false; // Indicate failure
+    }
+  }, [getSenderAccount, toast]);
+
+  const handleConfirmSendFile = useCallback(async (file: FileMetadata, recipientAddress: string) => {
+     if (!file) return false;
+    try {
+        toast({ title: "Sending File...", description: "Please approve the transaction to create an on-chain proof-of-send." });
+        const senderAccount = await getSenderAccount();
+        const {txId} = await sendFile(senderAccount, recipientAddress, file.cid);
+        toast({
+            title: 'File Sent!',
+            description: `Successfully sent ${file.filename} to ${truncateAddress(recipientAddress)}. TxID: ${truncateAddress(txId, 6, 4)}`,
+        });
+        return true;
+    } catch (error: any) {
+      console.error(error);
+      toast({ variant: 'destructive', title: 'Sending Failed', description: error.message || 'Could not send the file.' });
+      return false;
+    }
+  }, [getSenderAccount, toast]);
+  // --- END ---
 
   const renderContent = () => {
     switch (walletState) {
@@ -230,7 +278,14 @@ export default function Home() {
           handleLock();
           return null;
         }
-        return <Dashboard account={account} pin={pin} onLock={handleLock} onGoToManager={handleGoToManager} />;
+        return <Dashboard 
+                  account={account} 
+                  pin={pin} 
+                  onLock={handleLock} 
+                  onGoToManager={handleGoToManager}
+                  onConfirmSendAlgo={handleConfirmSendAlgo}
+                  onConfirmSendFile={handleConfirmSendFile}
+                />;
       default:
         return null;
     }
@@ -244,3 +299,5 @@ export default function Home() {
     </main>
   );
 }
+
+    

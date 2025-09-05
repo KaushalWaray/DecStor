@@ -4,14 +4,15 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MyVault from "./MyVault";
 import Inbox from "./Inbox";
-import type { AlgorandAccount } from "@/types";
+import type { AlgorandAccount, FileMetadata } from "@/types";
 
 interface FileTabsProps {
   account: AlgorandAccount;
   pin: string;
+  onConfirmSendFile: (file: FileMetadata, recipient: string) => Promise<boolean>;
 }
 
-export default function FileTabs({ account, pin }: FileTabsProps) {
+export default function FileTabs({ account, pin, onConfirmSendFile }: FileTabsProps) {
   return (
     <Tabs defaultValue="vault" className="w-full">
       <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
@@ -19,7 +20,7 @@ export default function FileTabs({ account, pin }: FileTabsProps) {
         <TabsTrigger value="inbox">Inbox</TabsTrigger>
       </TabsList>
       <TabsContent value="vault">
-        <MyVault account={account} pin={pin} />
+        <MyVault account={account} pin={pin} onConfirmSendFile={onConfirmSendFile} />
       </TabsContent>
       <TabsContent value="inbox">
         <Inbox account={account} pin={pin} />
@@ -27,3 +28,5 @@ export default function FileTabs({ account, pin }: FileTabsProps) {
     </Tabs>
   );
 }
+
+    

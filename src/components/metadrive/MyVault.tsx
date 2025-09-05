@@ -17,7 +17,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import ApproveTransactionModal from '../modals/ApproveTransactionModal';
 import UnlockFolderModal from '../modals/UnlockFolderModal';
-import { sendFile, payForStorageUpgrade } from '@/lib/algorand';
+import { payForStorageUpgrade } from '@/lib/algorand';
 import { truncateAddress } from '@/lib/utils';
 import { mnemonicToAccount } from '@/lib/algorand';
 import { decryptMnemonic } from '@/lib/crypto';
@@ -30,9 +30,10 @@ import RenameModal from '../modals/RenameModal';
 interface MyVaultProps {
   account: AlgorandAccount;
   pin: string;
+  onConfirmSendFile: (file: FileMetadata, recipient: string) => Promise<boolean>;
 }
 
-export default function MyVault({ account, pin }: MyVaultProps) {
+export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProps) {
   const [allFiles, setAllFiles] = useState<FileMetadata[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
@@ -145,28 +146,9 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const handleConfirmSend = async (recipientAddress: string) => {
     if (!selectedFile) return;
     setIsSending(true);
-    try {
-        toast({ title: "Sending File...", description: "Please approve the transaction to create an on-chain proof-of-send." });
-        const storedWallets = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
-        const walletEntry = storedWallets.find((w: any) => w.address === account.addr);
-        if (!walletEntry) throw new Error("Could not find wallet credentials to sign transaction.");
-
-        const mnemonic = await decryptMnemonic(walletEntry.encryptedMnemonic, pin);
-        if (!mnemonic) throw new Error("Decryption failed");
-        const senderAccount = mnemonicToAccount(mnemonic);
-
-      const {txId} = await sendFile(senderAccount, recipientAddress, selectedFile.cid);
-      
-      toast({
-        title: 'File Sent!',
-        description: `Successfully sent ${selectedFile.filename} to ${truncateAddress(recipientAddress)}. TxID: ${truncateAddress(txId, 6, 4)}`,
-      });
-
-    } catch (error: any) {
-      console.error(error);
-      toast({ variant: 'destructive', title: 'Sending Failed', description: error.message || 'Could not send the file.' });
-    } finally {
-      setIsSending(false);
+    const success = await onConfirmSendFile(selectedFile, recipientAddress);
+    setIsSending(false);
+    if (success) {
       setIsSendModalOpen(false);
       setSelectedFile(null);
     }
@@ -497,3 +479,5 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     </div>
   );
 }
+
+    
