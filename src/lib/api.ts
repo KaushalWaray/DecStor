@@ -4,21 +4,40 @@ import type { FileMetadata, FilesAndStorageInfo, StorageInfo } from '@/types';
 
 const api = {
   get: async (path: string) => {
-    const res = await fetch(`${BACKEND_URL}${path}`);
-    if (!res.ok) throw new Error(`API Error: ${res.statusText}`);
-    return res.json();
+    try {
+      const res = await fetch(`${BACKEND_URL}${path}`);
+      if (!res.ok) {
+        // Try to parse a JSON error response from the backend
+        const errorBody = await res.json().catch(() => ({ error: res.statusText || 'Unknown API Error' }));
+        throw new Error(`API Error: ${errorBody.error}`);
+      }
+      return res.json();
+    } catch (error: any) {
+        // This catches network errors where the backend is not reachable
+        if (error.name === 'TypeError') {
+            throw new Error('Network Error: Could not connect to the backend server. Is it running?');
+        }
+        throw error;
+    }
   },
   post: async (path: string, data: any) => {
-    const res = await fetch(`${BACKEND_URL}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!res.ok) {
-        const errorBody = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(`API Error: ${errorBody.error || res.statusText}`);
+    try {
+        const res = await fetch(`${BACKEND_URL}${path}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) {
+            const errorBody = await res.json().catch(() => ({ error: res.statusText || 'Unknown API Error' }));
+            throw new Error(`API Error: ${errorBody.error || res.statusText}`);
+        }
+        return res.json();
+    } catch (error: any) {
+        if (error.name === 'TypeError') {
+            throw new Error('Network Error: Could not connect to the backend server. Is it running?');
+        }
+        throw error;
     }
-    return res.json();
   }
 };
 
