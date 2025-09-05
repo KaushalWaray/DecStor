@@ -140,5 +140,9 @@ export const renameFolder = async (folderId: string, ownerAddress: string, newNa
     return api.put(`/folders/${folderId}/rename`, { ownerAddress, newName });
 };
 
+export const renameFile = async (cid: string, ownerAddress: string, newName: string) => {
+    return api.put(`/files/${cid}/rename`, { ownerAddress, newName });
+};
+
 
 export default api;

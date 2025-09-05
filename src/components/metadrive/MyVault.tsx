@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { AlgorandAccount, FileMetadata, Folder, StorageInfo, WalletEntry } from '@/types';
-import { getFilesByOwner, confirmPayment, getStorageServiceAddress, deleteFileFromDb, createFolder as apiCreateFolder, moveFile as apiMoveFile, getAllFolders, deleteFolder as apiDeleteFolder, renameFolder as apiRenameFolder } from '@/lib/api';
+import { getFilesByOwner, confirmPayment, getStorageServiceAddress, deleteFileFromDb, createFolder as apiCreateFolder, moveFile as apiMoveFile, getAllFolders, deleteFolder as apiDeleteFolder, renameFolder as apiRenameFolder, renameFile as apiRenameFile } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
@@ -24,7 +24,7 @@ import { decryptMnemonic } from '@/lib/crypto';
 import StorageManager from './StorageManager';
 import Breadcrumbs from './Breadcrumbs';
 import { UPGRADE_COST_ALGOS } from '@/lib/constants';
-import RenameFolderModal from '../modals/RenameFolderModal';
+import RenameModal from '../modals/RenameModal';
 
 
 interface MyVaultProps {
@@ -51,11 +51,13 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
-  const [isRenameFolderModalOpen, setIsRenameFolderModalOpen] = useState(false);
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [isDeleteFolderModalOpen, setIsDeleteFolderModalOpen] = useState(false);
   
   const [selectedFile, setSelectedFile] = useState<FileMetadata | null>(null);
   const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null);
+  const [itemToRename, setItemToRename] = useState<FileMetadata | Folder | null>(null);
+
 
   const [isSharing, setIsSharing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -135,9 +137,9 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     setIsDeleteFolderModalOpen(true);
   };
 
-  const handleOpenRenameFolderModal = (folder: Folder) => {
-    setSelectedFolder(folder);
-    setIsRenameFolderModalOpen(true);
+  const handleOpenRenameModal = (item: FileMetadata | Folder) => {
+    setItemToRename(item);
+    setIsRenameModalOpen(true);
   };
 
   const handleConfirmShare = async (recipientAddress: string) => {
@@ -222,21 +224,29 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     }
   };
 
-  const handleConfirmRenameFolder = async (newName: string) => {
-    if (!selectedFolder) return;
+  const handleConfirmRename = async (newName: string) => {
+    if (!itemToRename) return;
     setIsMoving(true); // Re-use loading state for simplicity
+    
+    const isFolder = 'path' in itemToRename && '_id' in itemToRename;
+
     try {
-        await apiRenameFolder(selectedFolder._id, account.addr, newName);
-        toast({ title: 'Folder Renamed', description: `Successfully renamed to '${newName}'.` });
+        if (isFolder) {
+            await apiRenameFolder(itemToRename._id, account.addr, newName);
+        } else {
+            await apiRenameFile(itemToRename.cid, account.addr, newName);
+        }
+        toast({ title: 'Rename Successful', description: `Successfully renamed to '${newName}'.` });
         await fetchFilesAndStorage();
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Rename Failed', description: error.message });
     } finally {
         setIsMoving(false);
-        setIsRenameFolderModalOpen(false);
-        setSelectedFolder(null);
+        setIsRenameModalOpen(false);
+        setItemToRename(null);
     }
   };
+
 
   const handleFolderClick = (folder: Folder) => {
     const nextPath = `${folder.path}${folder.name}/`;
@@ -375,9 +385,9 @@ export default function MyVault({ account, pin }: MyVaultProps) {
             onDetails={handleOpenDetailsModal}
             onDelete={handleOpenDeleteModal}
             onMove={handleOpenMoveModal}
+            onRename={handleOpenRenameModal}
             onFolderClick={handleFolderClick}
             onFolderDelete={handleOpenDeleteFolderModal}
-            onFolderRename={handleOpenRenameFolderModal}
             emptyState={getEmptyState()}
           />
         )}
@@ -418,23 +428,25 @@ export default function MyVault({ account, pin }: MyVaultProps) {
                 isOpen={isMoveModalOpen}
                 onOpenChange={setIsMoveModalOpen}
                 onConfirm={handleConfirmMove}
-                isLoading={isMoving}
                 filename={selectedFile.filename}
                 folders={allFoldersForMove}
-                currentPath={currentPath}
+                currentPath={selectedFile.path}
              />
         </>
       )}
 
+      {itemToRename && (
+         <RenameModal
+            isOpen={isRenameModalOpen}
+            onOpenChange={setIsRenameModalOpen}
+            onConfirm={handleConfirmRename}
+            isLoading={isMoving} // reuse loading state
+            item={itemToRename}
+        />
+      )}
+
       {selectedFolder && (
           <>
-            <RenameFolderModal
-                isOpen={isRenameFolderModalOpen}
-                onOpenChange={setIsRenameFolderModalOpen}
-                onConfirm={handleConfirmRenameFolder}
-                isLoading={isMoving} // reuse loading state
-                currentName={selectedFolder.name}
-            />
             <AlertDialog open={isDeleteFolderModalOpen} onOpenChange={setIsDeleteFolderModalOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>

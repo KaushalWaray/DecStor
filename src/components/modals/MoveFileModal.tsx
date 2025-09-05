@@ -21,15 +21,14 @@ interface MoveFileModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onConfirm: (newPath: string) => Promise<void>;
-  isLoading: boolean;
   filename: string;
   folders: FolderType[];
   currentPath: string;
 }
 
-export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, isLoading, filename, folders, currentPath }: MoveFileModalProps) {
-  const [destinationPath, setDestinationPath] = useState('');
-  const [isMoving, setIsMoving] = useState(false);
+export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, filename, folders, currentPath }: MoveFileModalProps) {
+  const [destinationPath, setDestinationPath] = useState<string | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
   const handleConfirm = async () => {
@@ -37,17 +36,17 @@ export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
       toast({ variant: 'destructive', title: 'No Destination', description: 'Please select a destination folder.' });
       return;
     }
-    setIsMoving(true);
+    setIsLoading(true);
     await onConfirm(destinationPath);
-    setIsMoving(false);
+    setIsLoading(false);
     onOpenChange(false);
   };
 
   // Reset state when modal opens/closes
   useEffect(() => {
     if (!isOpen) {
-        setDestinationPath('');
-        setIsMoving(false);
+        setDestinationPath(undefined);
+        setIsLoading(false);
     }
   }, [isOpen]);
 
@@ -65,16 +64,12 @@ export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-headline text-2xl flex items-center gap-2"><ArrowRight />Move File</DialogTitle>
-          <DialogDescription>Choose a new location for your file.</DialogDescription>
+          <DialogDescription>Choose a new location for <span className="font-bold text-foreground">{filename}</span>.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 my-4">
-            <div className="flex items-center gap-3 p-3 rounded-md bg-muted">
-                <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                <span className="font-medium truncate">{filename}</span>
-            </div>
             <div className="space-y-2">
                 <Label htmlFor="destination-folder">Destination Folder</Label>
-                 <Select value={destinationPath} onValueChange={setDestinationPath} disabled={isLoading || isMoving}>
+                 <Select value={destinationPath} onValueChange={setDestinationPath} disabled={isLoading}>
                     <SelectTrigger id="destination-folder">
                         <SelectValue placeholder="Select a destination..." />
                     </SelectTrigger>
@@ -92,9 +87,9 @@ export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
             </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading || isMoving}>Cancel</Button>
-          <Button onClick={handleConfirm} disabled={isLoading || isMoving || destinationPath === ''}>
-            {isMoving ? (
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>Cancel</Button>
+          <Button onClick={handleConfirm} disabled={isLoading || destinationPath === undefined}>
+            {isLoading ? (
                 <>
                     <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
                     <span>Moving...</span>

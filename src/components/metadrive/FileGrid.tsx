@@ -15,9 +15,9 @@ interface FileGridProps {
   onDetails: (file: FileMetadata) => void;
   onDelete: (file: FileMetadata) => void;
   onMove: (file: FileMetadata) => void;
+  onRename: (item: FileMetadata | Folder) => void;
   onFolderClick: (folder: Folder) => void;
   onFolderDelete: (folder: Folder) => void;
-  onFolderRename: (folder: Folder) => void;
   emptyState: {
     title: string;
     description: string;
@@ -34,9 +34,9 @@ export default function FileGrid({
     onDetails, 
     onDelete, 
     onMove,
+    onRename,
     onFolderClick, 
     onFolderDelete,
-    onFolderRename,
     emptyState 
 }: FileGridProps) {
   if (files.length === 0 && folders.length === 0) {
@@ -60,7 +60,7 @@ export default function FileGrid({
           folder={folder}
           onFolderClick={onFolderClick}
           onDelete={onFolderDelete}
-          onRename={onFolderRename}
+          onRename={() => onRename(folder)}
         />
       ))}
       {files.map((file) => (
@@ -73,6 +73,7 @@ export default function FileGrid({
             onDetails={onDetails}
             onDelete={onDelete}
             onMove={onMove}
+            onRename={() => onRename(file)}
         />
       ))}
     </div>

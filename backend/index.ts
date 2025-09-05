@@ -508,6 +508,40 @@ apiRouter.put('/folders/:folderId/rename', (req, res) => {
 });
 
 
+// 11. Rename a file
+apiRouter.put('/files/:cid/rename', (req, res) => {
+    try {
+        const { cid } = req.params;
+        const { ownerAddress, newName } = req.body;
+
+        if (!cid || !ownerAddress || !newName) {
+            return res.status(400).json({ error: 'File CID, owner address, and new name are required.' });
+        }
+
+        const fileToRename = files.find(f => f.cid === cid && f.owner === ownerAddress);
+        if (!fileToRename) {
+            return res.status(404).json({ error: 'File not found or you do not have permission to rename it.' });
+        }
+
+        // Check for name collision in the same path
+        const existingFile = files.find(f => f.owner === ownerAddress && f.path === fileToRename.path && f.filename === newName);
+        if (existingFile) {
+            return res.status(409).json({ error: `A file named '${newName}' already exists in this location.` });
+        }
+
+        fileToRename.filename = newName;
+        saveDatabase();
+
+        console.log(`[Backend] Renamed file ${cid} to ${newName}`);
+        res.status(200).json({ message: 'File renamed successfully.', file: fileToRename });
+        
+    } catch(error) {
+        console.error('[Backend] Error renaming file:', error);
+        res.status(500).json({ error: 'Internal server error while renaming file.' });
+    }
+});
+
+
 // Mount the API router at the /api prefix
 app.use('/api', apiRouter);
 
