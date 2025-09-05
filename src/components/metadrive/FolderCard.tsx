@@ -7,23 +7,39 @@ import { Folder, MoreVertical, Trash2, Edit, FolderLock } from "lucide-react";
 import type { Folder as FolderType } from "@/types";
 import { format } from "date-fns";
 import { Button } from "../ui/button";
+import { Checkbox } from "../ui/checkbox";
+import { cn } from "@/lib/utils";
+
 
 interface FolderCardProps {
   folder: FolderType;
   onFolderClick: (folder: FolderType) => void;
   onDelete: (folder: FolderType) => void;
   onRename: (folder: FolderType) => void;
+  isSelected: boolean;
+  onSelectionChange: (checked: boolean) => void;
 }
 
-export default function FolderCard({ folder, onFolderClick, onDelete, onRename }: FolderCardProps) {
+export default function FolderCard({ folder, onFolderClick, onDelete, onRename, isSelected, onSelectionChange }: FolderCardProps) {
   const Icon = folder.isLocked ? FolderLock : Folder;
 
   return (
     <Card 
-      className="flex flex-col justify-between transition-all hover:shadow-primary/20 hover:shadow-lg hover:-translate-y-1 group"
+      className={cn(
+        "flex flex-col justify-between transition-all hover:shadow-primary/20 hover:shadow-lg hover:-translate-y-1 group relative",
+        isSelected && "ring-2 ring-primary shadow-primary/20"
+      )}
       onDoubleClick={() => onFolderClick(folder)}
     >
-      <CardHeader>
+      <div className="absolute top-2 left-2 z-10">
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={onSelectionChange}
+          aria-label={`Select folder ${folder.name}`}
+          className="bg-background/80"
+        />
+      </div>
+      <CardHeader className="pt-8">
         <div className="flex items-start justify-between gap-3">
           <div 
             className="flex items-center gap-3 min-w-0 cursor-pointer"

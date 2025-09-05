@@ -16,16 +16,17 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import algosdk from 'algosdk';
 import { LoaderCircle, FileText, Send } from 'lucide-react';
+import { FileMetadata } from '@/types';
 
 interface SendFileModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onConfirm: (recipient: string) => void;
   isLoading: boolean;
-  filename: string;
+  file: FileMetadata;
 }
 
-export default function SendFileModal({ isOpen, onOpenChange, onConfirm, isLoading, filename }: SendFileModalProps) {
+export default function SendFileModal({ isOpen, onOpenChange, onConfirm, isLoading, file }: SendFileModalProps) {
   const [recipient, setRecipient] = useState('');
   const { toast } = useToast();
 
@@ -47,7 +48,7 @@ export default function SendFileModal({ isOpen, onOpenChange, onConfirm, isLoadi
         <div className="space-y-4 my-4">
             <div className="flex items-center gap-3 p-3 rounded-md bg-muted">
                 <FileText className="h-5 w-5 text-muted-foreground" />
-                <span className="font-medium truncate">{filename}</span>
+                <span className="font-medium truncate">{file.filename}</span>
             </div>
             <div className="space-y-2">
                 <Label htmlFor="recipient-address">

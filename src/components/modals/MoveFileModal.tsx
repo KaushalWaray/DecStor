@@ -15,18 +15,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { LoaderCircle, FileText, Folder, ArrowRight } from 'lucide-react';
-import type { Folder as FolderType } from '@/types';
+import type { FileMetadata, Folder as FolderType } from '@/types';
 
 interface MoveFileModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onConfirm: (newPath: string) => Promise<void>;
-  filename: string;
-  folders: FolderType[];
-  currentPath: string;
+  itemsToMove: (FileMetadata | FolderType)[];
+  allFolders: FolderType[];
 }
 
-export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, filename, folders, currentPath }: MoveFileModalProps) {
+export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, itemsToMove, allFolders }: MoveFileModalProps) {
   const [destinationPath, setDestinationPath] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -50,21 +49,41 @@ export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, filenam
     }
   }, [isOpen]);
 
-  // Filter out the current folder from the list of possible destinations
   const availableFolders = useMemo(() => {
-    return [
-      { name: 'My Vault (Root)', path: '/' },
-      ...folders.map(f => ({ name: f.path + f.name, path: `${f.path}${f.name}/` }))
-    ].filter(f => f.path !== currentPath);
-  }, [folders, currentPath]);
+    // Paths of the folders being moved
+    const movingFolderPaths = itemsToMove
+        .filter(item => !('cid' in item))
+        .map(folder => `${folder.path}${folder.name}/`);
 
+    // We can't move items to themselves or their own subfolders.
+    const isInvalidDestination = (destFolder: {name: string, path: string}) => {
+        // Can't move to a folder that is currently selected for moving.
+        if (itemsToMove.some(item => !('cid' in item) && `${item.path}${item.name}/` === destFolder.path)) {
+            return true;
+        }
+        // Can't move a folder into its own subfolder.
+        if (movingFolderPaths.some(movingPath => destFolder.path.startsWith(movingPath))) {
+            return true;
+        }
+        return false;
+    }
+
+    const allPossibleFolders = [
+      { name: 'My Vault (Root)', path: '/' },
+      ...allFolders.map(f => ({ name: f.path + f.name, path: `${f.path}${f.name}/` }))
+    ];
+
+    return allPossibleFolders.filter(f => !isInvalidDestination(f));
+  }, [allFolders, itemsToMove]);
+
+  if (!itemsToMove.length) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-headline text-2xl flex items-center gap-2"><ArrowRight />Move File</DialogTitle>
-          <DialogDescription>Choose a new location for <span className="font-bold text-foreground">{filename}</span>.</DialogDescription>
+          <DialogTitle className="font-headline text-2xl flex items-center gap-2"><ArrowRight />Move Items</DialogTitle>
+          <DialogDescription>Choose a new location for the {itemsToMove.length} selected item(s).</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 my-4">
             <div className="space-y-2">
@@ -95,7 +114,7 @@ export default function MoveFileModal({ isOpen, onOpenChange, onConfirm, filenam
                     <span>Moving...</span>
                 </>
             ) : (
-                "Move File"
+                "Move"
             )}
           </Button>
         </DialogFooter>

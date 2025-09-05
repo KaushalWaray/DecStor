@@ -26,7 +26,7 @@ interface RenameModalProps {
 }
 
 export default function RenameModal({ isOpen, onOpenChange, onConfirm, isLoading, item }: RenameModalProps) {
-  const isFolder = 'path' in item;
+  const isFolder = !('cid' in item);
   const currentName = isFolder ? item.name : item.filename;
 
   const [newName, setNewName] = useState(currentName);
@@ -87,7 +87,7 @@ export default function RenameModal({ isOpen, onOpenChange, onConfirm, isLoading
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>Cancel</Button>
-          <Button onClick={handleConfirm} disabled={isLoading || !newName}>
+          <Button onClick={handleConfirm} disabled={isLoading || !newName.trim()}>
             {isLoading ? (
                 <>
                     <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />

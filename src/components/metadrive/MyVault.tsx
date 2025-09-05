@@ -3,11 +3,11 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { AlgorandAccount, FileMetadata, Folder, StorageInfo, WalletEntry } from '@/types';
-import { getFilesByOwner, confirmPayment, getStorageServiceAddress, deleteFileFromDb, createFolder as apiCreateFolder, moveFile as apiMoveFile, getAllFolders, deleteFolder as apiDeleteFolder, renameFolder as apiRenameFolder, renameFile as apiRenameFile } from '@/lib/api';
+import { getFilesByOwner, confirmPayment, getStorageServiceAddress, deleteFileFromDb, createFolder as apiCreateFolder, moveFile as apiMoveFile, getAllFolders, deleteFolder as apiDeleteFolder, renameFolder as apiRenameFolder, renameFile as apiRenameFile, moveItems as apiMoveItems, deleteItems as apiDeleteItems } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
-import { LoaderCircle, HardDrive, FileSearch, Search, AlertTriangle, FolderPlus } from 'lucide-react';
+import { LoaderCircle, HardDrive, FileSearch, Search, AlertTriangle, FolderPlus, List, LayoutGrid } from 'lucide-react';
 import SendFileModal from '../modals/SendFileModal';
 import FileDetailsModal from '../modals/FileDetailsModal';
 import CreateFolderModal from '../modals/CreateFolderModal';
@@ -25,6 +25,7 @@ import StorageManager from './StorageManager';
 import Breadcrumbs from './Breadcrumbs';
 import { UPGRADE_COST_ALGOS } from '@/lib/constants';
 import RenameModal from '../modals/RenameModal';
+import BulkActionBar from './BulkActionBar';
 
 
 interface MyVaultProps {
@@ -35,31 +36,33 @@ interface MyVaultProps {
 
 export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProps) {
   const [allFiles, setAllFiles] = useState<FileMetadata[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
+  const [allFolders, setAllFolders] = useState<Folder[]>([]);
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isGlobalSearch, setIsGlobalSearch] = useState(false);
   const [currentPath, setCurrentPath] = useState('/');
-  const [allFoldersForMove, setAllFoldersForMove] = useState<Folder[]>([]);
   
   // State for locked folders
   const [unlockedPins, setUnlockedPins] = useState<Record<string, string>>({});
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
   const [folderToUnlock, setFolderToUnlock] = useState<Folder | null>(null);
-  
+
+  // Modal states
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
-  const [isDeleteFolderModalOpen, setIsDeleteFolderModalOpen] = useState(false);
   
+  // Data for modals
   const [selectedFile, setSelectedFile] = useState<FileMetadata | null>(null);
-  const [selectedFolder, setSelectedFolder] = useState<Folder | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<FileMetadata | Folder | null>(null);
+  const [itemsToMove, setItemsToMove] = useState<(FileMetadata | Folder)[]>([]);
   const [itemToRename, setItemToRename] = useState<FileMetadata | Folder | null>(null);
 
-
+  // Loading states
   const [isSending, setIsSending] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
@@ -69,6 +72,10 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
   const [isUpgrading, setIsUpgrading] = useState(false);
   const [storageServiceAddress, setStorageServiceAddress] = useState<string>('');
 
+  // New state for multi-select and view
+  const [selectedItems, setSelectedItems] = useState<(FileMetadata | Folder)[]>([]);
+  const [view, setView] = useState<'grid' | 'list'>('grid');
+
   const { toast } = useToast();
 
   const currentFolderPin = useMemo(() => {
@@ -76,24 +83,26 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
   }, [unlockedPins, currentPath, pin]);
 
 
-  const filteredFiles = useMemo(() => {
-    return allFiles.filter(file => 
-      file.filename.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [allFiles, searchTerm]);
-  
-  const filteredFolders = useMemo(() => {
-    return folders.filter(folder =>
-      folder.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [folders, searchTerm]);
+  const displayedItems = useMemo(() => {
+    let files = allFiles;
+    let folders = allFolders;
+
+    if (isGlobalSearch) {
+      files = files.filter(file => file.filename.toLowerCase().includes(searchTerm.toLowerCase()));
+      folders = folders.filter(folder => folder.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    } else {
+      files = files.filter(file => file.path === currentPath && file.filename.toLowerCase().includes(searchTerm.toLowerCase()));
+      folders = folders.filter(folder => folder.path === currentPath && folder.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    }
+    return { files, folders };
+  }, [allFiles, allFolders, searchTerm, currentPath, isGlobalSearch]);
 
   const fetchFilesAndStorage = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await getFilesByOwner(account.addr, currentPath);
+      const response = await getFilesByOwner(account.addr, '/', true);
       setAllFiles(response.files || []);
-      setFolders(response.folders || []);
+      setAllFolders(response.folders || []);
       setStorageInfo(response.storageInfo);
     } catch (error: any) {
       console.error(error);
@@ -101,11 +110,25 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
     } finally {
       setIsLoading(false);
     }
-  }, [account.addr, toast, currentPath]);
+  }, [account.addr, toast]);
 
   useEffect(() => {
     fetchFilesAndStorage();
   }, [fetchFilesAndStorage]);
+
+  useEffect(() => {
+    if (searchTerm) {
+        setIsGlobalSearch(true);
+    } else {
+        setIsGlobalSearch(false);
+    }
+  }, [searchTerm]);
+
+  const handleSelectionChange = (item: FileMetadata | Folder, isSelected: boolean) => {
+      setSelectedItems(prev => 
+          isSelected ? [...prev, item] : prev.filter(i => i._id !== item._id)
+      );
+  };
   
   const handleOpenSendModal = (file: FileMetadata) => {
     setSelectedFile(file);
@@ -117,25 +140,19 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
     setIsDetailsModalOpen(true);
   };
   
-  const handleOpenDeleteModal = (file: FileMetadata) => {
-    setSelectedFile(file);
+  const handleOpenDeleteModal = (item: FileMetadata | Folder) => {
+    setItemToDelete(item);
     setIsDeleteModalOpen(true);
   };
-  
-  const handleOpenMoveModal = async (file: FileMetadata) => {
-    setSelectedFile(file);
-    try {
-        const { folders } = await getAllFolders(account.addr);
-        setAllFoldersForMove(folders);
-        setIsMoveModalOpen(true);
-    } catch(error: any) {
-        toast({ variant: "destructive", title: "Could not get folders", description: error.message });
-    }
-  };
 
-  const handleOpenDeleteFolderModal = (folder: Folder) => {
-    setSelectedFolder(folder);
-    setIsDeleteFolderModalOpen(true);
+  const handleBulkDelete = () => {
+    // This will be handled by a different modal/alert for bulk operations.
+    setIsDeleteModalOpen(true);
+  }
+  
+  const handleOpenMoveModal = async (items: (FileMetadata | Folder)[]) => {
+    setItemsToMove(items);
+    setIsMoveModalOpen(true);
   };
 
   const handleOpenRenameModal = (item: FileMetadata | Folder) => {
@@ -155,54 +172,45 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
   };
 
   const handleConfirmDelete = async () => {
-    if (!selectedFile) return;
+    const itemsToDelete = itemToDelete ? [itemToDelete] : selectedItems;
+    if (itemsToDelete.length === 0) return;
+    
     setIsDeleting(true);
     try {
-        // TODO: Also unpin from Pinata
-        await deleteFileFromDb(selectedFile.cid, account.addr);
-        toast({ title: "File Deleted", description: `${selectedFile.filename} has been removed from your vault.`});
+        const itemIds = itemsToDelete.map(i => i._id);
+        await apiDeleteItems(account.addr, itemIds);
+        
+        toast({ title: "Items Deleted", description: `${itemsToDelete.length} item(s) have been removed from your vault.`});
         await fetchFilesAndStorage(); // Refresh data
+        setSelectedItems([]);
     } catch(error: any) {
         console.error("Delete failed:", error);
         toast({ variant: "destructive", title: "Delete Failed", description: error.message || "An unknown error occurred." });
     } finally {
         setIsDeleting(false);
         setIsDeleteModalOpen(false);
-        setSelectedFile(null);
+        setItemToDelete(null);
     }
   };
 
   const handleConfirmMove = async (newPath: string) => {
-    if (!selectedFile) return;
+    if (itemsToMove.length === 0) return;
     setIsMoving(true);
     try {
-        await apiMoveFile(selectedFile.cid, account.addr, newPath);
-        toast({ title: 'File Moved', description: `${selectedFile.filename} has been moved successfully.`});
+        const itemIds = itemsToMove.map(i => i._id);
+        const itemTypes = itemsToMove.map(i => 'cid' in i ? 'file' : 'folder');
+        await apiMoveItems(account.addr, itemIds, itemTypes, newPath);
+
+        toast({ title: 'Items Moved', description: `${itemsToMove.length} item(s) have been moved successfully.`});
         await fetchFilesAndStorage(); // Refresh the view
+        setSelectedItems([]);
     } catch (error: any) {
         console.error("Move failed:", error);
         toast({ variant: "destructive", title: "Move Failed", description: error.message || "An unknown error occurred." });
     } finally {
         setIsMoving(false);
         setIsMoveModalOpen(false);
-        setSelectedFile(null);
-    }
-  };
-
-  const handleConfirmDeleteFolder = async () => {
-    if (!selectedFolder) return;
-    setIsDeleting(true);
-    try {
-      await apiDeleteFolder(selectedFolder._id, account.addr);
-      toast({ title: "Folder Deleted", description: `${selectedFolder.name} and all its contents have been removed.` });
-      await fetchFilesAndStorage();
-    } catch (error: any) {
-      console.error("Folder delete failed:", error);
-      toast({ variant: "destructive", title: "Delete Failed", description: error.message });
-    } finally {
-      setIsDeleting(false);
-      setIsDeleteFolderModalOpen(false);
-      setSelectedFolder(null);
+        setItemsToMove([]);
     }
   };
 
@@ -210,13 +218,13 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
     if (!itemToRename) return;
     setIsMoving(true); // Re-use loading state for simplicity
     
-    const isFolder = 'path' in itemToRename && '_id' in itemToRename;
+    const isFolder = !('cid' in itemToRename);
 
     try {
         if (isFolder) {
             await apiRenameFolder(itemToRename._id, account.addr, newName);
         } else {
-            await apiRenameFile(itemToRename.cid, account.addr, newName);
+            await apiRenameFile(itemToRename._id, account.addr, newName);
         }
         toast({ title: 'Rename Successful', description: `Successfully renamed to '${newName}'.` });
         await fetchFilesAndStorage();
@@ -231,6 +239,11 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
 
 
   const handleFolderClick = (folder: Folder) => {
+    // If global search is active, clicking a folder clears the search and navigates
+    if (isGlobalSearch) {
+        setSearchTerm('');
+    }
+
     const nextPath = `${folder.path}${folder.name}/`;
     if (folder.isLocked && !unlockedPins[nextPath]) {
         setFolderToUnlock(folder);
@@ -239,6 +252,12 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
         setCurrentPath(nextPath);
     }
   };
+
+  const handlePathChange = (newPath: string) => {
+      // When changing path, clear search to avoid confusion
+      setSearchTerm('');
+      setCurrentPath(newPath);
+  }
 
   const handleUnlockFolder = (folderPin: string) => {
     if (folderToUnlock) {
@@ -324,7 +343,12 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
   
   return (
     <div className="space-y-6">
-      <FileUploader ownerAddress={account.addr} pin={currentFolderPin} onUploadSuccess={fetchFilesAndStorage} currentPath={currentPath}/>
+      <FileUploader 
+        ownerAddress={account.addr} 
+        pin={currentFolderPin} 
+        onUploadSuccess={fetchFilesAndStorage} 
+        currentPath={currentPath}
+      />
       
       {storageInfo && (
         <StorageManager 
@@ -334,33 +358,36 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
         />
       )}
       
-      <div className="p-6 bg-card rounded-lg">
+      <div className="p-6 bg-card rounded-lg relative">
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-center mb-4">
-            <Breadcrumbs path={currentPath} onPathChange={setCurrentPath} />
+            <Breadcrumbs path={currentPath} onPathChange={handlePathChange} />
             <div className="flex w-full sm:w-auto gap-2">
                 <div className="relative w-full sm:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input 
-                        placeholder="Search this folder..." 
+                        placeholder="Search vault..." 
                         className="pl-10"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
+                 <Button variant="outline" size="icon" onClick={() => setView(v => v === 'grid' ? 'list' : 'grid')}>
+                    {view === 'grid' ? <List /> : <LayoutGrid />}
+                </Button>
                 <Button onClick={() => setIsCreateFolderModalOpen(true)}>
                     <FolderPlus className="mr-2 h-4 w-4" /> Create Folder
                 </Button>
             </div>
         </div>
 
-        {isLoading && filteredFiles.length === 0 && filteredFolders.length === 0 ? (
+        {isLoading && displayedItems.files.length === 0 && displayedItems.folders.length === 0 ? (
           <div className="flex justify-center items-center h-64">
             <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
           <FileGrid 
-            files={filteredFiles}
-            folders={filteredFolders}
+            files={displayedItems.files}
+            folders={displayedItems.folders}
             account={account}
             pin={currentFolderPin}
             onSend={handleOpenSendModal}
@@ -369,11 +396,20 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
             onMove={handleOpenMoveModal}
             onRename={handleOpenRenameModal}
             onFolderClick={handleFolderClick}
-            onFolderDelete={handleOpenDeleteFolderModal}
             emptyState={getEmptyState()}
+            view={isGlobalSearch ? 'list' : view}
+            selectedItems={selectedItems}
+            onSelectionChange={handleSelectionChange}
           />
         )}
       </div>
+
+      <BulkActionBar 
+        selectedItemCount={selectedItems.length}
+        onMove={() => handleOpenMoveModal(selectedItems)}
+        onDelete={handleBulkDelete}
+        onClear={() => setSelectedItems([])}
+      />
 
       {selectedFile && (
         <>
@@ -382,39 +418,64 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
             onOpenChange={setIsSendModalOpen}
             onConfirm={handleConfirmSend}
             isLoading={isSending}
-            filename={selectedFile.filename}
+            file={selectedFile}
             />
             <FileDetailsModal
                 isOpen={isDetailsModalOpen}
                 onOpenChange={setIsDetailsModalOpen}
                 file={selectedFile}
             />
+        </>
+      )}
+
+       {itemToDelete && !selectedItems.length && (
             <AlertDialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive" />Are you sure you want to delete this file?</AlertDialogTitle>
+                    <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive" />Are you sure you want to delete this?</AlertDialogTitle>
                     <AlertDialogDescription>
-                        This will permanently delete <span className="font-bold text-foreground">{selectedFile.filename}</span> from your vault. This action cannot be undone.
+                        This will permanently delete <span className="font-bold text-foreground">{'cid' in itemToDelete ? itemToDelete.filename : itemToDelete.name}</span>. If it's a folder, all its contents will also be deleted. This action cannot be undone.
                     </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                     <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
                     <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
                         {isDeleting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                        Delete File
+                        Delete
                     </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-            <MoveFileModal
+        )}
+
+        {selectedItems.length > 0 && (
+             <AlertDialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive" />Delete {selectedItems.length} items?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Are you sure you want to delete the {selectedItems.length} selected items? Any folders and their contents will be permanently deleted. This action cannot be undone.
+                    </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
+                        {isDeleting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                        Delete
+                    </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        )}
+      
+      {itemsToMove.length > 0 && (
+          <MoveFileModal
                 isOpen={isMoveModalOpen}
                 onOpenChange={setIsMoveModalOpen}
                 onConfirm={handleConfirmMove}
-                filename={selectedFile.filename}
-                folders={allFoldersForMove}
-                currentPath={selectedFile.path}
+                itemsToMove={itemsToMove}
+                allFolders={allFolders}
              />
-        </>
       )}
 
       {itemToRename && (
@@ -425,29 +486,6 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
             isLoading={isMoving} // reuse loading state
             item={itemToRename}
         />
-      )}
-
-      {selectedFolder && (
-          <>
-            <AlertDialog open={isDeleteFolderModalOpen} onOpenChange={setIsDeleteFolderModalOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                    <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive" />Delete Folder?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        Are you sure you want to delete <span className="font-bold text-foreground">{selectedFolder.name}</span>? 
-                        All files and subfolders inside it will be permanently deleted. This action cannot be undone.
-                    </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                    <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleConfirmDeleteFolder} disabled={isDeleting} className="bg-destructive hover:bg-destructive/90">
-                        {isDeleting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                        Delete Folder
-                    </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-          </>
       )}
       
       {folderToUnlock && (

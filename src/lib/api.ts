@@ -88,9 +88,13 @@ export const postFileMetadata = async (metadata: Omit<FileMetadata, '_id' | 'cre
   return api.post('/files/metadata', metadata);
 };
 
-export const getFilesByOwner = async (ownerAddress: string, path: string): Promise<FilesAndStorageInfo> => {
-  const urlPath = `/files/${ownerAddress}?path=${encodeURIComponent(path)}`;
-  const response = await api.get(urlPath);
+export const getFilesByOwner = async (ownerAddress: string, path: string, recursive: boolean = false): Promise<FilesAndStorageInfo> => {
+  const url = new URL(`${BACKEND_URL}/files/${ownerAddress}`);
+  url.searchParams.append('path', path);
+  if (recursive) {
+      url.searchParams.append('recursive', 'true');
+  }
+  const response = await api.get(url.pathname + url.search);
   return {
       files: response.files || [],
       folders: response.folders || [],
@@ -99,9 +103,9 @@ export const getFilesByOwner = async (ownerAddress: string, path: string): Promi
   };
 };
 
+
 export const getAllFolders = async (ownerAddress: string): Promise<{folders: Folder[]}> => {
-    const urlPath = `/files/${ownerAddress}?recursive=true`;
-    const response = await api.get(urlPath);
+    const response = await getFilesByOwner(ownerAddress, '/', true);
     return {
         folders: response.folders || [],
     }
@@ -140,9 +144,17 @@ export const renameFolder = async (folderId: string, ownerAddress: string, newNa
     return api.put(`/folders/${folderId}/rename`, { ownerAddress, newName });
 };
 
-export const renameFile = async (cid: string, ownerAddress: string, newName: string) => {
-    return api.put(`/files/${cid}/rename`, { ownerAddress, newName });
+export const renameFile = async (fileId: string, ownerAddress: string, newName: string) => {
+    return api.put(`/files/${fileId}/rename`, { ownerAddress, newName });
 };
+
+export const moveItems = async (ownerAddress: string, itemIds: string[], itemTypes: ('file' | 'folder')[], newPath: string) => {
+    return api.put('/items/move', { ownerAddress, itemIds, itemTypes, newPath });
+}
+
+export const deleteItems = async (ownerAddress: string, itemIds: string[]) => {
+    return api.post('/items/delete', { ownerAddress, itemIds });
+}
 
 
 export default api;

@@ -11,19 +11,23 @@ import { IPFS_GATEWAY_URL } from "@/lib/constants";
 import { decryptFile } from "@/lib/crypto";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { Checkbox } from "../ui/checkbox";
+import { cn } from "@/lib/utils";
 
 interface FileCardProps {
   file: FileMetadata;
-  pin: string; // Add pin for decryption
+  pin: string;
   isOwner: boolean;
   onSend: (file: FileMetadata) => void;
   onDetails: (file: FileMetadata) => void;
   onDelete: (file: FileMetadata) => void;
   onMove: (file: FileMetadata) => void;
   onRename: (file: FileMetadata) => void;
+  isSelected: boolean;
+  onSelectionChange: (checked: boolean) => void;
 }
 
-export default function FileCard({ file, pin, isOwner, onSend, onDetails, onDelete, onMove, onRename }: FileCardProps) {
+export default function FileCard({ file, pin, isOwner, onSend, onDetails, onDelete, onMove, onRename, isSelected, onSelectionChange }: FileCardProps) {
   const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -61,8 +65,19 @@ export default function FileCard({ file, pin, isOwner, onSend, onDetails, onDele
 
 
   return (
-    <Card className="flex flex-col justify-between transition-all hover:shadow-primary/20 hover:shadow-lg hover:-translate-y-1">
-      <CardHeader>
+    <Card className={cn(
+      "flex flex-col justify-between transition-all hover:shadow-primary/20 hover:shadow-lg hover:-translate-y-1 relative",
+      isSelected && "ring-2 ring-primary shadow-primary/20"
+      )}>
+        <div className="absolute top-2 left-2 z-10">
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={onSelectionChange}
+              aria-label={`Select file ${file.filename}`}
+              className="bg-background/80"
+            />
+        </div>
+      <CardHeader className="pt-8">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
               <File className="h-6 w-6 text-primary flex-shrink-0" />
