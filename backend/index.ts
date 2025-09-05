@@ -168,8 +168,12 @@ const findOrCreateUser = async (address: string): Promise<User & { storageLimit:
         user = newUser;
     } else {
         // Recalculate storage just in case and update timestamps
-        const userFiles = await filesCollection.find({ owner: address }).toArray();
-        const totalSize = userFiles.reduce((acc, file) => acc + file.size, 0);
+        const aggregationResult = await filesCollection.aggregate([
+            { $match: { owner: address } },
+            { $group: { _id: null, totalSize: { $sum: "$size" } } }
+        ]).toArray();
+
+        const totalSize = aggregationResult.length > 0 ? aggregationResult[0].totalSize : 0;
 
         const updates: Partial<User> = {
             updatedAt: now,
