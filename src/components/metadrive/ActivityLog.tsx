@@ -29,7 +29,7 @@ const getActionText = (activity: Activity) => {
             if (activity.details.recipient === 'You') {
                 return <>shared the file <span className="font-semibold text-primary">{activity.details.filename}</span> with you.</>;
             }
-            return <>shared the file <span className="font-semibold text-primary">{activity.details.filename}</span> with <span className="font-mono text-xs text-accent">{truncateAddress(activity.details.recipient!)}</span>.</>;
+            return <>shared the file <span className="font-semibold text-primary">{activity.details.filename}</span> with <span className="font-code text-xs text-accent">{truncateAddress(activity.details.recipient!)}</span>.</>;
         case 'DELETE':
             const count = activity.details.itemCount || 1;
             return <>deleted {count} {count > 1 ? 'items' : 'item'}.</>;
@@ -93,6 +93,7 @@ export default function ActivityLog({ account }: ActivityLogProps) {
                 <ul className="space-y-4">
                     {activities.map(activity => {
                         const Icon = ICONS[activity.type] || History;
+                        const shareSender = activity.type === 'SHARE' && activity.details.recipient === 'You' ? shares.find(s => s.cid === activity.details.cid)?.senderAddress : activity.owner;
                         return (
                             <li key={activity._id} className="flex items-start gap-4">
                                 <div className="p-2 bg-muted rounded-full">
@@ -101,7 +102,7 @@ export default function ActivityLog({ account }: ActivityLogProps) {
                                 <div className="flex-grow">
                                     <p className="text-sm">
                                         {activity.type === 'SHARE' && activity.details.recipient === 'You' ? 
-                                            <span className="font-mono text-xs text-accent">{truncateAddress(activity.owner)}</span> : 
+                                            <span className="font-mono text-xs text-accent">{truncateAddress(shareSender!)}</span> : 
                                             "You"
                                         } {getActionText(activity)}
                                     </p>

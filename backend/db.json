@@ -58,6 +58,12 @@
       "cid": "QmRnUonzR3gp8shzm5jrfPN5h7HE79ZyUXdYbLfSCtK6i9",
       "recipientAddress": "CQHBYCZEFV5HEGXHBVJILW7N3LJMB2LDNZMA7AAYOMG6S3DOV3LUBGYK64",
       "createdAt": "2025-09-05T11:36:48.048Z"
+    },
+    {
+      "cid": "QmWepexMozGgVC4YN9UuMFgdbvR8WcZsVQ92NAGssdmVrY",
+      "senderAddress": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
+      "recipientAddress": "CQHBYCZEFV5HEGXHBVJILW7N3LJMB2LDNZMA7AAYOMG6S3DOV3LUBGYK64",
+      "createdAt": "2025-09-05T11:44:53.393Z"
     }
   ],
   "folders": [
@@ -75,6 +81,19 @@
       "path": "/",
       "createdAt": "2025-09-05T10:49:33.579Z",
       "isLocked": true
+    }
+  ],
+  "activities": [
+    {
+      "_id": "2025-09-05T11:44:53.393Z0.7204035240742663",
+      "owner": "OKKYU2JT63DWHJDOGNINKKUEK4ZEDLR2EGHMJTEGD5VKYXOETMMS7TY3OY",
+      "type": "SHARE",
+      "details": {
+        "filename": "suits_theme_song.mp3",
+        "cid": "QmWepexMozGgVC4YN9UuMFgdbvR8WcZsVQ92NAGssdmVrY",
+        "recipient": "CQHBYCZEFV5HEGXHBVJILW7N3LJMB2LDNZMA7AAYOMG6S3DOV3LUBGYK64"
+      },
+      "timestamp": "2025-09-05T11:44:53.393Z"
     }
   ]
 }
