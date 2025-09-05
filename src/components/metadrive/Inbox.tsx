@@ -20,8 +20,17 @@ export default function Inbox({ account }: InboxProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
+  // The inbox will show all files shared with the user, regardless of folder structure for now.
   const inboxFiles = useMemo(() => {
-    return allFiles.filter(f => f.owner !== account.addr);
+      const allSharedFiles = allFiles.filter(f => f.owner !== account.addr);
+      const uniqueCids = new Set();
+      return allSharedFiles.filter(file => {
+          if(uniqueCids.has(file.cid)) {
+              return false;
+          }
+          uniqueCids.add(file.cid);
+          return true;
+      })
   }, [allFiles, account.addr]);
 
   const filteredFiles = useMemo(() => {
@@ -33,11 +42,12 @@ export default function Inbox({ account }: InboxProps) {
   const handleRefresh = useCallback(async (isInitialLoad = false) => {
     setIsLoading(true);
     try {
-      const response: FilesAndStorageInfo = await getFilesByOwner(account.addr);
-      setAllFiles(response.files);
+      // We still fetch with a path, but the backend is now configured to return all shared files
+      const response = await getFilesByOwner(account.addr, '/');
+      setAllFiles(response.sharedFiles || []);
 
       if (!isInitialLoad) {
-        toast({ title: "Inbox refreshed!", description: `Found ${response.files.filter(f => f.owner !== account.addr).length} received files.` });
+        toast({ title: "Inbox refreshed!", description: `Found ${response.sharedFiles?.length || 0} received files.` });
       }
 
     } catch (error: any) {
@@ -89,11 +99,13 @@ export default function Inbox({ account }: InboxProps) {
         </div>
       ) : (
         <FileGrid 
-            files={filteredFiles} 
+            files={filteredFiles}
+            folders={[]} // Inbox doesn't show folders
             account={account}
             onShare={noOp}
             onDetails={noOp}
             onDelete={noOp}
+            onFolderClick={noOp}
             emptyState={getEmptyState()}
         />
       )}

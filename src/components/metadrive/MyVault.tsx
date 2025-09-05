@@ -2,14 +2,15 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import type { AlgorandAccount, FileMetadata, StorageInfo, FilesAndStorageInfo, WalletEntry } from '@/types';
-import { getFilesByOwner, confirmPayment, getStorageServiceAddress, deleteFileFromDb } from '@/lib/api';
+import type { AlgorandAccount, FileMetadata, Folder, StorageInfo, FilesAndStorageInfo, WalletEntry } from '@/types';
+import { getFilesByOwner, confirmPayment, getStorageServiceAddress, deleteFileFromDb, createFolder as apiCreateFolder } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
-import { LoaderCircle, HardDrive, FileSearch, Search, AlertTriangle } from 'lucide-react';
+import { LoaderCircle, HardDrive, FileSearch, Search, AlertTriangle, FolderPlus } from 'lucide-react';
 import ShareFileModal from '../modals/ShareFileModal';
 import FileDetailsModal from '../modals/FileDetailsModal';
+import CreateFolderModal from '../modals/CreateFolderModal';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -19,6 +20,7 @@ import { truncateAddress } from '@/lib/utils';
 import { mnemonicToAccount } from '@/lib/algorand';
 import { decryptMnemonic } from '@/lib/crypto';
 import StorageManager from './StorageManager';
+import Breadcrumbs from './Breadcrumbs';
 import { UPGRADE_COST_ALGOS } from '@/lib/constants';
 
 
@@ -29,13 +31,16 @@ interface MyVaultProps {
 
 export default function MyVault({ account, pin }: MyVaultProps) {
   const [allFiles, setAllFiles] = useState<FileMetadata[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPath, setCurrentPath] = useState('/');
   
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<FileMetadata | null>(null);
 
   const [isSharing, setIsSharing] = useState(false);
@@ -48,22 +53,26 @@ export default function MyVault({ account, pin }: MyVaultProps) {
 
   const { toast } = useToast();
 
-  const vaultFiles = useMemo(() => {
-    return allFiles.filter(f => f.owner === account.addr);
-  }, [allFiles, account.addr]);
-
   const filteredFiles = useMemo(() => {
-    if (!searchTerm) return vaultFiles;
-    return vaultFiles.filter(file => 
+    if (!searchTerm) return allFiles;
+    return allFiles.filter(file => 
       file.filename.toLowerCase().includes(searchTerm.toLowerCase())
     );
-  }, [vaultFiles, searchTerm]);
+  }, [allFiles, searchTerm]);
+  
+  const filteredFolders = useMemo(() => {
+    if (!searchTerm) return folders;
+    return folders.filter(folder =>
+      folder.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [folders, searchTerm]);
 
   const fetchFilesAndStorage = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response: FilesAndStorageInfo = await getFilesByOwner(account.addr);
+      const response = await getFilesByOwner(account.addr, currentPath);
       setAllFiles(response.files);
+      setFolders(response.folders);
       setStorageInfo(response.storageInfo);
     } catch (error: any) {
       console.error(error);
@@ -71,7 +80,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [account.addr, toast]);
+  }, [account.addr, toast, currentPath]);
 
   useEffect(() => {
     fetchFilesAndStorage();
@@ -189,16 +198,26 @@ export default function MyVault({ account, pin }: MyVaultProps) {
       }
   };
 
+  const handleCreateFolder = async (folderName: string) => {
+    try {
+        await apiCreateFolder({ name: folderName, owner: account.addr, path: currentPath });
+        toast({ title: 'Folder Created', description: `Successfully created folder '${folderName}'.`});
+        await fetchFilesAndStorage();
+    } catch(error: any) {
+        toast({ variant: 'destructive', title: 'Failed to Create Folder', description: error.message });
+    }
+  };
+
   const getEmptyState = () => {
     if (searchTerm) {
-        return { title: 'No Results Found', description: 'Your search did not match any files in your vault.', icon: FileSearch };
+        return { title: 'No Results Found', description: 'Your search did not match any files or folders.', icon: FileSearch };
     }
-    return { title: 'Your Vault is Empty', description: 'Upload a file to get started.', icon: HardDrive };
+    return { title: 'This Folder is Empty', description: 'Upload a file or create a folder to get started.', icon: HardDrive };
   };
   
   return (
     <div className="space-y-6">
-      <FileUploader ownerAddress={account.addr} onUploadSuccess={fetchFilesAndStorage} />
+      <FileUploader ownerAddress={account.addr} onUploadSuccess={fetchFilesAndStorage} currentPath={currentPath}/>
       
       {storageInfo && (
         <StorageManager 
@@ -210,29 +229,36 @@ export default function MyVault({ account, pin }: MyVaultProps) {
       
       <div className="p-6 bg-card rounded-lg">
         <div className="flex flex-col sm:flex-row gap-4 justify-between items-center mb-4">
-            <h2 className="text-2xl font-headline font-semibold">My Files</h2>
-            <div className="relative w-full sm:w-72">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                    placeholder="Search my files..." 
-                    className="pl-10"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            <Breadcrumbs path={currentPath} onPathChange={setCurrentPath} />
+            <div className="flex w-full sm:w-auto gap-2">
+                <div className="relative w-full sm:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                        placeholder="Search this folder..." 
+                        className="pl-10"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                <Button onClick={() => setIsCreateFolderModalOpen(true)}>
+                    <FolderPlus className="mr-2 h-4 w-4" /> Create Folder
+                </Button>
             </div>
         </div>
 
-        {isLoading && filteredFiles.length === 0 && !searchTerm ? (
+        {isLoading && filteredFiles.length === 0 && filteredFolders.length === 0 && !searchTerm ? (
           <div className="flex justify-center items-center h-64">
             <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
           <FileGrid 
-            files={filteredFiles} 
+            files={filteredFiles}
+            folders={filteredFolders}
             account={account}
             onShare={handleOpenShareModal}
             onDetails={handleOpenDetailsModal}
             onDelete={handleOpenDeleteModal}
+            onFolderClick={(folder) => setCurrentPath(`${folder.path}${folder.name}/`)}
             emptyState={getEmptyState()}
           />
         )}
@@ -271,6 +297,12 @@ export default function MyVault({ account, pin }: MyVaultProps) {
             </AlertDialog>
         </>
       )}
+
+      <CreateFolderModal 
+        isOpen={isCreateFolderModalOpen}
+        onOpenChange={setIsCreateFolderModalOpen}
+        onConfirm={handleCreateFolder}
+      />
 
       <ApproveTransactionModal
         isOpen={isUpgradeModalOpen}

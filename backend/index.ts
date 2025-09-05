@@ -15,6 +15,15 @@ export interface FileMetadata {
   fileType: string;
   owner: string;
   createdAt: string;
+  path: string; // e.g., "/", "/documents/", "/photos/vacation/"
+}
+
+export interface Folder {
+    _id: string;
+    name: string;
+    owner: string;
+    path: string; // e.g., "/", "/documents/"
+    createdAt: string;
 }
 
 export interface Share {
@@ -48,10 +57,11 @@ console.log(`[Backend] This address will receive payments for storage upgrades.`
 let users: User[] = [];
 let files: FileMetadata[] = [];
 let shares: Share[] = [];
+let folders: Folder[] = [];
 
 const saveDatabase = () => {
     try {
-        const data = JSON.stringify({ users, files, shares }, null, 2);
+        const data = JSON.stringify({ users, files, shares, folders }, null, 2);
         fs.writeFileSync(DB_FILE_PATH, data, 'utf8');
     } catch (error) {
         console.error('[Backend] CRITICAL: Failed to save database to file!', error);
@@ -66,6 +76,7 @@ const loadDatabase = () => {
             users = db.users || [];
             files = db.files || [];
             shares = db.shares || [];
+            folders = db.folders || [];
             console.log('[Backend] Database loaded successfully from db.json.');
         } else {
             // Create the file with empty arrays if it doesn't exist
@@ -78,6 +89,7 @@ const loadDatabase = () => {
         users = [];
         files = [];
         shares = [];
+        folders = [];
     }
 };
 
@@ -132,9 +144,9 @@ apiRouter.get('/service-address', (req, res) => {
 // 2. Save File Metadata
 apiRouter.post('/files/metadata', async (req, res) => {
     try {
-        const { filename, cid, size, fileType, owner } = req.body;
+        const { filename, cid, size, fileType, owner, path } = req.body;
 
-        if (!filename || !cid || !size || !fileType || !owner) {
+        if (!filename || !cid || !size || !fileType || !owner || path === undefined) {
             return res.status(400).json({ error: 'Missing required file metadata.' });
         }
         
@@ -154,6 +166,7 @@ apiRouter.post('/files/metadata', async (req, res) => {
             size,
             fileType,
             owner,
+            path,
             createdAt: new Date().toISOString(),
         };
 
@@ -164,7 +177,7 @@ apiRouter.post('/files/metadata', async (req, res) => {
         
         saveDatabase(); // Persist new file and updated user storage
         
-        console.log(`[Backend] Saved metadata for CID: ${cid}`);
+        console.log(`[Backend] Saved metadata for CID: ${cid} at path ${path}`);
         res.status(201).json({ message: 'Metadata saved successfully.', file: newFile });
 
     } catch (error) {
@@ -173,27 +186,30 @@ apiRouter.post('/files/metadata', async (req, res) => {
     }
 });
 
-// 3. Get Files and User Storage Info
+// 3. Get Files and Folders by Owner and Path
 apiRouter.get('/files/:ownerAddress', async (req, res) => {
     try {
         const { ownerAddress } = req.params;
+        const currentPath = (req.query.path as string) || '/';
 
-        const ownedFiles = files.filter(f => f.owner === ownerAddress);
+        // Get owned files and folders for the current path
+        const ownedFiles = files.filter(f => f.owner === ownerAddress && f.path === currentPath);
+        const ownedFolders = folders.filter(f => f.owner === ownerAddress && f.path === currentPath);
+        
+        // Get shared files (for inbox functionality - path independent for simplicity for now)
         const sharedCids = shares.filter(s => s.recipientAddress === ownerAddress).map(s => s.cid);
         const sharedFiles = files.filter(f => sharedCids.includes(f.cid));
         
-        const allFilesMap = new Map();
-        [...ownedFiles, ...sharedFiles].forEach(file => {
-            allFilesMap.set(file.cid, file);
-        });
-        
-        const allFiles = Array.from(allFilesMap.values());
+        // For the main vault view, we only want owned items.
+        // For a more complex "Shared with me" section, we'd handle shared folders separately.
         
         const user = findOrCreateUser(ownerAddress);
 
-        console.log(`[Backend] Found ${allFiles.length} total files for owner ${ownerAddress.substring(0, 10)}...`);
+        console.log(`[Backend] Found ${ownedFiles.length} files and ${ownedFolders.length} folders for owner ${ownerAddress.substring(0, 10)}... at path ${currentPath}`);
         res.status(200).json({
-            files: allFiles,
+            files: ownedFiles,
+            folders: ownedFolders,
+            sharedFiles: sharedFiles, // Keep sending all shared files for the inbox
             storageInfo: {
                 storageUsed: user.storageUsed,
                 storageLimit: user.storageLimit
@@ -204,6 +220,7 @@ apiRouter.get('/files/:ownerAddress', async (req, res) => {
         res.status(500).json({ error: 'Internal server error.' });
     }
 });
+
 
 // 4. Share a file with another user
 apiRouter.post('/share', async (req, res) => {
@@ -312,6 +329,39 @@ apiRouter.delete('/files/:cid', (req, res) => {
     }
 });
 
+// 7. Create a new folder
+apiRouter.post('/folders', (req, res) => {
+    try {
+        const { name, owner, path } = req.body;
+        if (!name || !owner || !path) {
+            return res.status(400).json({ error: 'Folder name, owner, and path are required.' });
+        }
+
+        // Check if a folder with the same name already exists in the same path for this user
+        const existingFolder = folders.find(f => f.owner === owner && f.path === path && f.name === name);
+        if(existingFolder) {
+            return res.status(409).json({ error: `A folder named '${name}' already exists in this location.`});
+        }
+        
+        const newFolder: Folder = {
+            _id: new Date().toISOString() + Math.random(),
+            name,
+            owner,
+            path,
+            createdAt: new Date().toISOString()
+        };
+
+        folders.push(newFolder);
+        saveDatabase();
+
+        console.log(`[Backend] Created folder '${name}' at path '${path}' for owner ${owner.substring(0,10)}...`);
+        res.status(201).json({ message: 'Folder created successfully.', folder: newFolder });
+
+    } catch (error) {
+        console.error('[Backend] Error creating folder:', error);
+        res.status(500).json({ error: 'Internal server error while creating folder.' });
+    }
+});
 
 
 // Mount the API router at the /api prefix

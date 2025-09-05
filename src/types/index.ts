@@ -15,6 +15,15 @@ export interface FileMetadata {
   fileType: string;
   owner: string;
   createdAt: string;
+  path: string; // e.g., "/", "/documents/", "/photos/vacation/"
+}
+
+export interface Folder {
+    _id: string;
+    name: string;
+    owner: string;
+    path: string; // e.g., "/", "/documents/"
+    createdAt: string;
 }
 
 export interface Share {
@@ -40,5 +49,6 @@ export interface StorageInfo {
 
 export interface FilesAndStorageInfo {
     files: FileMetadata[];
+    folders: Folder[];
     storageInfo: StorageInfo;
 }

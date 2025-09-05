@@ -1,6 +1,6 @@
 
 import { BACKEND_URL } from './constants';
-import type { FileMetadata, FilesAndStorageInfo, StorageInfo } from '@/types';
+import type { FileMetadata, Folder, FilesAndStorageInfo, StorageInfo } from '@/types';
 
 const api = {
   get: async (path: string) => {
@@ -69,8 +69,9 @@ export const postFileMetadata = async (metadata: Omit<FileMetadata, '_id' | 'cre
   return api.post('/files/metadata', metadata);
 };
 
-export const getFilesByOwner = async (ownerAddress: string): Promise<FilesAndStorageInfo> => {
-  return api.get(`/files/${ownerAddress}`);
+export const getFilesByOwner = async (ownerAddress: string, path: string): Promise<FilesAndStorageInfo> => {
+  const urlPath = `/files/${ownerAddress}?path=${encodeURIComponent(path)}`;
+  return api.get(urlPath);
 };
 
 export const recordShareInDb = async (cid: string, recipientAddress: string) => {
@@ -88,6 +89,10 @@ export const getStorageServiceAddress = async (): Promise<{address: string}> => 
 
 export const deleteFileFromDb = async (cid: string, ownerAddress: string) => {
     return api.delete(`/files/${cid}`, { ownerAddress });
+}
+
+export const createFolder = async (folder: Omit<Folder, '_id' | 'createdAt'>): Promise<{folder: Folder}> => {
+    return api.post('/folders', folder);
 }
 
 

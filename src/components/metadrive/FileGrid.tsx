@@ -1,17 +1,20 @@
 
 "use client";
 
-import type { AlgorandAccount, FileMetadata } from '@/types';
+import type { AlgorandAccount, FileMetadata, Folder } from '@/types';
 import FileCard from './FileCard';
+import FolderCard from './FolderCard';
 import { FileSearch } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 
 interface FileGridProps {
   files: FileMetadata[];
+  folders: Folder[];
   account: AlgorandAccount;
   onShare: (file: FileMetadata) => void;
   onDetails: (file: FileMetadata) => void;
   onDelete: (file: FileMetadata) => void;
+  onFolderClick: (folder: Folder) => void;
   emptyState: {
     title: string;
     description: string;
@@ -19,8 +22,8 @@ interface FileGridProps {
   };
 }
 
-export default function FileGrid({ files, account, onShare, onDetails, onDelete, emptyState }: FileGridProps) {
-  if (files.length === 0) {
+export default function FileGrid({ files, folders, account, onShare, onDetails, onDelete, onFolderClick, emptyState }: FileGridProps) {
+  if (files.length === 0 && folders.length === 0) {
     const Icon = emptyState.icon;
     return (
         <Card className="flex items-center justify-center h-64 border-dashed">
@@ -35,6 +38,13 @@ export default function FileGrid({ files, account, onShare, onDetails, onDelete,
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 animate-fade-in">
+      {folders.map((folder) => (
+        <FolderCard 
+          key={folder._id}
+          folder={folder}
+          onFolderClick={onFolderClick}
+        />
+      ))}
       {files.map((file) => (
         <FileCard 
             key={file.cid} 

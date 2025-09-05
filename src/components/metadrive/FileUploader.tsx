@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useCallback } from 'react';
@@ -11,10 +12,11 @@ import { Upload, LoaderCircle, File as FileIcon } from 'lucide-react';
 
 interface FileUploaderProps {
   ownerAddress: string;
+  currentPath: string;
   onUploadSuccess: () => void;
 }
 
-export default function FileUploader({ ownerAddress, onUploadSuccess }: FileUploaderProps) {
+export default function FileUploader({ ownerAddress, currentPath, onUploadSuccess }: FileUploaderProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
@@ -43,6 +45,7 @@ export default function FileUploader({ ownerAddress, onUploadSuccess }: FileUplo
         size: selectedFile.size,
         fileType: selectedFile.type,
         owner: ownerAddress,
+        path: currentPath,
       });
 
       toast({ title: 'File saved!', description: `${selectedFile.name} is now in your vault.` });
@@ -55,13 +58,13 @@ export default function FileUploader({ ownerAddress, onUploadSuccess }: FileUplo
     } finally {
       setIsUploading(false);
     }
-  }, [selectedFile, ownerAddress, onUploadSuccess, toast]);
+  }, [selectedFile, ownerAddress, currentPath, onUploadSuccess, toast]);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="font-headline text-2xl">Upload a New File</CardTitle>
-        <CardDescription>Choose a file from your device to upload to your decentralized vault.</CardDescription>
+        <CardDescription>Choose a file from your device to upload to the current folder.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col sm:flex-row items-center gap-4">
