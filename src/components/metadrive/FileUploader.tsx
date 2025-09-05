@@ -8,7 +8,7 @@ import { postFileMetadata } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Upload, LoaderCircle, File as FileIcon, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Upload, LoaderCircle, File as FileIcon, ShieldCheck, CheckCircle2, X } from 'lucide-react';
 import { encryptFile } from '@/lib/crypto';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +32,10 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
     if (event.target.files) {
       setFilesToUpload(Array.from(event.target.files));
     }
+  };
+  
+  const handleRemoveFile = (indexToRemove: number) => {
+    setFilesToUpload(currentFiles => currentFiles.filter((_, index) => index !== indexToRemove));
   };
 
   const handleUpload = useCallback(async () => {
@@ -71,7 +75,7 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
     
     toast({ 
         title: 'Uploads Complete!', 
-        description: `${filesToUpload.length} of ${filesToUpload.length} files saved to your vault.`,
+        description: `${uploadProgress.completed} of ${filesToUpload.length} files saved to your vault.`,
         className: 'bg-green-500 text-white',
         duration: 5000,
     });
@@ -79,7 +83,7 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
     setFilesToUpload([]);
     onUploadSuccess();
     setIsUploading(false);
-  }, [filesToUpload, ownerAddress, pin, currentPath, onUploadSuccess, toast]);
+  }, [filesToUpload, ownerAddress, pin, currentPath, onUploadSuccess, toast, uploadProgress.completed]);
 
   const onDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
@@ -157,11 +161,16 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
                     </Button>
                 </div>
                 {filesToUpload.length > 0 && (
-                    <div className="mt-4 text-sm text-muted-foreground space-y-1">
+                    <div className="mt-4 space-y-2">
                         <h4 className="font-semibold text-foreground">Selected files:</h4>
-                        <ul className="list-disc pl-5">
-                            {filesToUpload.map((file, i) => (
-                                <li key={i}>{file.name}</li>
+                        <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                           {filesToUpload.map((file, i) => (
+                                <li key={i} className="flex items-center justify-between bg-muted/50 p-2 rounded-md text-sm">
+                                    <span className="truncate text-foreground font-mono flex-1 min-w-0 pr-2">{file.name}</span>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0" onClick={() => handleRemoveFile(i)} aria-label={`Remove ${file.name}`}>
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </li>
                             ))}
                         </ul>
                     </div>
