@@ -15,9 +15,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import algosdk from 'algosdk';
-import { LoaderCircle, FileText } from 'lucide-react';
+import { LoaderCircle, FileText, Send } from 'lucide-react';
 
-interface ShareFileModalProps {
+interface SendModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onConfirm: (recipient: string) => void;
@@ -25,7 +25,7 @@ interface ShareFileModalProps {
   filename: string;
 }
 
-export default function ShareFileModal({ isOpen, onOpenChange, onConfirm, isLoading, filename }: ShareFileModalProps) {
+export default function SendModal({ isOpen, onOpenChange, onConfirm, isLoading, filename }: SendModalProps) {
   const [recipient, setRecipient] = useState('');
   const { toast } = useToast();
 
@@ -41,8 +41,8 @@ export default function ShareFileModal({ isOpen, onOpenChange, onConfirm, isLoad
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle className="font-headline text-2xl">Share File</DialogTitle>
-          <DialogDescription>Enter the recipient's Algorand address to share this file.</DialogDescription>
+          <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Send/>Send File</DialogTitle>
+          <DialogDescription>Enter the recipient's Algorand address to send this file.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 my-4">
             <div className="flex items-center gap-3 p-3 rounded-md bg-muted">
@@ -69,10 +69,10 @@ export default function ShareFileModal({ isOpen, onOpenChange, onConfirm, isLoad
             {isLoading ? (
                 <>
                     <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                    <span>Sharing...</span>
+                    <span>Sending...</span>
                 </>
             ) : (
-                "Share File"
+                "Send File"
             )}
             
           </Button>
@@ -81,4 +81,3 @@ export default function ShareFileModal({ isOpen, onOpenChange, onConfirm, isLoad
     </Dialog>
   );
 }
-

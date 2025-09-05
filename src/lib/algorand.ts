@@ -1,4 +1,5 @@
 
+
 import algosdk, {Algodv2, generateAccount as generateAlgodAccount, secretKeyToMnemonic, mnemonicToSecretKey, waitForConfirmation, isValidAddress, makeApplicationNoOpTxnFromObject, makePaymentTxnWithSuggestedParamsFromObject, OnApplicationComplete} from 'algosdk';
 import { ALGOD_SERVER, ALGOD_TOKEN, ALGOD_PORT, MAILBOX_APP_ID, UPGRADE_COST_ALGOS } from './constants';
 import type { AlgorandAccount } from '@/types';
@@ -36,7 +37,7 @@ export const getAccountBalance = async (address: string): Promise<number> => {
   }
 };
 
-export const shareFile = async (
+export const sendFile = async (
   sender: AlgorandAccount,
   recipientAddress: string,
   cid: string
@@ -71,7 +72,7 @@ export const shareFile = async (
   await recordShareInDb(cid, recipientAddress);
 
   return {
-    message: "File shared and recorded on-chain successfully.",
+    message: "File sent and recorded on-chain successfully.",
     txId: txId,
     ...result
   };

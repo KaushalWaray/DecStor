@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
 import { LoaderCircle, HardDrive, FileSearch, Search, AlertTriangle, FolderPlus } from 'lucide-react';
-import ShareFileModal from '../modals/ShareFileModal';
+import SendModal from '../modals/SendModal';
 import FileDetailsModal from '../modals/FileDetailsModal';
 import CreateFolderModal from '../modals/CreateFolderModal';
 import MoveFileModal from '../modals/MoveFileModal';
@@ -17,7 +17,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import ApproveTransactionModal from '../modals/ApproveTransactionModal';
 import UnlockFolderModal from '../modals/UnlockFolderModal';
-import { shareFile, payForStorageUpgrade } from '@/lib/algorand';
+import { sendFile, payForStorageUpgrade } from '@/lib/algorand';
 import { truncateAddress } from '@/lib/utils';
 import { mnemonicToAccount } from '@/lib/algorand';
 import { decryptMnemonic } from '@/lib/crypto';
@@ -46,7 +46,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
   const [folderToUnlock, setFolderToUnlock] = useState<Folder | null>(null);
   
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
@@ -59,7 +59,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
   const [itemToRename, setItemToRename] = useState<FileMetadata | Folder | null>(null);
 
 
-  const [isSharing, setIsSharing] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
 
@@ -106,9 +106,9 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     fetchFilesAndStorage();
   }, [fetchFilesAndStorage]);
   
-  const handleOpenShareModal = (file: FileMetadata) => {
+  const handleOpenSendModal = (file: FileMetadata) => {
     setSelectedFile(file);
-    setIsShareModalOpen(true);
+    setIsSendModalOpen(true);
   };
   
   const handleOpenDetailsModal = (file: FileMetadata) => {
@@ -142,11 +142,11 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     setIsRenameModalOpen(true);
   };
 
-  const handleConfirmShare = async (recipientAddress: string) => {
+  const handleConfirmSend = async (recipientAddress: string) => {
     if (!selectedFile) return;
-    setIsSharing(true);
+    setIsSending(true);
     try {
-        toast({ title: "Sharing File...", description: "Please approve the transaction to create an on-chain proof-of-share." });
+        toast({ title: "Sending File...", description: "Please approve the transaction to create an on-chain proof-of-send." });
         const storedWallets = JSON.parse(localStorage.getItem('metadrive_wallets') || '[]');
         const walletEntry = storedWallets.find((w: any) => w.address === account.addr);
         if (!walletEntry) throw new Error("Could not find wallet credentials to sign transaction.");
@@ -155,19 +155,19 @@ export default function MyVault({ account, pin }: MyVaultProps) {
         if (!mnemonic) throw new Error("Decryption failed");
         const senderAccount = mnemonicToAccount(mnemonic);
 
-      const {txId} = await shareFile(senderAccount, recipientAddress, selectedFile.cid);
+      const {txId} = await sendFile(senderAccount, recipientAddress, selectedFile.cid);
       
       toast({
-        title: 'File Shared!',
-        description: `Successfully shared ${selectedFile.filename} with ${truncateAddress(recipientAddress)}. TxID: ${truncateAddress(txId, 6, 4)}`,
+        title: 'File Sent!',
+        description: `Successfully sent ${selectedFile.filename} to ${truncateAddress(recipientAddress)}. TxID: ${truncateAddress(txId, 6, 4)}`,
       });
 
     } catch (error: any) {
       console.error(error);
-      toast({ variant: 'destructive', title: 'Sharing Failed', description: error.message || 'Could not share the file.' });
+      toast({ variant: 'destructive', title: 'Sending Failed', description: error.message || 'Could not send the file.' });
     } finally {
-      setIsSharing(false);
-      setIsShareModalOpen(false);
+      setIsSending(false);
+      setIsSendModalOpen(false);
       setSelectedFile(null);
     }
   };
@@ -381,7 +381,7 @@ export default function MyVault({ account, pin }: MyVaultProps) {
             folders={filteredFolders}
             account={account}
             pin={currentFolderPin}
-            onShare={handleOpenShareModal}
+            onSend={handleOpenSendModal}
             onDetails={handleOpenDetailsModal}
             onDelete={handleOpenDeleteModal}
             onMove={handleOpenMoveModal}
@@ -395,11 +395,11 @@ export default function MyVault({ account, pin }: MyVaultProps) {
 
       {selectedFile && (
         <>
-            <ShareFileModal
-            isOpen={isShareModalOpen}
-            onOpenChange={setIsShareModalOpen}
-            onConfirm={handleConfirmShare}
-            isLoading={isSharing}
+            <SendModal
+            isOpen={isSendModalOpen}
+            onOpenChange={setIsSendModalOpen}
+            onConfirm={handleConfirmSend}
+            isLoading={isSending}
             filename={selectedFile.filename}
             />
             <FileDetailsModal
@@ -497,5 +497,3 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     </div>
   );
 }
-
-    

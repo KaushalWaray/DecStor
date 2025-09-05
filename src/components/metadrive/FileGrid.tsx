@@ -11,7 +11,7 @@ interface FileGridProps {
   folders: Folder[];
   account: AlgorandAccount;
   pin: string;
-  onShare: (file: FileMetadata) => void;
+  onSend: (file: FileMetadata) => void;
   onDetails: (file: FileMetadata) => void;
   onDelete: (file: FileMetadata) => void;
   onMove: (file: FileMetadata) => void;
@@ -30,7 +30,7 @@ export default function FileGrid({
     folders = [], 
     account, 
     pin, 
-    onShare, 
+    onSend, 
     onDetails, 
     onDelete, 
     onMove,
@@ -69,7 +69,7 @@ export default function FileGrid({
             file={file} 
             pin={pin}
             isOwner={file.owner === account.addr}
-            onShare={onShare}
+            onSend={onSend}
             onDetails={onDetails}
             onDelete={onDelete}
             onMove={onMove}
@@ -79,5 +79,3 @@ export default function FileGrid({
     </div>
   );
 }
-
-    
