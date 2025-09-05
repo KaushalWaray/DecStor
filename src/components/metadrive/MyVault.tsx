@@ -26,6 +26,7 @@ import Breadcrumbs from './Breadcrumbs';
 import { UPGRADE_COST_ALGOS } from '@/lib/constants';
 import RenameModal from '../modals/RenameModal';
 import BulkActionBar from './BulkActionBar';
+import MediaPreviewModal from '../modals/MediaPreviewModal';
 
 
 interface MyVaultProps {
@@ -55,12 +56,15 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = useState(false);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [isMediaPreviewModalOpen, setIsMediaPreviewModalOpen] = useState(false);
   
   // Data for modals
   const [selectedFile, setSelectedFile] = useState<FileMetadata | null>(null);
   const [itemToDelete, setItemToDelete] = useState<FileMetadata | Folder | null>(null);
   const [itemsToMove, setItemsToMove] = useState<(FileMetadata | Folder)[]>([]);
   const [itemToRename, setItemToRename] = useState<FileMetadata | Folder | null>(null);
+  const [fileToPreview, setFileToPreview] = useState<FileMetadata | null>(null);
+
 
   // Loading states
   const [isSending, setIsSending] = useState(false);
@@ -158,6 +162,11 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
   const handleOpenRenameModal = (item: FileMetadata | Folder) => {
     setItemToRename(item);
     setIsRenameModalOpen(true);
+  };
+
+  const handleOpenPreviewModal = (file: FileMetadata) => {
+    setFileToPreview(file);
+    setIsMediaPreviewModalOpen(true);
   };
 
   const handleConfirmSend = async (recipientAddress: string) => {
@@ -396,6 +405,7 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
             onMove={handleOpenMoveModal}
             onRename={handleOpenRenameModal}
             onFolderClick={handleFolderClick}
+            onPreview={handleOpenPreviewModal}
             emptyState={getEmptyState()}
             view={isGlobalSearch ? 'list' : view}
             selectedItems={selectedItems}
@@ -426,6 +436,15 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
                 file={selectedFile}
             />
         </>
+      )}
+
+      {fileToPreview && (
+        <MediaPreviewModal
+          isOpen={isMediaPreviewModalOpen}
+          onOpenChange={setIsMediaPreviewModalOpen}
+          file={fileToPreview}
+          pin={currentFolderPin}
+        />
       )}
 
        {itemToDelete && !selectedItems.length && (

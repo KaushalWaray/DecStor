@@ -18,6 +18,7 @@ interface FileGridProps {
   onMove: (items: (FileMetadata | Folder)[]) => void;
   onRename: (item: FileMetadata | Folder) => void;
   onFolderClick: (folder: Folder) => void;
+  onPreview: (file: FileMetadata) => void; // New prop for previewing
   emptyState: {
     title: string;
     description: string;
@@ -40,6 +41,7 @@ export default function FileGrid({
     onMove,
     onRename,
     onFolderClick, 
+    onPreview,
     emptyState,
     view,
     selectedItems,
@@ -77,6 +79,7 @@ export default function FileGrid({
               onMove={onMove}
               onDetails={onDetails}
               onDelete={onDelete}
+              onPreview={onPreview}
           />
       );
   }
@@ -106,6 +109,7 @@ export default function FileGrid({
             onDelete={() => onDelete(file)}
             onMove={() => onMove([file])}
             onRename={() => onRename(file)}
+            onPreview={onPreview}
             isSelected={isSelected(file)}
             onSelectionChange={(checked) => onSelectionChange(file, checked)}
         />

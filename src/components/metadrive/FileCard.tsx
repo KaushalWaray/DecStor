@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { File, Share2, Download, MoreVertical, Info, Trash2, LoaderCircle, ArrowRight, Edit, Send } from "lucide-react";
+import { File, Share2, Download, MoreVertical, Info, Trash2, LoaderCircle, ArrowRight, Edit, Send, Play } from "lucide-react";
 import type { FileMetadata } from "@/types";
 import { formatBytes, truncateAddress } from "@/lib/utils";
 import { IPFS_GATEWAY_URL } from "@/lib/constants";
@@ -23,13 +23,16 @@ interface FileCardProps {
   onDelete: (file: FileMetadata) => void;
   onMove: (file: FileMetadata) => void;
   onRename: (file: FileMetadata) => void;
+  onPreview: (file: FileMetadata) => void; // New prop for previewing
   isSelected: boolean;
   onSelectionChange: (checked: boolean) => void;
 }
 
-export default function FileCard({ file, pin, isOwner, onSend, onDetails, onDelete, onMove, onRename, isSelected, onSelectionChange }: FileCardProps) {
+export default function FileCard({ file, pin, isOwner, onSend, onDetails, onDelete, onMove, onRename, onPreview, isSelected, onSelectionChange }: FileCardProps) {
   const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
+
+  const isPreviewable = file.fileType.startsWith('audio/') || file.fileType.startsWith('video/');
 
   const handleDownload = async () => {
     setIsDownloading(true);
@@ -91,6 +94,11 @@ export default function FileCard({ file, pin, isOwner, onSend, onDetails, onDele
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {isPreviewable && (
+                  <DropdownMenuItem onClick={() => onPreview(file)}>
+                    <Play className="mr-2 h-4 w-4" /> Preview
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={() => onSend(file)}>
                   <Send className="mr-2 h-4 w-4" /> Send
                 </DropdownMenuItem>
@@ -120,7 +128,7 @@ export default function FileCard({ file, pin, isOwner, onSend, onDetails, onDele
               <p className="text-sm text-muted-foreground mt-1">From: {truncateAddress(file.owner)}</p>
           )}
       </CardContent>
-      <CardFooter>
+      <CardFooter className="gap-2">
         <Button variant="outline" className="w-full" onClick={handleDownload} disabled={isDownloading}>
           {isDownloading ? (
             <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
@@ -129,7 +137,13 @@ export default function FileCard({ file, pin, isOwner, onSend, onDetails, onDele
           )}
            Download
         </Button>
+        {isPreviewable && (
+          <Button variant="secondary" onClick={() => onPreview(file)} className="w-full">
+            <Play className="mr-2 h-4 w-4" /> Preview
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );
 }
+
