@@ -333,7 +333,7 @@ apiRouter.delete('/files/:cid', (req, res) => {
 apiRouter.post('/folders', (req, res) => {
     try {
         const { name, owner, path } = req.body;
-        if (!name || !owner || !path) {
+        if (!name || !owner || path === undefined) {
             return res.status(400).json({ error: 'Folder name, owner, and path are required.' });
         }
 
