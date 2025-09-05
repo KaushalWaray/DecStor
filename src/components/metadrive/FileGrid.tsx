@@ -22,7 +22,7 @@ interface FileGridProps {
   };
 }
 
-export default function FileGrid({ files, folders, account, onShare, onDetails, onDelete, onFolderClick, emptyState }: FileGridProps) {
+export default function FileGrid({ files = [], folders = [], account, onShare, onDetails, onDelete, onFolderClick, emptyState }: FileGridProps) {
   if (files.length === 0 && folders.length === 0) {
     const Icon = emptyState.icon;
     return (

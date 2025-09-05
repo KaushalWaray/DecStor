@@ -51,4 +51,5 @@ export interface FilesAndStorageInfo {
     files: FileMetadata[];
     folders: Folder[];
     storageInfo: StorageInfo;
+    sharedFiles: FileMetadata[];
 }

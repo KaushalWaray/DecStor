@@ -71,8 +71,8 @@ export default function MyVault({ account, pin }: MyVaultProps) {
     setIsLoading(true);
     try {
       const response = await getFilesByOwner(account.addr, currentPath);
-      setAllFiles(response.files);
-      setFolders(response.folders);
+      setAllFiles(response.files || []);
+      setFolders(response.folders || []);
       setStorageInfo(response.storageInfo);
     } catch (error: any) {
       console.error(error);

@@ -71,7 +71,13 @@ export const postFileMetadata = async (metadata: Omit<FileMetadata, '_id' | 'cre
 
 export const getFilesByOwner = async (ownerAddress: string, path: string): Promise<FilesAndStorageInfo> => {
   const urlPath = `/files/${ownerAddress}?path=${encodeURIComponent(path)}`;
-  return api.get(urlPath);
+  const response = await api.get(urlPath);
+  return {
+      files: response.files || [],
+      folders: response.folders || [],
+      storageInfo: response.storageInfo,
+      sharedFiles: response.sharedFiles || []
+  };
 };
 
 export const recordShareInDb = async (cid: string, recipientAddress: string) => {
