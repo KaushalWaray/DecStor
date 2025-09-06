@@ -25,12 +25,17 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'http://127.0.0.1:3001/api/:path*',
-      },
-    ]
+    // This rewrite is only for local development to proxy API requests to the backend server.
+    // In production, the full backend URL will be used from the environment variable.
+    if (process.env.NODE_ENV === 'development') {
+        return [
+          {
+            source: '/api/:path*',
+            destination: 'http://127.0.0.1:3001/api/:path*',
+          },
+        ]
+    }
+    return [];
   },
 };
 
