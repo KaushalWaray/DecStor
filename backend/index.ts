@@ -76,7 +76,7 @@ export interface Contact {
 // --- CONSTANTS ---
 const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
 const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 const MONGO_URI = process.env.MONGO_URI;
 const DB_NAME = 'DecStor';
 
