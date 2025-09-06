@@ -197,19 +197,22 @@ export default function Home() {
     }
   };
 
-  const handleDeleteWallet = (address: string) => {
-    if (window.confirm('Are you sure you want to delete this wallet? This action cannot be undone.')) {
-      const newWallets = wallets.filter(w => w.address !== address);
-      localStorage.setItem('decstor_wallets', JSON.stringify(newWallets));
+  const handleDeleteWallet = (addressToDelete: string) => {
+    if (window.confirm('Are you sure you want to remove this wallet? This action is permanent and cannot be undone.')) {
+      const newWallets = wallets.filter(w => w.address !== addressToDelete);
       setWallets(newWallets);
-      toast({ title: 'Wallet Deleted' });
+      localStorage.setItem('decstor_wallets', JSON.stringify(newWallets));
 
       if (newWallets.length === 0) {
-          setSelectedWallet('');
-          setWalletState('no_wallet');
+        setSelectedWallet('');
+        setWalletState('no_wallet');
       } else {
+        // If the deleted wallet was the selected one, select the first one in the new list
+        if (selectedWallet === addressToDelete) {
           setSelectedWallet(newWallets[0].address);
+        }
       }
+      toast({ title: 'Wallet Removed' });
     }
   };
 

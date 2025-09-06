@@ -103,13 +103,13 @@ export default function LockScreen({ wallets, selectedWallet, onSetSelectedWalle
         </CardContent>
         <CardFooter className="flex flex-col gap-2">
             <Button variant="secondary" className="w-full" onClick={onAddNew}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add New Wallet
+                <PlusCircle className="mr-2 h-4 w-4" /> Create New Wallet
             </Button>
             <Button variant="secondary" className="w-full" onClick={onImportNew}>
-                <Download className="mr-2 h-4 w-4" /> Import Existing Wallet
+                <Download className="mr-2 h-4 w-4" /> Import Wallet
             </Button>
             <Button variant="link" className="text-sm text-muted-foreground" onClick={onReset}>
-                <Trash2 className="mr-2 h-4 w-4" /> Delete All Wallets
+                <Trash2 className="mr-2 h-4 w-4" /> Reset All Wallets
             </Button>
         </CardFooter>
       </Card>
