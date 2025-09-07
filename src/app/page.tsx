@@ -185,7 +185,6 @@ export default function Home() {
   };
 
   const handleReset = () => {
-    if (window.confirm('Are you sure you want to delete all wallets? This action cannot be undone.')) {
       localStorage.removeItem('decstor_wallets');
       setWallets([]);
       setAccount(null);
@@ -194,27 +193,34 @@ export default function Home() {
       setSelectedWallet('');
       setWalletState('no_wallet');
       toast({ title: 'All Wallets Deleted', description: 'You can now create or import a new wallet.' });
-    }
   };
 
   const handleDeleteWallet = (addressToDelete: string) => {
-    if (window.confirm('Are you sure you want to remove this wallet? This action is permanent and cannot be undone.')) {
       const newWallets = wallets.filter(w => w.address !== addressToDelete);
-      setWallets(newWallets);
       localStorage.setItem('decstor_wallets', JSON.stringify(newWallets));
+      setWallets(newWallets);
+      toast({ title: 'Wallet Removed' });
 
       if (newWallets.length === 0) {
         setSelectedWallet('');
         setWalletState('no_wallet');
       } else {
-        // If the deleted wallet was the selected one, select the first one in the new list
         if (selectedWallet === addressToDelete) {
           setSelectedWallet(newWallets[0].address);
         }
       }
-      toast({ title: 'Wallet Removed' });
-    }
   };
+
+  const handleDeleteActiveWallet = (addressToDelete: string) => {
+    const newWallets = wallets.filter(w => w.address !== addressToDelete);
+    localStorage.setItem('decstor_wallets', JSON.stringify(newWallets));
+    setWallets(newWallets); // Update state immediately
+    toast({ title: 'Wallet Removed' });
+
+    // Transition UI correctly
+    handleGoToManager();
+  }
+
 
   // --- CENTRALIZED TRANSACTION HANDLERS ---
   const getSenderAccount = useCallback(async (): Promise<AlgorandAccount> => {
@@ -339,6 +345,7 @@ export default function Home() {
                   onConfirmSendAlgo={handleConfirmSendAlgo}
                   onConfirmSendFile={handleConfirmSendFile}
                   onRenameWallet={handleRenameWallet}
+                  onDeleteActiveWallet={handleDeleteActiveWallet}
                 />;
       default:
         return null;

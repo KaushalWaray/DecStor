@@ -5,13 +5,15 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { truncateAddress } from '@/lib/utils';
 import type { AlgorandAccount, User } from '@/types';
-import { LogOut, Shield, Copy, LoaderCircle, Users, ChevronDown, ArrowUpRight, ArrowDownLeft, Edit } from 'lucide-react';
+import { LogOut, Shield, Copy, LoaderCircle, Users, ChevronDown, ArrowUpRight, ArrowDownLeft, Edit, Trash2, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import ReceiveModal from '../modals/ReceiveModal';
 import SendModal from '../modals/SendModal';
 import ApproveTransactionModal from '../modals/ApproveTransactionModal';
 import RenameWalletModal from '../modals/RenameWalletModal';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
+
 
 interface DashboardHeaderProps {
   account: AlgorandAccount;
@@ -21,12 +23,14 @@ interface DashboardHeaderProps {
   onGoToManager: () => void;
   onConfirmSend: (recipient: string, amount: number) => Promise<boolean>;
   onRenameWallet: (newName: string) => Promise<boolean>;
+  onDeleteActiveWallet: (address: string) => void;
 }
 
-export default function DashboardHeader({ account, user, balance, onLock, onGoToManager, onConfirmSend, onRenameWallet }: DashboardHeaderProps) {
+export default function DashboardHeader({ account, user, balance, onLock, onGoToManager, onConfirmSend, onRenameWallet, onDeleteActiveWallet }: DashboardHeaderProps) {
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   
   // State for sending ALGO
   const [isApproveSendModalOpen, setIsApproveSendModalOpen] = useState(false);
@@ -55,6 +59,11 @@ export default function DashboardHeader({ account, user, balance, onLock, onGoTo
     setIsApproveSendModalOpen(false);
     setSendDetails(null);
   };
+
+  const handleDelete = () => {
+    onDeleteActiveWallet(account.addr);
+    setIsDeleteConfirmOpen(false);
+  }
 
 
   return (
@@ -116,6 +125,11 @@ export default function DashboardHeader({ account, user, balance, onLock, onGoTo
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Lock Wallet</span>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-destructive" onClick={() => setIsDeleteConfirmOpen(true)}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    <span>Delete Wallet</span>
+                </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -156,6 +170,21 @@ export default function DashboardHeader({ account, user, balance, onLock, onGoTo
       currentName={user.walletName}
       onConfirm={onRenameWallet}
     />
+
+    <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive" />Delete Wallet?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Are you sure you want to delete the wallet <span className="font-bold text-foreground">{user.walletName}</span>? This will remove it from this device, but it does not delete the account from the blockchain. You can always re-import it later with the recovery phrase.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
 
     </>
   );

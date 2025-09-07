@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 export const metadata: Metadata = {
   title: 'DecStor Wallet',
   description: 'A Decentralized File Storage and Sharing Wallet',
+  icons: null, // This line prevents Next.js from automatically looking for a favicon
 };
 
 export default function RootLayout({

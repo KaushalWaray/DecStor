@@ -16,9 +16,10 @@ interface DashboardProps {
   onConfirmSendAlgo: (recipient: string, amount: number) => Promise<boolean>;
   onConfirmSendFile: (file: FileMetadata, recipient: string) => Promise<boolean>;
   onRenameWallet: (newName: string) => Promise<boolean>;
+  onDeleteActiveWallet: (address: string) => void;
 }
 
-export default function Dashboard({ account, user, pin, onLock, onGoToManager, onConfirmSendAlgo, onConfirmSendFile, onRenameWallet }: DashboardProps) {
+export default function Dashboard({ account, user, pin, onLock, onGoToManager, onConfirmSendAlgo, onConfirmSendFile, onRenameWallet, onDeleteActiveWallet }: DashboardProps) {
   const [balance, setBalance] = useState<number | null>(null);
 
   const fetchBalance = useCallback(async () => {
@@ -49,6 +50,7 @@ export default function Dashboard({ account, user, pin, onLock, onGoToManager, o
         onGoToManager={onGoToManager}
         onConfirmSend={handleConfirmSendAlgoAndRefresh}
         onRenameWallet={onRenameWallet}
+        onDeleteActiveWallet={onDeleteActiveWallet}
       />
       <main className="flex-grow">
         <FileTabs 
