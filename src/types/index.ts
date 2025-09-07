@@ -71,6 +71,9 @@ export interface User {
   createdAt: string;
   updatedAt: string;
   lastLogin: string;
+  twoFactorEnabled: boolean;
+  twoFactorSecret?: string;
+  twoFactorVerified: boolean;
 }
 
 export interface Activity {

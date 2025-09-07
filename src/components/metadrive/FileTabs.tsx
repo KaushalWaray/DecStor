@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MyVault from "./MyVault";
 import Inbox from "./Inbox";
-import type { AlgorandAccount, FileMetadata } from "@/types";
+import type { AlgorandAccount, User } from "@/types";
 import ActivityLog from "./ActivityLog";
 import { getNotifications } from '@/lib/api';
 import { Bell, BookUser, HardDrive, Inbox as InboxIcon, Settings } from 'lucide-react';
@@ -13,13 +13,14 @@ import ManageTab from './ManageTab';
 
 interface FileTabsProps {
   account: AlgorandAccount;
+  user: User;
   pin: string;
   balance: number;
   onConfirmSendFile: (file: FileMetadata, recipient: string) => Promise<boolean>;
   onConfirmSendAlgo: (recipient: string, amount: number) => Promise<boolean>;
 }
 
-export default function FileTabs({ account, pin, balance, onConfirmSendFile, onConfirmSendAlgo }: FileTabsProps) {
+export default function FileTabs({ account, user, pin, balance, onConfirmSendFile, onConfirmSendAlgo }: FileTabsProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentTab, setCurrentTab] = useState("vault");
 
@@ -70,7 +71,7 @@ export default function FileTabs({ account, pin, balance, onConfirmSendFile, onC
         <Inbox account={account} pin={pin} />
       </TabsContent>
       <TabsContent value="manage" className="mt-6">
-        <ManageTab account={account} balance={balance} onConfirmSendAlgo={onConfirmSendAlgo} />
+        <ManageTab account={account} user={user} balance={balance} onConfirmSendAlgo={onConfirmSendAlgo} />
       </TabsContent>
        <TabsContent value="notifications" className="mt-6">
         <ActivityLog

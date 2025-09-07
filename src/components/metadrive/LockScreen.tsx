@@ -16,7 +16,7 @@ interface LockScreenProps {
   wallets: WalletEntry[];
   selectedWallet: string;
   onSetSelectedWallet: (address: string) => void;
-  onUnlock: (address: string, pin: string) => void;
+  onUnlock: (address: string, pin: string, twoFactorToken?: string) => Promise<boolean | '2FA_REQUIRED'>;
   onReset: () => void;
   onAddNew: () => void;
   onImportNew: () => void;
@@ -29,22 +29,39 @@ export default function LockScreen({ wallets, selectedWallet, onSetSelectedWalle
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [is2FAModalOpen, setIs2FAModalOpen] = useState(false);
+  const [twoFactorToken, setTwoFactorToken] = useState('');
 
-  const handleUnlock = async () => {
+  const handleUnlockAttempt = async () => {
     if (!selectedWallet) {
         alert("Please select a wallet to unlock.");
         return;
     }
     setIsLoading(true);
-    await onUnlock(selectedWallet, pin);
+    const result = await onUnlock(selectedWallet, pin);
+    if(result === '2FA_REQUIRED') {
+        setIs2FAModalOpen(true);
+    } else {
+        // Clear pin after any unlock attempt that doesn't require 2FA
+        setPin('');
+    }
     setIsLoading(false);
-    // Clear pin after unlock attempt
-    setPin('');
   };
+
+  const handle2FAUnlock = async () => {
+      if (!twoFactorToken) return;
+      setIsLoading(true);
+      await onUnlock(selectedWallet, pin, twoFactorToken);
+      setIsLoading(false);
+      // Reset all state after attempt
+      setPin('');
+      setTwoFactorToken('');
+      setIs2FAModalOpen(false);
+  }
 
   const handleKeyPress = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
-      handleUnlock();
+      handleUnlockAttempt();
     }
   };
   
@@ -105,7 +122,7 @@ export default function LockScreen({ wallets, selectedWallet, onSetSelectedWalle
             </Button>
           </div>
           <div className="flex gap-2">
-            <Button size="lg" className="w-full" onClick={handleUnlock} disabled={isLoading || !selectedWallet || pin.length < 6}>
+            <Button size="lg" className="w-full" onClick={handleUnlockAttempt} disabled={isLoading || !selectedWallet || pin.length < 6}>
               {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
               Unlock
             </Button>
@@ -158,6 +175,36 @@ export default function LockScreen({ wallets, selectedWallet, onSetSelectedWalle
             <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={handleReset} className="bg-destructive hover:bg-destructive/90">Yes, Delete All</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
+     {/* 2FA Token Input Modal */}
+    <AlertDialog open={is2FAModalOpen} onOpenChange={(open) => !open && setIs2FAModalOpen(false)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">Enter 2FA Code</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This wallet is protected by two-factor authentication. Please enter the 6-digit code from your authenticator app.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+             <div className="my-4">
+                <Input
+                    id="2fa-token"
+                    value={twoFactorToken}
+                    onChange={(e) => setTwoFactorToken(e.target.value)}
+                    placeholder="123456"
+                    maxLength={6}
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && handle2FAUnlock()}
+                />
+            </div>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setPin('')}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handle2FAUnlock} disabled={isLoading || twoFactorToken.length !== 6}>
+                     {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                    Confirm
+                </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>

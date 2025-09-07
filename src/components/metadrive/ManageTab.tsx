@@ -3,30 +3,36 @@
 
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { AlgorandAccount } from "@/types";
-import { BookUser, Send } from 'lucide-react';
+import type { AlgorandAccount, User } from "@/types";
+import { BookUser, Send, Shield } from 'lucide-react';
 import AddressBook from './AddressBook';
 import SentFiles from './SentFiles';
+import SecurityTab from './SecurityTab';
 
 interface ManageTabProps {
   account: AlgorandAccount;
+  user: User;
   balance: number;
   onConfirmSendAlgo: (recipient: string, amount: number) => Promise<boolean>;
 }
 
-export default function ManageTab({ account, balance, onConfirmSendAlgo }: ManageTabProps) {
+export default function ManageTab({ account, user, balance, onConfirmSendAlgo }: ManageTabProps) {
   
   return (
     <Tabs defaultValue="addressBook" className="w-full">
-      <TabsList className="grid w-full grid-cols-2 max-w-md mx-auto">
+      <TabsList className="grid w-full grid-cols-3 max-w-lg mx-auto">
         <TabsTrigger value="addressBook"><BookUser className="mr-2 h-4 w-4" />Address Book</TabsTrigger>
         <TabsTrigger value="sentFiles"><Send className="mr-2 h-4 w-4" />Sent Files</TabsTrigger>
+        <TabsTrigger value="security"><Shield className="mr-2 h-4 w-4" />Security</TabsTrigger>
       </TabsList>
       <TabsContent value="addressBook" className="mt-6">
         <AddressBook account={account} balance={balance} onConfirmSendAlgo={onConfirmSendAlgo} />
       </TabsContent>
       <TabsContent value="sentFiles" className="mt-6">
         <SentFiles account={account} />
+      </TabsContent>
+      <TabsContent value="security" className="mt-6">
+        <SecurityTab account={account} user={user} />
       </TabsContent>
     </Tabs>
   );

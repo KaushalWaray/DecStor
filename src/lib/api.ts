@@ -175,5 +175,18 @@ export const deleteContact = async (contactId: string, ownerAddress: string) => 
     return api.delete(`/contacts/${contactId}`, { owner: ownerAddress });
 }
 
+// 2FA API
+export const generate2FASecret = async (address: string, walletName: string): Promise<{ otpauthUrl: string; secret: string; }> => {
+    return api.post('/2fa/generate', { address, walletName });
+}
+
+export const verify2FAToken = async (address: string, token: string): Promise<{ verified: boolean, message?: string }> => {
+    return api.post('/2fa/verify', { address, token });
+}
+
+export const disable2FA = async (address: string, token: string): Promise<{ message: string }> => {
+    return api.post('/2fa/disable', { address, token });
+}
+
 
 export default api;

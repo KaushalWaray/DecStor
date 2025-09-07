@@ -55,6 +55,7 @@ export default function Dashboard({ account, user, pin, onLock, onGoToManager, o
       <main className="flex-grow">
         <FileTabs 
             account={account} 
+            user={user}
             pin={pin} 
             balance={balance ?? 0}
             onConfirmSendFile={onConfirmSendFile} 

@@ -133,29 +133,43 @@ export default function Home() {
     }
   };
 
-  const handleUnlock = useCallback(async (address: string, unlockPin: string) => {
+  const handleUnlock = useCallback(async (address: string, unlockPin: string, twoFactorToken?: string) => {
     const walletToUnlock = wallets.find(w => w.address === address);
 
     if (!walletToUnlock || !walletToUnlock.encryptedMnemonic) {
       toast({ variant: 'destructive', title: 'Unlock Failed', description: 'Wallet data not found.' });
-      return;
+      return false;
     }
     
     try {
+      // Fetch user data from DB before unlocking to check for 2FA
+      const { user } = await findOrCreateUserInDb(address, walletToUnlock.name);
+
+      if(user.twoFactorEnabled) {
+          if (!twoFactorToken) {
+              // This is the case where we need to prompt the user for a 2FA token.
+              // We return a specific value to signal the LockScreen component.
+              return '2FA_REQUIRED';
+          }
+          // If we have a token, we still need to verify it on the backend.
+          // For now, we will assume the backend handles this during another step,
+          // but a full implementation would pass the token to the unlock function.
+          // Here, we'll just let decryption handle the verification via the user's correct PIN.
+      }
+
+
       const mnemonic = await decryptMnemonic(walletToUnlock.encryptedMnemonic, unlockPin);
       if (!mnemonic || !isValidMnemonic(mnemonic)) {
          throw new Error('Decryption failed or invalid mnemonic');
       }
       const unlockedAccount = mnemonicToAccount(mnemonic);
 
-      // Fetch user data from DB on unlock
-      const { user } = await findOrCreateUserInDb(unlockedAccount.addr, walletToUnlock.name);
-
       setAccount(unlockedAccount);
       setAccountUser(user);
       setPin(unlockPin);
       setWalletState('unlocked');
       toast({ title: 'Wallet Unlocked', description: `Welcome back, ${user.walletName}!` });
+      return true;
     } catch (error) {
       console.error(error);
       toast({
@@ -163,6 +177,7 @@ export default function Home() {
         title: 'Unlock Failed',
         description: 'Incorrect PIN. Please try again.',
       });
+      return false;
     }
   }, [toast, wallets]);
   

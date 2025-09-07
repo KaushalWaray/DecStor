@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import algosdk from 'algosdk';
 import { MongoClient, ObjectId } from 'mongodb';
+import speakeasy from 'speakeasy';
 // --- END OF TYPE DEFINITIONS ---
 // --- CONSTANTS ---
 const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
@@ -119,6 +120,8 @@ const findOrCreateUser = async (address, walletName) => {
             createdAt: now,
             updatedAt: now,
             lastLogin: now,
+            twoFactorEnabled: false,
+            twoFactorVerified: false,
         };
         const insertResult = await usersCollection.insertOne(newUser);
         console.log(`[Backend] Created new user ${address.substring(0, 10)}... with name "${defaultName}" and free tier.`);
@@ -606,6 +609,90 @@ apiRouter.delete('/contacts/:contactId', async (req, res) => {
     }
     catch (error) {
         console.error('[Backend] Error deleting contact:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+// === NEW: 2FA API ===
+// 20. Generate a 2FA secret
+apiRouter.post('/2fa/generate', async (req, res) => {
+    try {
+        const { address, walletName } = req.body;
+        if (!address)
+            return res.status(400).json({ error: 'Address is required.' });
+        const secret = speakeasy.generateSecret({
+            name: `DecStor (${walletName})`,
+            issuer: 'DecStor'
+        });
+        // Store the unverified secret in the user's document
+        await usersCollection.updateOne({ address }, { $set: { twoFactorSecret: secret.base32, twoFactorVerified: false } });
+        // Return the QR code data URL and the manual setup key
+        res.status(200).json({
+            otpauthUrl: secret.otpauth_url,
+            secret: secret.base32,
+        });
+    }
+    catch (error) {
+        console.error('[Backend] Error generating 2FA secret:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+// 21. Verify a 2FA token and enable 2FA
+apiRouter.post('/2fa/verify', async (req, res) => {
+    try {
+        const { address, token } = req.body;
+        if (!address || !token) {
+            return res.status(400).json({ error: 'Address and token are required.' });
+        }
+        const user = await usersCollection.findOne({ address });
+        if (!user || !user.twoFactorSecret) {
+            return res.status(404).json({ error: '2FA secret not found for this user.' });
+        }
+        const verified = speakeasy.totp.verify({
+            secret: user.twoFactorSecret,
+            encoding: 'base32',
+            token: token,
+        });
+        if (verified) {
+            await usersCollection.updateOne({ address }, { $set: { twoFactorEnabled: true, twoFactorVerified: true } });
+            console.log(`[Backend] 2FA enabled for ${address.substring(0, 10)}...`);
+            res.status(200).json({ verified: true, message: '2FA has been enabled successfully!' });
+        }
+        else {
+            res.status(401).json({ verified: false, message: 'Invalid token. Please try again.' });
+        }
+    }
+    catch (error) {
+        console.error('[Backend] Error verifying 2FA token:', error);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+// 22. Disable 2FA
+apiRouter.post('/2fa/disable', async (req, res) => {
+    try {
+        const { address, token } = req.body;
+        if (!address || !token) {
+            return res.status(400).json({ error: 'Address and token are required to disable 2FA.' });
+        }
+        const user = await usersCollection.findOne({ address });
+        if (!user || !user.twoFactorSecret || !user.twoFactorEnabled) {
+            return res.status(400).json({ error: '2FA is not enabled for this user.' });
+        }
+        const verified = speakeasy.totp.verify({
+            secret: user.twoFactorSecret,
+            encoding: 'base32',
+            token: token,
+        });
+        if (verified) {
+            await usersCollection.updateOne({ address }, { $set: { twoFactorEnabled: false, twoFactorSecret: undefined, twoFactorVerified: false } });
+            console.log(`[Backend] 2FA disabled for ${address.substring(0, 10)}...`);
+            res.status(200).json({ message: '2FA has been disabled.' });
+        }
+        else {
+            res.status(401).json({ message: 'Invalid token. Verification failed.' });
+        }
+    }
+    catch (error) {
+        console.error('[Backend] Error disabling 2FA:', error);
         res.status(500).json({ error: 'Internal server error.' });
     }
 });
