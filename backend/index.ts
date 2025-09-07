@@ -6,8 +6,6 @@ import algosdk from 'algosdk';
 import { Collection, Db, MongoClient, ObjectId, WithId } from 'mongodb';
 import speakeasy from 'speakeasy';
 import crypto from 'crypto';
-import nodemailer from 'nodemailer';
-import type { TransportOptions, SentMessageInfo } from 'nodemailer';
 
 
 // --- SELF-CONTAINED TYPE DEFINITIONS ---
@@ -51,9 +49,6 @@ export interface User {
   twoFactorEnabled: boolean;
   twoFactorSecret?: string;
   twoFactorVerified: boolean;
-  email?: string;
-  emailVerified: boolean;
-  emailVerificationToken?: string;
 }
 
 export interface Activity {
@@ -90,8 +85,6 @@ const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 const PORT = process.env.PORT || 3001;
 const MONGO_URI = process.env.MONGO_URI;
 const DB_NAME = 'DecStor';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const FROM_EMAIL = process.env.FROM_EMAIL || '"DecStor" <noreply@decstor.app>';
 
 
 // --- DATABASE CONNECTION ---
@@ -162,64 +155,6 @@ try {
 }
 
 
-// --- EMAIL SERVICE TRANSPORTER ---
-let transportOptions: TransportOptions;
-
-// Use real SMTP transport if credentials are provided in .env
-if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    console.log("[Backend] Production email transporter configured.");
-    transportOptions = {
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT || 587),
-        secure: (process.env.SMTP_PORT === '465'), // true for 465, false for other ports
-        auth: {
-            user: process.env.SMTP_USER, // e.g., 'apikey' for SendGrid
-            pass: process.env.SMTP_PASS, // Your SendGrid API Key or password
-        },
-    } as TransportOptions;
-} else {
-    // Fallback to JSON transport for development
-    console.log("[Backend] Using simulated JSON email transporter for development.");
-    transportOptions = {
-        jsonTransport: true,
-    } as TransportOptions;
-}
-
-const transporter = nodemailer.createTransport(transportOptions);
-
-
-const sendVerificationEmail = async (email: string, token: string, walletName: string) => {
-    const verificationLink = `${FRONTEND_URL}/verify-email?token=${token}`;
-    const mailOptions = {
-        from: FROM_EMAIL,
-        to: email,
-        subject: `Verify Your Email for ${walletName}`,
-        html: `
-            <div style="font-family: sans-serif; padding: 20px; color: #333;">
-                <h2>Welcome to DecStor!</h2>
-                <p>Please click the button below to verify your email address and enable notifications for your wallet, <strong>${walletName}</strong>.</p>
-                <a href="${verificationLink}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Verify Email</a>
-                <p style="margin-top: 20px; font-size: 12px;">If you did not request this, please ignore this email.</p>
-            </div>
-        `
-    };
-
-    try {
-        const info = await transporter.sendMail(mailOptions);
-        
-        // Log differently based on transport type
-        if ((transportOptions as any).jsonTransport) {
-             console.log('[Backend] Verification email (simulated):', JSON.parse((info as any).message as string));
-        } else {
-             console.log(`[Backend] Verification email sent to ${email}. Message ID: ${info.messageId}`);
-        }
-
-    } catch (error) {
-        console.error('[Backend] Error sending verification email:', error);
-    }
-};
-
-
 // --- HELPER FUNCTIONS ---
 const createActivity = async (owner: string, type: Activity['type'], details: Activity['details'], isRead: boolean = false) => {
     const newActivity: Omit<Activity, '_id'> = {
@@ -230,7 +165,6 @@ const createActivity = async (owner: string, type: Activity['type'], details: Ac
         isRead,
     };
     await activitiesCollection.insertOne(newActivity as Activity);
-    // TODO: We will add email sending logic here in the next step.
 };
 
 const getStorageLimit = (tier: 'free' | 'pro') => {
@@ -284,7 +218,6 @@ const findOrCreateUser = async (address: string, walletName?: string): Promise<U
             lastLogin: now,
             twoFactorEnabled: false,
             twoFactorVerified: false,
-            emailVerified: false,
         };
         const insertResult = await usersCollection.insertOne(newUser as User);
         console.log(`[Backend] Created new user ${address.substring(0,10)}... with name "${defaultName}" and free tier.`);
@@ -1009,64 +942,6 @@ apiRouter.post('/2fa/disable', async (req, res) => {
     } catch (error) {
         console.error('[Backend] Error disabling 2FA:', error);
         res.status(500).json({ error: 'Internal server error.' });
-    }
-});
-
-// === NEW: NOTIFICATIONS API ===
-
-// 23. Set/Update user email and send verification
-apiRouter.post('/notifications/set-email', async (req, res) => {
-    try {
-        const { address, email } = req.body;
-        if (!address || !email) {
-            return res.status(400).json({ error: 'Address and email are required.' });
-        }
-
-        const user = await usersCollection.findOne({ address });
-        if (!user) {
-            return res.status(404).json({ error: 'User not found.' });
-        }
-
-        const verificationToken = crypto.randomBytes(32).toString('hex');
-
-        await usersCollection.updateOne(
-            { address },
-            { $set: { email, emailVerified: false, emailVerificationToken: verificationToken } }
-        );
-
-        await sendVerificationEmail(email, verificationToken, user.walletName);
-
-        res.status(200).json({ message: `Verification email sent to ${email}. Please check your inbox.` });
-    } catch (error) {
-        console.error('[Backend] Error setting email:', error);
-        res.status(500).json({ error: 'Internal server error.' });
-    }
-});
-
-// 24. Verify email address
-apiRouter.get('/notifications/verify-email', async (req, res) => {
-    try {
-        const { token } = req.query;
-        if (!token || typeof token !== 'string') {
-            return res.status(400).send('Verification token is missing or invalid.');
-        }
-
-        const user = await usersCollection.findOne({ emailVerificationToken: token });
-        if (!user) {
-            return res.status(400).send('Invalid verification token. It may have expired or already been used.');
-        }
-
-        await usersCollection.updateOne(
-            { address: user.address },
-            { $set: { emailVerified: true, emailVerificationToken: undefined, updatedAt: new Date().toISOString() } }
-        );
-
-        console.log(`[Backend] Email verified for ${user.address.substring(0,10)}...`);
-        // Redirect to a confirmation page on the frontend
-        res.redirect(`${FRONTEND_URL}/?email_verified=true`);
-    } catch (error) {
-        console.error('[Backend] Error verifying email:', error);
-        res.status(500).send('An internal error occurred during email verification.');
     }
 });
 
