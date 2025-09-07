@@ -74,20 +74,28 @@ catch (error) {
     process.exit(1);
 }
 // --- EMAIL SERVICE TRANSPORTER ---
-const transporter = nodemailer.createTransport({
-    // --- Production Configuration (e.g., SendGrid) ---
-    // This is a placeholder. In a real app, you'd use a service like SendGrid.
-    // host: process.env.SMTP_HOST,
-    // port: Number(process.env.SMTP_PORT || 587),
-    // secure: false, // true for 465, false for other ports
-    // auth: {
-    //     user: process.env.SMTP_USER, // e.g., 'apikey' for SendGrid
-    //     pass: process.env.SMTP_PASS, // Your SendGrid API Key
-    // },
-    // --- Development/Simulation Configuration (using Mailtrap or similar) ---
-    // For this prototype, we'll use a simple JSON transport to log emails to the console.
-    jsonTransport: true,
-});
+let transportOptions;
+// Use real SMTP transport if credentials are provided in .env
+if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    console.log("[Backend] Production email transporter configured.");
+    transportOptions = {
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT || 587),
+        secure: (process.env.SMTP_PORT === '465'), // true for 465, false for other ports
+        auth: {
+            user: process.env.SMTP_USER, // e.g., 'apikey' for SendGrid
+            pass: process.env.SMTP_PASS, // Your SendGrid API Key or password
+        },
+    };
+}
+else {
+    // Fallback to JSON transport for development
+    console.log("[Backend] Using simulated JSON email transporter for development.");
+    transportOptions = {
+        jsonTransport: true,
+    };
+}
+const transporter = nodemailer.createTransport(transportOptions);
 const sendVerificationEmail = async (email, token, walletName) => {
     const verificationLink = `${FRONTEND_URL}/verify-email?token=${token}`;
     const mailOptions = {
@@ -105,7 +113,13 @@ const sendVerificationEmail = async (email, token, walletName) => {
     };
     try {
         const info = await transporter.sendMail(mailOptions);
-        console.log('[Backend] Verification email sent (simulated):', JSON.parse(info.message));
+        // Log differently based on transport type
+        if (transportOptions.jsonTransport) {
+            console.log('[Backend] Verification email (simulated):', JSON.parse(info.message));
+        }
+        else {
+            console.log(`[Backend] Verification email sent to ${email}. Message ID: ${info.messageId}`);
+        }
     }
     catch (error) {
         console.error('[Backend] Error sending verification email:', error);

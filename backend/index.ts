@@ -208,7 +208,7 @@ const sendVerificationEmail = async (email: string, token: string, walletName: s
         
         // Log differently based on transport type
         if ((transportOptions as any).jsonTransport) {
-             console.log('[Backend] Verification email (simulated):', JSON.parse(info.message as string));
+             console.log('[Backend] Verification email (simulated):', JSON.parse((info as any).message as string));
         } else {
              console.log(`[Backend] Verification email sent to ${email}. Message ID: ${info.messageId}`);
         }
