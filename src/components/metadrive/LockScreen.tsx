@@ -6,9 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LockKeyhole, Eye, EyeOff, LoaderCircle, PlusCircle, Trash2, Download } from 'lucide-react';
+import { LockKeyhole, Eye, EyeOff, LoaderCircle, PlusCircle, Trash2, Download, AlertTriangle } from 'lucide-react';
 import { truncateAddress } from '@/lib/utils';
 import type { WalletEntry } from '@/types';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
+
 
 interface LockScreenProps {
   wallets: WalletEntry[];
@@ -25,6 +27,8 @@ export default function LockScreen({ wallets, selectedWallet, onSetSelectedWalle
   const [pin, setPin] = useState('');
   const [isPinVisible, setIsPinVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   const handleUnlock = async () => {
     if (!selectedWallet) {
@@ -48,9 +52,18 @@ export default function LockScreen({ wallets, selectedWallet, onSetSelectedWalle
       if(selectedWallet) {
           onDeleteWallet(selectedWallet);
       }
+      setIsDeleteConfirmOpen(false);
   }
 
+  const handleReset = () => {
+      onReset();
+      setIsResetConfirmOpen(false);
+  }
+
+  const selectedWalletEntry = wallets.find(w => w.address === selectedWallet);
+
   return (
+    <>
     <div className="flex flex-col items-center justify-center h-full">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
@@ -96,7 +109,7 @@ export default function LockScreen({ wallets, selectedWallet, onSetSelectedWalle
               {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
               Unlock
             </Button>
-            <Button size="lg" variant="destructive" onClick={handleDelete} disabled={isLoading || !selectedWallet}>
+            <Button size="lg" variant="destructive" onClick={() => setIsDeleteConfirmOpen(true)} disabled={isLoading || !selectedWallet}>
                 <Trash2 />
             </Button>
           </div>
@@ -108,11 +121,46 @@ export default function LockScreen({ wallets, selectedWallet, onSetSelectedWalle
             <Button variant="secondary" className="w-full" onClick={onImportNew}>
                 <Download className="mr-2 h-4 w-4" /> Import Wallet
             </Button>
-            <Button variant="link" className="text-sm text-muted-foreground" onClick={onReset}>
+            <Button variant="link" className="text-sm text-muted-foreground" onClick={() => setIsResetConfirmOpen(true)}>
                 <Trash2 className="mr-2 h-4 w-4" /> Reset All Wallets
             </Button>
         </CardFooter>
       </Card>
     </div>
+
+    {/* Confirmation for deleting a single wallet */}
+    {selectedWalletEntry && (
+        <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive" />Delete Wallet?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Are you sure you want to delete the wallet <span className="font-bold text-foreground">{selectedWalletEntry.name}</span>? This will remove it from this device, but you can re-import it later with the recovery phrase.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Delete Wallet</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    )}
+
+    {/* Confirmation for resetting all wallets */}
+    <AlertDialog open={isResetConfirmOpen} onOpenChange={setIsResetConfirmOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive" />Reset All Wallets?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Are you sure you want to delete all wallets from this device? This action cannot be undone. You will need to re-import them using their recovery phrases.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleReset} className="bg-destructive hover:bg-destructive/90">Yes, Delete All</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
