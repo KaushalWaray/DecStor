@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { setEmailForNotifications } from '@/lib/api';
 import type { AlgorandAccount, User } from '@/types';
-import { Bell, LoaderCircle, CheckCircle2 } from 'lucide-react';
+import { Bell, LoaderCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { findOrCreateUserInDb } from '@/lib/api';
 
 interface NotificationsTabProps {
@@ -23,7 +23,7 @@ export default function NotificationsTab({ account, user: initialUser }: Notific
     const [isLoading, setIsLoading] = useState(false);
     const { toast } = useToast();
 
-    const handleUpdateEmail = async () => {
+    const handleUpdateEmail = async (isResend: boolean = false) => {
         if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
             toast({ variant: 'destructive', title: 'Invalid Email', description: 'Please enter a valid email address.' });
             return;
@@ -31,7 +31,7 @@ export default function NotificationsTab({ account, user: initialUser }: Notific
         setIsLoading(true);
         try {
             const result = await setEmailForNotifications(account.addr, email);
-            toast({ title: 'Verification Email Sent', description: result.message });
+            toast({ title: isResend ? 'Verification Resent' : 'Verification Email Sent', description: result.message });
             // Refresh user data to show the unverified email state
             const { user: updatedUser } = await findOrCreateUserInDb(account.addr);
             setUser(updatedUser);
@@ -61,14 +61,20 @@ export default function NotificationsTab({ account, user: initialUser }: Notific
                         </div>
                     </div>
                 ) : user.email && !user.emailVerified ? (
-                     <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-                        <h3 className="font-semibold text-amber-400">Verification Pending</h3>
-                        <p className="text-sm text-muted-foreground">A verification link was sent to <span className="font-mono">{user.email}</span>. Please check your inbox and spam folder.</p>
+                     <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg space-y-3">
+                        <div>
+                            <h3 className="font-semibold text-amber-400">Verification Pending</h3>
+                            <p className="text-sm text-muted-foreground">A verification link was sent to <span className="font-mono">{user.email}</span>. Please check your inbox and spam folder.</p>
+                        </div>
+                        <Button variant="secondary" size="sm" onClick={() => handleUpdateEmail(true)} disabled={isLoading}>
+                            {isLoading ? <LoaderCircle className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                            Resend Verification Email
+                        </Button>
                     </div>
                 ) : null}
 
                 <div className="space-y-2">
-                    <Label htmlFor="email">Notification Email</Label>
+                    <Label htmlFor="email">{user.emailVerified ? 'Update Notification Email' : 'Notification Email'}</Label>
                     <div className="flex gap-2">
                         <Input
                             id="email"
@@ -77,7 +83,7 @@ export default function NotificationsTab({ account, user: initialUser }: Notific
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="your.email@example.com"
                         />
-                        <Button onClick={handleUpdateEmail} disabled={isLoading || isEmailUnchanged}>
+                        <Button onClick={() => handleUpdateEmail(false)} disabled={isLoading || isEmailUnchanged}>
                             {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                             {user.email ? 'Update' : 'Save'}
                         </Button>

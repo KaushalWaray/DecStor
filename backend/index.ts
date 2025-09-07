@@ -7,6 +7,7 @@ import { Collection, Db, MongoClient, ObjectId, WithId } from 'mongodb';
 import speakeasy from 'speakeasy';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import type { TransportOptions, SentMessageInfo } from 'nodemailer';
 
 
 // --- SELF-CONTAINED TYPE DEFINITIONS ---
@@ -161,21 +162,30 @@ try {
 
 
 // --- EMAIL SERVICE TRANSPORTER ---
-const transporter = nodemailer.createTransport({
-    // --- Production Configuration (e.g., SendGrid) ---
-    // This is a placeholder. In a real app, you'd use a service like SendGrid.
-    // host: process.env.SMTP_HOST,
-    // port: Number(process.env.SMTP_PORT || 587),
-    // secure: false, // true for 465, false for other ports
-    // auth: {
-    //     user: process.env.SMTP_USER, // e.g., 'apikey' for SendGrid
-    //     pass: process.env.SMTP_PASS, // Your SendGrid API Key
-    // },
-    
-    // --- Development/Simulation Configuration (using Mailtrap or similar) ---
-    // For this prototype, we'll use a simple JSON transport to log emails to the console.
-    jsonTransport: true, 
-});
+let transportOptions: TransportOptions;
+
+// Use real SMTP transport if credentials are provided in .env
+if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    console.log("[Backend] Production email transporter configured.");
+    transportOptions = {
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT || 587),
+        secure: (process.env.SMTP_PORT === '465'), // true for 465, false for other ports
+        auth: {
+            user: process.env.SMTP_USER, // e.g., 'apikey' for SendGrid
+            pass: process.env.SMTP_PASS, // Your SendGrid API Key or password
+        },
+    } as TransportOptions;
+} else {
+    // Fallback to JSON transport for development
+    console.log("[Backend] Using simulated JSON email transporter for development.");
+    transportOptions = {
+        jsonTransport: true,
+    } as TransportOptions;
+}
+
+const transporter = nodemailer.createTransport(transportOptions);
+
 
 const sendVerificationEmail = async (email: string, token: string, walletName: string) => {
     const verificationLink = `${FRONTEND_URL}/verify-email?token=${token}`;
@@ -195,7 +205,14 @@ const sendVerificationEmail = async (email: string, token: string, walletName: s
 
     try {
         const info = await transporter.sendMail(mailOptions);
-        console.log('[Backend] Verification email sent (simulated):', JSON.parse(info.message as string));
+        
+        // Log differently based on transport type
+        if ((transportOptions as any).jsonTransport) {
+             console.log('[Backend] Verification email (simulated):', JSON.parse(info.message as string));
+        } else {
+             console.log(`[Backend] Verification email sent to ${email}. Message ID: ${info.messageId}`);
+        }
+
     } catch (error) {
         console.error('[Backend] Error sending verification email:', error);
     }
