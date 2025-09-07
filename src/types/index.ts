@@ -74,6 +74,9 @@ export interface User {
   twoFactorEnabled: boolean;
   twoFactorSecret?: string;
   twoFactorVerified: boolean;
+  email?: string;
+  emailVerified: boolean;
+  emailVerificationToken?: string;
 }
 
 export interface Activity {

@@ -188,5 +188,10 @@ export const disable2FA = async (address: string, token: string): Promise<{ mess
     return api.post('/2fa/disable', { address, token });
 }
 
+// Notifications API
+export const setEmailForNotifications = async (address: string, email: string): Promise<{ message: string }> => {
+    return api.post('/notifications/set-email', { address, email });
+}
+
 
 export default api;
