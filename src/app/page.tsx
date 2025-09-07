@@ -236,6 +236,22 @@ export default function Home() {
     handleGoToManager();
   }
 
+  // New handler to refresh user data from the DB
+  const refreshAccountUser = useCallback(async () => {
+    if (!account) return;
+    try {
+      const { user } = await findOrCreateUserInDb(account.addr);
+      setAccountUser(user);
+    } catch (error) {
+      console.error("Failed to refresh user data", error);
+      toast({
+        variant: "destructive",
+        title: "Sync Error",
+        description: "Could not refresh user data from the server."
+      });
+    }
+  }, [account, toast]);
+
 
   // --- CENTRALIZED TRANSACTION HANDLERS ---
   const getSenderAccount = useCallback(async (): Promise<AlgorandAccount> => {
@@ -361,6 +377,7 @@ export default function Home() {
                   onConfirmSendFile={handleConfirmSendFile}
                   onRenameWallet={handleRenameWallet}
                   onDeleteActiveWallet={handleDeleteActiveWallet}
+                  onRefreshUser={refreshAccountUser}
                 />;
       default:
         return null;

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { truncateAddress } from '@/lib/utils';
 import type { AlgorandAccount, User } from '@/types';
-import { LogOut, Shield, Copy, LoaderCircle, Users, ChevronDown, ArrowUpRight, ArrowDownLeft, Edit, Trash2, AlertTriangle } from 'lucide-react';
+import { LogOut, Shield, Copy, LoaderCircle, Users, ChevronDown, ArrowUpRight, ArrowDownLeft, Edit, Trash2, AlertTriangle, KeyRound } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import ReceiveModal from '../modals/ReceiveModal';
@@ -13,6 +13,7 @@ import SendModal from '../modals/SendModal';
 import ApproveTransactionModal from '../modals/ApproveTransactionModal';
 import RenameWalletModal from '../modals/RenameWalletModal';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
+import Enable2FAModal from '../modals/Enable2FAModal';
 
 
 interface DashboardHeaderProps {
@@ -24,13 +25,15 @@ interface DashboardHeaderProps {
   onConfirmSend: (recipient: string, amount: number) => Promise<boolean>;
   onRenameWallet: (newName: string) => Promise<boolean>;
   onDeleteActiveWallet: (address: string) => void;
+  onRefreshUser: () => void;
 }
 
-export default function DashboardHeader({ account, user, balance, onLock, onGoToManager, onConfirmSend, onRenameWallet, onDeleteActiveWallet }: DashboardHeaderProps) {
+export default function DashboardHeader({ account, user, balance, onLock, onGoToManager, onConfirmSend, onRenameWallet, onDeleteActiveWallet, onRefreshUser }: DashboardHeaderProps) {
   const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
   const [isSendModalOpen, setIsSendModalOpen] = useState(false);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isEnable2FAModalOpen, setIsEnable2FAModalOpen] = useState(false);
   
   // State for sending ALGO
   const [isApproveSendModalOpen, setIsApproveSendModalOpen] = useState(false);
@@ -63,6 +66,11 @@ export default function DashboardHeader({ account, user, balance, onLock, onGoTo
   const handleDelete = () => {
     onDeleteActiveWallet(account.addr);
     setIsDeleteConfirmOpen(false);
+  }
+
+  const handle2FAEnableSuccess = () => {
+      setIsEnable2FAModalOpen(false);
+      onRefreshUser();
   }
 
 
@@ -116,6 +124,12 @@ export default function DashboardHeader({ account, user, balance, onLock, onGoTo
                     <Copy className="mr-2 h-4 w-4" />
                     <span>Copy Address</span>
                 </DropdownMenuItem>
+                 {!user.twoFactorEnabled && (
+                    <DropdownMenuItem onClick={() => setIsEnable2FAModalOpen(true)}>
+                        <KeyRound className="mr-2 h-4 w-4" />
+                        <span>Enable 2FA</span>
+                    </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onGoToManager}>
                     <Users className="mr-2 h-4 w-4" />
@@ -169,6 +183,14 @@ export default function DashboardHeader({ account, user, balance, onLock, onGoTo
       onOpenChange={setIsRenameModalOpen}
       currentName={user.walletName}
       onConfirm={onRenameWallet}
+    />
+
+    <Enable2FAModal
+        isOpen={isEnable2FAModalOpen}
+        onOpenChange={setIsEnable2FAModalOpen}
+        account={account}
+        user={user}
+        onSuccess={handle2FAEnableSuccess}
     />
 
     <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
