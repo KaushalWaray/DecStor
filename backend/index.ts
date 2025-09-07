@@ -91,6 +91,7 @@ const PORT = process.env.PORT || 3001;
 const MONGO_URI = process.env.MONGO_URI;
 const DB_NAME = 'DecStor';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const FROM_EMAIL = process.env.FROM_EMAIL || '"DecStor" <noreply@decstor.app>';
 
 
 // --- DATABASE CONNECTION ---
@@ -190,7 +191,7 @@ const transporter = nodemailer.createTransport(transportOptions);
 const sendVerificationEmail = async (email: string, token: string, walletName: string) => {
     const verificationLink = `${FRONTEND_URL}/verify-email?token=${token}`;
     const mailOptions = {
-        from: '"DecStor" <noreply@decstor.app>',
+        from: FROM_EMAIL,
         to: email,
         subject: `Verify Your Email for ${walletName}`,
         html: `
@@ -1083,5 +1084,3 @@ const startServer = async () => {
 };
 
 startServer();
-
-    
