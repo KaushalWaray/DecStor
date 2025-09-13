@@ -272,44 +272,32 @@ apiRouter.post('/files/upload', upload.single('file'), async (req, res) => {
         }
 
         console.log(`[Backend] Received file '${req.file.originalname}' for proxy upload to Pinata.`);
-
-        const boundary = `----WebKitFormBoundary${crypto.randomBytes(16).toString('hex')}`;
-        const metadata = JSON.stringify({ name: req.file.originalname });
-        const options = JSON.stringify({ cidVersion: 0 });
-
-        const bodyParts = [
-            `--${boundary}\r\n`,
-            `Content-Disposition: form-data; name="file"; filename="${req.file.originalname}"\r\n`,
-            `Content-Type: ${req.file.mimetype}\r\n\r\n`,
-        ];
-
-        const bodyStream = new Readable();
-        bodyStream._read = () => {}; // No-op
         
-        bodyParts.forEach(part => bodyStream.push(part));
-        bodyStream.push(req.file.buffer);
+        const boundary = `----WebKitFormBoundary${crypto.randomBytes(16).toString('hex')}`;
+        
+        const metadata = JSON.stringify({
+            name: req.file.originalname,
+        });
 
-        const endParts = [
-            `\r\n--${boundary}\r\n`,
-            `Content-Disposition: form-data; name="pinataMetadata"\r\n\r\n`,
-            `${metadata}\r\n`,
-            `--${boundary}\r\n`,
-            `Content-Disposition: form-data; name="pinataOptions"\r\n\r\n`,
-            `${options}\r\n`,
-            `--${boundary}--\r\n`,
-        ];
+        const pinataOptions = JSON.stringify({
+            cidVersion: 0,
+        });
 
-        endParts.forEach(part => bodyStream.push(part));
-        bodyStream.push(null); // End of stream
+        const data = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${req.file.originalname}"\r\nContent-Type: ${req.file.mimetype}\r\n\r\n`;
 
+        const bodyEnd = `\r\n--${boundary}\r\nContent-Disposition: form-data; name="pinataMetadata"\r\n\r\n${metadata}\r\n--${boundary}\r\nContent-Disposition: form-data; name="pinataOptions"\r\n\r\n${pinataOptions}\r\n--${boundary}--`;
+
+        const body = Buffer.concat([Buffer.from(data), req.file.buffer, Buffer.from(bodyEnd)]);
+        
         const pinataRes = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
             method: "POST",
             headers: {
-                Authorization: `Bearer ${PINATA_JWT}`,
+                'Authorization': `Bearer ${PINATA_JWT}`,
                 'Content-Type': `multipart/form-data; boundary=${boundary}`,
             },
-            body: bodyStream,
+            body: body,
         });
+
 
         if (!pinataRes.ok) {
             const errorBody = await pinataRes.text();
@@ -1033,5 +1021,7 @@ const startServer = async () => {
 };
 
 startServer();
+
+    
 
     
