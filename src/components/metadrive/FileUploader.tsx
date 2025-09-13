@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { uploadFileToPinata } from '@/lib/pinata';
+import { uploadFile } from '@/lib/api';
 import { postFileMetadata } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,7 +54,9 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
           const encryptedFile = await encryptFile(file, pin);
 
           toast({ title: `Uploading ${file.name}...`, description: 'Please wait, this may take a moment.' });
-          const pinataResponse = await uploadFileToPinata(encryptedFile, file.name);
+          
+          // Securely upload via backend proxy
+          const pinataResponse = await uploadFile(encryptedFile);
           
           await postFileMetadata({
             filename: file.name,

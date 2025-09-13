@@ -6,6 +6,9 @@ import algosdk from 'algosdk';
 import { Collection, Db, MongoClient, ObjectId, WithId } from 'mongodb';
 import speakeasy from 'speakeasy';
 import crypto from 'crypto';
+import multer from 'multer';
+import FormData from 'form-data';
+import { Readable } from 'stream';
 
 
 // --- SELF-CONTAINED TYPE DEFINITIONS ---
@@ -85,6 +88,7 @@ const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 const PORT = process.env.PORT || 3001;
 const MONGO_URI = process.env.MONGO_URI;
 const DB_NAME = 'DecStor';
+const PINATA_JWT = process.env.PINATA_JWT;
 
 
 // --- DATABASE CONNECTION ---
@@ -242,6 +246,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// For handling file uploads
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
+
 // --- API ROUTER ---
 const apiRouter = express.Router();
 
@@ -301,6 +310,52 @@ apiRouter.put('/users/:address/rename', async (req, res) => {
     } catch (error) {
         console.error('[Backend] Error renaming wallet:', error);
         res.status(500).json({ error: 'Internal server error while renaming wallet.' });
+    }
+});
+
+
+// NEW UPLOAD ENDPOINT
+apiRouter.post('/files/upload', upload.single('file'), async (req, res) => {
+    if (!PINATA_JWT) {
+        return res.status(500).json({ error: 'Pinata JWT not configured on the server.' });
+    }
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded.' });
+    }
+
+    try {
+        const file = req.file;
+        const formData = new FormData();
+        
+        const fileStream = Readable.from(file.buffer);
+        formData.append('file', fileStream, { filename: file.originalname });
+
+        const metadata = JSON.stringify({ name: file.originalname });
+        formData.append('pinataMetadata', metadata);
+        const options = JSON.stringify({ cidVersion: 0 });
+        formData.append('pinataOptions', options);
+
+        const pinataRes = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+            method: 'POST',
+            headers: {
+                ...formData.getHeaders(),
+                Authorization: `Bearer ${PINATA_JWT}`,
+            },
+            body: formData,
+        });
+
+        if (!pinataRes.ok) {
+            const errorBody = await pinataRes.json().catch(() => ({ error: pinataRes.statusText }));
+            console.error('[Backend] Pinata API Error Response:', errorBody);
+            throw new Error(`Pinata API Error: ${errorBody.error || pinataRes.statusText}`);
+        }
+        
+        const pinataData = await pinataRes.json();
+        res.status(200).json(pinataData);
+
+    } catch (error) {
+        console.error('[Backend] Error proxying file to Pinata:', error);
+        res.status(500).json({ error: 'Internal server error during file upload.' });
     }
 });
 

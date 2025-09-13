@@ -1,0 +1,44 @@
+# This file configures the deployment of your services on Render.
+# You can learn more at https://render.com/docs/yaml-spec
+
+services:
+  # This is the Next.js frontend
+  - type: web
+    name: decstor-frontend
+    env: nextjs
+    plan: free # Can be changed to a paid instance
+    repo: https://github.com/your-repo/decstor # CHANGE THIS to your repository URL
+    branch: main # Or your default branch
+    buildCommand: 'npm install && npm run build'
+    startCommand: 'npm start'
+    envVars:
+      - key: NEXT_PUBLIC_BACKEND_URL
+        # This will automatically use the URL of the backend service defined below
+        fromService:
+          type: web
+          name: decstor-backend
+          property: url
+      - key: NODE_ENV
+        value: production
+
+  # This is the Express.js backend
+  - type: web
+    name: decstor-backend
+    env: node
+    plan: free # Can be changed to a paid instance
+    repo: https://github.com/your-repo/decstor # CHANGE THIS to your repository URL
+    branch: main # Or your default branch
+    # Tell Render to look for the backend code in the 'backend' directory
+    rootDir: backend
+    buildCommand: 'npm install && npm run build'
+    startCommand: 'npm start'
+    healthCheckPath: /api # Check if the backend is alive
+    envVars:
+      - key: MONGO_URI
+        sync: false # Set this in the Render dashboard, don't sync from file
+      - key: SERVICE_WALLET_MNEMONIC
+        sync: false # Set this in the Render dashboard
+      - key: PINATA_JWT
+        sync: false # Set this in the Render dashboard
+      - key: NODE_ENV
+        value: production

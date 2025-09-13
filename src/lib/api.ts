@@ -84,6 +84,32 @@ export const checkApiHealth = async () => {
   return api.get('/');
 };
 
+// NEW FUNCTION TO UPLOAD VIA BACKEND PROXY
+export const uploadFile = async (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+
+  try {
+      const res = await fetch(`${BACKEND_URL}/files/upload`, {
+          method: 'POST',
+          body: formData,
+      });
+
+      if (!res.ok) {
+        const errorBody = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(`API Error: ${errorBody.error || res.statusText}`);
+      }
+      
+      return res.json();
+  } catch (error: any) {
+      if (error.name === 'TypeError') {
+          throw new Error('Network Error: Could not connect to the backend server. Is it running?');
+      }
+      throw error;
+  }
+};
+
+
 export const postFileMetadata = async (metadata: Omit<FileMetadata, '_id' | 'createdAt'>) => {
   return api.post('/files/metadata', metadata);
 };
