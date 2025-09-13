@@ -19,4 +19,8 @@ export const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 // Cost in ALGOs to upgrade
 export const UPGRADE_COST_ALGOS = 0.1;
 
-  
+// --- WARNING: FOR DEMONSTRATION PURPOSES ONLY ---
+// This key is exposed on the frontend and is NOT secure.
+// In a production environment, this key should be moved to a backend server
+// and all Pinata API calls should be proxied through that server.
+export const PINATA_JWT = "PASTE_YOUR_PINATA_JWT_HERE";

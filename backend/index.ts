@@ -314,52 +314,6 @@ apiRouter.put('/users/:address/rename', async (req, res) => {
 });
 
 
-// NEW UPLOAD ENDPOINT
-apiRouter.post('/files/upload', upload.single('file'), async (req, res) => {
-    if (!PINATA_JWT) {
-        return res.status(500).json({ error: 'Pinata JWT not configured on the server.' });
-    }
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded.' });
-    }
-
-    try {
-        const file = req.file;
-        const formData = new FormData();
-        
-        const fileStream = Readable.from(file.buffer);
-        formData.append('file', fileStream, { filename: file.originalname });
-
-        const metadata = JSON.stringify({ name: file.originalname });
-        formData.append('pinataMetadata', metadata);
-        const options = JSON.stringify({ cidVersion: 0 });
-        formData.append('pinataOptions', options);
-
-        const pinataRes = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
-            method: 'POST',
-            headers: {
-                ...formData.getHeaders(),
-                Authorization: `Bearer ${PINATA_JWT}`,
-            },
-            body: formData as any,
-        });
-
-        if (!pinataRes.ok) {
-            const errorBody = await pinataRes.json().catch(() => ({ error: pinataRes.statusText }));
-            console.error('[Backend] Pinata API Error Response:', errorBody);
-            throw new Error(`Pinata API Error: ${errorBody.error || pinataRes.statusText}`);
-        }
-        
-        const pinataData = await pinataRes.json();
-        res.status(200).json(pinataData);
-
-    } catch (error) {
-        console.error('[Backend] Error proxying file to Pinata:', error);
-        res.status(500).json({ error: 'Internal server error during file upload.' });
-    }
-});
-
-
 // 2. Save File Metadata
 apiRouter.post('/files/metadata', async (req, res) => {
     try {
@@ -1014,5 +968,3 @@ const startServer = async () => {
 };
 
 startServer();
-
-  

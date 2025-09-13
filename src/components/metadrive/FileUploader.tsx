@@ -3,7 +3,8 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { uploadFile, postFileMetadata } from '@/lib/api';
+import { postFileMetadata } from '@/lib/api';
+import { uploadFileToPinata } from '@/lib/pinata'; // Use the direct-to-Pinata uploader
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,8 +55,8 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
 
           toast({ title: `Uploading ${file.name}...`, description: 'Please wait, this may take a moment.' });
           
-          // Securely upload via backend proxy
-          const pinataResponse = await uploadFile(encryptedFile);
+          // Use the direct-to-Pinata upload function
+          const pinataResponse = await uploadFileToPinata(encryptedFile);
           
           await postFileMetadata({
             filename: file.name,
@@ -192,5 +193,3 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
     </div>
   );
 }
-
-  
