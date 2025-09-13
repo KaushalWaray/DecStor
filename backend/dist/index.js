@@ -672,7 +672,7 @@ apiRouter.post('/2fa/generate', async (req, res) => {
         await usersCollection.updateOne({ address }, { $set: { twoFactorSecret: secret.base32, twoFactorVerified: false } });
         // Return the QR code data URL and the manual setup key
         res.status(200).json({
-            otpauthUrl: secret.otpauth_url,
+            otpauth_url: secret.otpauth_url,
             secret: secret.base32,
         });
     }
