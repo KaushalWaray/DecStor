@@ -202,7 +202,7 @@ export const deleteContact = async (contactId: string, ownerAddress: string) => 
 }
 
 // 2FA API
-export const generate2FASecret = async (address: string, walletName: string): Promise<{ otpauthUrl: string; secret: string; }> => {
+export const generate2FASecret = async (address: string, walletName: string): Promise<{ otpauth_url: string; secret: string; }> => {
     return api.post('/2fa/generate', { address, walletName });
 }
 
@@ -216,3 +216,5 @@ export const disable2FA = async (address: string, token: string): Promise<{ mess
 
 
 export default api;
+
+    

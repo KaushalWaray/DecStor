@@ -4,6 +4,9 @@ import cors from 'cors';
 import algosdk from 'algosdk';
 import { MongoClient, ObjectId } from 'mongodb';
 import speakeasy from 'speakeasy';
+import multer from 'multer';
+import FormData from 'form-data';
+import { Readable } from 'stream';
 // --- END OF TYPE DEFINITIONS ---
 // --- CONSTANTS ---
 const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
@@ -11,6 +14,7 @@ const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 const PORT = process.env.PORT || 3001;
 const MONGO_URI = process.env.MONGO_URI;
 const DB_NAME = 'DecStor';
+const PINATA_JWT = process.env.PINATA_JWT;
 // --- DATABASE CONNECTION ---
 if (!MONGO_URI) {
     console.error("\n[Backend] FATAL: MONGO_URI is not set in the .env file.");
@@ -140,6 +144,9 @@ const app = express();
 // --- MIDDLEWARE ---
 app.use(cors());
 app.use(express.json());
+// For handling file uploads
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 // --- API ROUTER ---
 const apiRouter = express.Router();
 // 1. Health Check
@@ -189,6 +196,44 @@ apiRouter.put('/users/:address/rename', async (req, res) => {
     catch (error) {
         console.error('[Backend] Error renaming wallet:', error);
         res.status(500).json({ error: 'Internal server error while renaming wallet.' });
+    }
+});
+// NEW UPLOAD ENDPOINT
+apiRouter.post('/files/upload', upload.single('file'), async (req, res) => {
+    if (!PINATA_JWT) {
+        return res.status(500).json({ error: 'Pinata JWT not configured on the server.' });
+    }
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded.' });
+    }
+    try {
+        const file = req.file;
+        const formData = new FormData();
+        const fileStream = Readable.from(file.buffer);
+        formData.append('file', fileStream, { filename: file.originalname });
+        const metadata = JSON.stringify({ name: file.originalname });
+        formData.append('pinataMetadata', metadata);
+        const options = JSON.stringify({ cidVersion: 0 });
+        formData.append('pinataOptions', options);
+        const pinataRes = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+            method: 'POST',
+            headers: {
+                ...formData.getHeaders(),
+                Authorization: `Bearer ${PINATA_JWT}`,
+            },
+            body: formData,
+        });
+        if (!pinataRes.ok) {
+            const errorBody = await pinataRes.json().catch(() => ({ error: pinataRes.statusText }));
+            console.error('[Backend] Pinata API Error Response:', errorBody);
+            throw new Error(`Pinata API Error: ${errorBody.error || pinataRes.statusText}`);
+        }
+        const pinataData = await pinataRes.json();
+        res.status(200).json(pinataData);
+    }
+    catch (error) {
+        console.error('[Backend] Error proxying file to Pinata:', error);
+        res.status(500).json({ error: 'Internal server error during file upload.' });
     }
 });
 // 2. Save File Metadata

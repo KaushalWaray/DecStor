@@ -341,7 +341,7 @@ apiRouter.post('/files/upload', upload.single('file'), async (req, res) => {
                 ...formData.getHeaders(),
                 Authorization: `Bearer ${PINATA_JWT}`,
             },
-            body: formData,
+            body: formData as any,
         });
 
         if (!pinataRes.ok) {
@@ -918,7 +918,7 @@ apiRouter.post('/2fa/generate', async (req, res) => {
 
         // Return the QR code data URL and the manual setup key
         res.status(200).json({
-            otpauthUrl: secret.otpauth_url,
+            otpauth_url: secret.otpauth_url,
             secret: secret.base32,
         });
 
@@ -1014,3 +1014,5 @@ const startServer = async () => {
 };
 
 startServer();
+
+    

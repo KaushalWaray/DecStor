@@ -39,7 +39,7 @@ export default function Enable2FAModal({ isOpen, onOpenChange, account, user, on
     setIsLoading(true);
     try {
       const response = await generate2FASecret(account.addr, user.walletName);
-      setQrCodeUrl(response.otpauthUrl);
+      setQrCodeUrl(response.otpauth_url);
       setSecret(response.secret);
       setStep('verify');
     } catch (error: any) {
@@ -80,6 +80,7 @@ export default function Enable2FAModal({ isOpen, onOpenChange, account, user, on
       setIsLoading(false);
       handleGenerate(); // Automatically start the process
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const renderContent = () => {
@@ -151,3 +152,5 @@ export default function Enable2FAModal({ isOpen, onOpenChange, account, user, on
     </Dialog>
   );
 }
+
+    
