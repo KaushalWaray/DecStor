@@ -84,6 +84,29 @@ export const checkApiHealth = async () => {
   return api.get('/');
 };
 
+// NEW: Function to upload a file via the backend proxy
+export const uploadFile = async (file: File): Promise<{ IpfsHash: string }> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch(`${BACKEND_URL}/files/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => ({ error: res.statusText || 'Unknown API Error' }));
+      throw new Error(`API Error: ${errorBody.error || res.statusText}`);
+    }
+    return res.json();
+  } catch (error: any) {
+    if (error.name === 'TypeError') {
+      throw new Error('Network Error: Could not connect to the backend server. Is it running?');
+    }
+    throw error;
+  }
+};
+
 export const postFileMetadata = async (metadata: Omit<FileMetadata, '_id' | 'createdAt'>) => {
   return api.post('/files/metadata', metadata);
 };

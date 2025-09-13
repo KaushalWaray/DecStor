@@ -3,12 +3,11 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { postFileMetadata } from '@/lib/api';
-import { uploadFileToPinata } from '@/lib/pinata'; // Use the direct-to-Pinata uploader
+import { postFileMetadata, uploadFile } from '@/lib/api'; // Use the new backend upload function
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Upload, LoaderCircle, File as FileIcon, ShieldCheck, CheckCircle2, X } from 'lucide-react';
+import { Upload, LoaderCircle, X } from 'lucide-react';
 import { encryptFile } from '@/lib/crypto';
 import { cn } from '@/lib/utils';
 
@@ -55,8 +54,8 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
 
           toast({ title: `Uploading ${file.name}...`, description: 'Please wait, this may take a moment.' });
           
-          // Use the direct-to-Pinata upload function
-          const pinataResponse = await uploadFileToPinata(encryptedFile);
+          // Use the new backend upload function
+          const pinataResponse = await uploadFile(encryptedFile);
           
           await postFileMetadata({
             filename: file.name,
@@ -131,8 +130,7 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
         <Card className="shadow-none border-none bg-transparent">
         <CardHeader>
             <CardTitle className="font-headline text-2xl flex items-center gap-2">
-                <ShieldCheck className="text-primary"/> 
-                Upload Encrypted Files
+                Upload Files
             </CardTitle>
             <CardDescription>Drag & drop files here, or click to browse. Files are encrypted with the current wallet or folder PIN before upload.</CardDescription>
         </CardHeader>
