@@ -8,7 +8,7 @@ export const MAILBOX_APP_ID = 745160970; // IMPORTANT: This is your deployed sma
 export const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '/api';
 
 export const ALGO_NETWORK_FEE = 0.001;
-export const IPFS_GATEWAY_URL = "https://gateway.pinata.cloud/ipfs";
+export const IPFS_GATEWAY_URL = "https://olive-fantastic-louse-905.mypinata.cloud/ipfs";
 
 // --- Storage Payment Simulation Constants ---
 
@@ -18,3 +18,5 @@ export const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 
 // Cost in ALGOs to upgrade
 export const UPGRADE_COST_ALGOS = 0.1;
+
+  

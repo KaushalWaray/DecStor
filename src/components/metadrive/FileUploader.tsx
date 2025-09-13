@@ -3,8 +3,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { uploadFile } from '@/lib/api';
-import { postFileMetadata } from '@/lib/api';
+import { uploadFile, postFileMetadata } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -193,3 +192,5 @@ export default function FileUploader({ ownerAddress, pin, currentPath, onUploadS
     </div>
   );
 }
+
+  
