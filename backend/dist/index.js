@@ -156,6 +156,45 @@ apiRouter.get('/', (req, res) => {
         database: db ? 'Connected' : 'Disconnected'
     });
 });
+// NEW: Endpoint to securely upload a file to Pinata via the backend
+apiRouter.post('/files/upload', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded.' });
+        }
+        if (!PINATA_JWT) {
+            return res.status(500).json({ error: 'Pinata JWT not configured on the server.' });
+        }
+        console.log(`[Backend] Received file '${req.file.originalname}' for proxy upload to Pinata.`);
+        const formData = new FormData();
+        const fileStream = Readable.from(req.file.buffer);
+        formData.append('file', fileStream, { filename: req.file.originalname });
+        const metadata = JSON.stringify({ name: req.file.originalname });
+        formData.append('pinataMetadata', metadata);
+        const options = JSON.stringify({ cidVersion: 0 });
+        formData.append('pinataOptions', options);
+        const pinataRes = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${PINATA_JWT}`,
+                ...formData.getHeaders(),
+            },
+            body: formData,
+        });
+        if (!pinataRes.ok) {
+            const errorBody = await pinataRes.text();
+            console.error('[Backend] Pinata API Error Response:', errorBody);
+            throw new Error(`Pinata API Error: ${pinataRes.statusText}`);
+        }
+        const pinataData = await pinataRes.json();
+        console.log(`[Backend] Successfully pinned file to Pinata. CID: ${pinataData.IpfsHash}`);
+        res.status(200).json(pinataData);
+    }
+    catch (error) {
+        console.error('[Backend] Error proxying file upload to Pinata:', error);
+        res.status(500).json({ error: error.message || 'Internal server error during file upload.' });
+    }
+});
 apiRouter.get('/service-address', (req, res) => {
     res.status(200).json({ address: storageServiceAccount.addr });
 });
@@ -196,44 +235,6 @@ apiRouter.put('/users/:address/rename', async (req, res) => {
     catch (error) {
         console.error('[Backend] Error renaming wallet:', error);
         res.status(500).json({ error: 'Internal server error while renaming wallet.' });
-    }
-});
-// NEW UPLOAD ENDPOINT
-apiRouter.post('/files/upload', upload.single('file'), async (req, res) => {
-    if (!PINATA_JWT) {
-        return res.status(500).json({ error: 'Pinata JWT not configured on the server.' });
-    }
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded.' });
-    }
-    try {
-        const file = req.file;
-        const formData = new FormData();
-        const fileStream = Readable.from(file.buffer);
-        formData.append('file', fileStream, { filename: file.originalname });
-        const metadata = JSON.stringify({ name: file.originalname });
-        formData.append('pinataMetadata', metadata);
-        const options = JSON.stringify({ cidVersion: 0 });
-        formData.append('pinataOptions', options);
-        const pinataRes = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
-            method: 'POST',
-            headers: {
-                ...formData.getHeaders(),
-                Authorization: `Bearer ${PINATA_JWT}`,
-            },
-            body: formData,
-        });
-        if (!pinataRes.ok) {
-            const errorBody = await pinataRes.json().catch(() => ({ error: pinataRes.statusText }));
-            console.error('[Backend] Pinata API Error Response:', errorBody);
-            throw new Error(`Pinata API Error: ${errorBody.error || pinataRes.statusText}`);
-        }
-        const pinataData = await pinataRes.json();
-        res.status(200).json(pinataData);
-    }
-    catch (error) {
-        console.error('[Backend] Error proxying file to Pinata:', error);
-        res.status(500).json({ error: 'Internal server error during file upload.' });
     }
 });
 // 2. Save File Metadata

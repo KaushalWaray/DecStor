@@ -7,7 +7,6 @@ import { Collection, Db, MongoClient, ObjectId, WithId } from 'mongodb';
 import speakeasy from 'speakeasy';
 import crypto from 'crypto';
 import multer from 'multer';
-import FormData from 'form-data';
 import { Readable } from 'stream';
 
 
@@ -274,22 +273,42 @@ apiRouter.post('/files/upload', upload.single('file'), async (req, res) => {
 
         console.log(`[Backend] Received file '${req.file.originalname}' for proxy upload to Pinata.`);
 
-        const formData = new FormData();
-        const fileStream = Readable.from(req.file.buffer);
-        formData.append('file', fileStream, { filename: req.file.originalname });
-
+        const boundary = `----WebKitFormBoundary${crypto.randomBytes(16).toString('hex')}`;
         const metadata = JSON.stringify({ name: req.file.originalname });
-        formData.append('pinataMetadata', metadata);
         const options = JSON.stringify({ cidVersion: 0 });
-        formData.append('pinataOptions', options);
+
+        const bodyParts = [
+            `--${boundary}\r\n`,
+            `Content-Disposition: form-data; name="file"; filename="${req.file.originalname}"\r\n`,
+            `Content-Type: ${req.file.mimetype}\r\n\r\n`,
+        ];
+
+        const bodyStream = new Readable();
+        bodyStream._read = () => {}; // No-op
         
+        bodyParts.forEach(part => bodyStream.push(part));
+        bodyStream.push(req.file.buffer);
+
+        const endParts = [
+            `\r\n--${boundary}\r\n`,
+            `Content-Disposition: form-data; name="pinataMetadata"\r\n\r\n`,
+            `${metadata}\r\n`,
+            `--${boundary}\r\n`,
+            `Content-Disposition: form-data; name="pinataOptions"\r\n\r\n`,
+            `${options}\r\n`,
+            `--${boundary}--\r\n`,
+        ];
+
+        endParts.forEach(part => bodyStream.push(part));
+        bodyStream.push(null); // End of stream
+
         const pinataRes = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
             method: "POST",
             headers: {
                 Authorization: `Bearer ${PINATA_JWT}`,
-                ...formData.getHeaders(),
+                'Content-Type': `multipart/form-data; boundary=${boundary}`,
             },
-            body: formData,
+            body: bodyStream,
         });
 
         if (!pinataRes.ok) {
@@ -1014,3 +1033,5 @@ const startServer = async () => {
 };
 
 startServer();
+
+    
