@@ -97,6 +97,44 @@ In a second, separate terminal, start the Express.js backend server from the pro
 npm run backend:dev
 ```
 
+## Running the backend with OrbitDB (no MongoDB)
+
+If you want to run the backend using the embedded IPFS + OrbitDB store instead of MongoDB, use these commands. They start the backend in the background, write logs to a file, and print the PID.
+
+Backend (start in OrbitDB mode, detached, writes log):
+
+```bash
+cd backend && nohup env USE_ORBITDB=true node dist/index.js > backend-orbit.log 2>&1 & echo $!
+```
+
+This will:
+- start the backend process with `USE_ORBITDB=true` so the service initializes an embedded IPFS node and OrbitDB docstores (e.g. `DecStor.Wallets`, `DecStor.files`, ...)
+- redirect stdout/stderr to `backend/backend-orbit.log`
+- print the background PID so you can stop it later with `kill <PID>`
+
+Frontend (start Next.js dev server detached and log to file):
+
+```bash
+npm run dev > frontend-dev.log 2>&1 & echo $!
+sleep 2; head -n 60 frontend-dev.log || true
+```
+
+Notes on usage and logs
+- Check backend startup and OrbitDB init using:
+    - `tail -f backend/backend-orbit.log` (look for "OrbitDB stores initialized" and the listening address `http://localhost:3001`).
+    - Verify the frontend at `http://localhost:3000` (Next dev will proxy `/api` to the backend in development).
+
+Security & privacy reminders (short):
+- The backend currently creates the OrbitDB docstores as single-writer stores (write access is the backend identity). That means the backend is the only component that writes to OrbitDB; clients call API endpoints and the backend enforces access control.
+- OrbitDB/docstores are readable by any peer that can access/replicate the store. If you need file privacy, do not rely on OrbitDB read ACLs — instead encrypt file contents before uploading or use authenticated streaming and a private pinning service.
+- To keep the backend authoritative and private, keep `USE_ORBITDB=true` set only on trusted backend instances and do not expose OrbitDB store addresses to untrusted peers.
+
+Can I remove MongoDB entirely?
+- Yes — if you run the backend always with `USE_ORBITDB=true` and the OrbitDB wrapper supports every query/update your code uses, the project will work with OrbitDB only. Be sure to test all API endpoints and flows before removing `mongodb` from `backend/package.json`.
+
+If you'd like, I can add a short `scripts` section or a helper shell script to start/stop the backend and frontend and to collect the logs under `scripts/` for easier development.
+
+
 This command will compile the backend's TypeScript code and start the server. You should see a confirmation message:
 
 ```
