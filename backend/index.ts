@@ -4,6 +4,8 @@ import express from 'express';
 import cors from 'cors';
 import algosdk from 'algosdk';
 import { Collection, Db, MongoClient, ObjectId, WithId } from 'mongodb';
+// @ts-nocheck
+import { initOrbitDB, getCollection } from './orbitdb.js';
 import speakeasy from 'speakeasy';
 import crypto from 'crypto';
 import multer from 'multer';
@@ -86,28 +88,49 @@ const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
 const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 const PORT = process.env.PORT || 3001;
 const MONGO_URI = process.env.MONGO_URI;
+const USE_ORBITDB = process.env.USE_ORBITDB === 'true';
 const DB_NAME = 'DecStor';
 const PINATA_JWT = process.env.PINATA_JWT;
 
 
 // --- DATABASE CONNECTION ---
-if (!MONGO_URI) {
-    console.error("\n[Backend] FATAL: MONGO_URI is not set in the .env file.");
-    console.error("Please add your MongoDB connection string to backend/.env");
-    process.exit(1);
-}
+let db: Db | null = null;
+let usersCollection: any;
+let filesCollection: any;
+let sharesCollection: any;
+let foldersCollection: any;
+let activitiesCollection: any;
+let contactsCollection: any;
 
-const mongoClient = new MongoClient(MONGO_URI);
-let db: Db;
-let usersCollection: Collection<User>;
-let filesCollection: Collection<FileMetadata>;
-let sharesCollection: Collection<Share>;
-let foldersCollection: Collection<Folder>;
-let activitiesCollection: Collection<Activity>;
-let contactsCollection: Collection<Contact>;
+const mongoClient = MONGO_URI ? new MongoClient(MONGO_URI) : null;
 
 async function connectToDatabase() {
     try {
+        if (USE_ORBITDB) {
+            console.log('[Backend] Starting OrbitDB mode...');
+            await initOrbitDB({ repo: './orbitdb' });
+
+            usersCollection = await getCollection('Wallets');
+            filesCollection = await getCollection('files');
+            sharesCollection = await getCollection('shares');
+            foldersCollection = await getCollection('folders');
+            activitiesCollection = await getCollection('activities');
+            contactsCollection = await getCollection('contacts');
+
+            // createIndex is a compatibility stub in our wrapper
+            await usersCollection.createIndex?.({ address: 1 }, { unique: true });
+            await contactsCollection.createIndex?.({ owner: 1 });
+
+            console.log('[Backend] OrbitDB stores initialized.');
+            return;
+        }
+
+        if (!mongoClient) {
+            console.error('\n[Backend] FATAL: MONGO_URI is not set in the .env file and USE_ORBITDB is not enabled.');
+            console.error('Please add your MongoDB connection string to backend/.env or enable USE_ORBITDB=true');
+            process.exit(1);
+        }
+
         await mongoClient.connect();
         db = mongoClient.db(DB_NAME);
         
@@ -122,10 +145,9 @@ async function connectToDatabase() {
         await usersCollection.createIndex({ address: 1 }, { unique: true });
         await contactsCollection.createIndex({ owner: 1 });
 
-
         console.log(`[Backend] Successfully connected to MongoDB database: ${db.databaseName}`);
     } catch (error) {
-        console.error('[Backend] CRITICAL: Failed to connect to MongoDB!', error);
+        console.error('[Backend] CRITICAL: Failed to connect to the database!', error);
         process.exit(1);
     }
 }
@@ -180,12 +202,17 @@ const findOrCreateUser = async (address: string, walletName?: string): Promise<U
 
     if (user) {
         // --- Existing User Logic ---
-        const aggregationResult = await filesCollection.aggregate([
-            { $match: { owner: address } },
-            { $group: { _id: null, totalSize: { $sum: "$size" } } }
-        ]).toArray();
-
-        const totalSize = aggregationResult.length > 0 ? aggregationResult[0].totalSize : 0;
+        let totalSize = 0;
+        if (USE_ORBITDB) {
+            const ownerFiles = await filesCollection.find({ owner: address }).toArray();
+            totalSize = (ownerFiles as FileMetadata[]).reduce((s: number, f: FileMetadata) => s + (f.size || 0), 0);
+        } else {
+            const aggregationResult = await filesCollection.aggregate([
+                { $match: { owner: address } },
+                { $group: { _id: null, totalSize: { $sum: "$size" } } }
+            ]).toArray();
+            totalSize = aggregationResult.length > 0 ? aggregationResult[0].totalSize : 0;
+        }
 
         const updates: Partial<User> = {
             updatedAt: now,
@@ -490,12 +517,12 @@ apiRouter.get('/shares/:ownerAddress', async (req, res) => {
         const { ownerAddress } = req.params;
         const sentShares = await sharesCollection.find({ senderAddress: ownerAddress }).toArray();
 
-        const fileCids = sentShares.map(s => s.cid);
+        const fileCids = sentShares.map((s: Share) => s.cid);
         const files = await filesCollection.find({ cid: { $in: fileCids } }).toArray();
-        const fileMap = new Map(files.map(f => [f.cid, f]));
+        const fileMap = new Map((files as FileMetadata[]).map((f: FileMetadata) => [f.cid, f]));
 
-        const results = sentShares.map(share => {
-            const file = fileMap.get(share.cid);
+        const results = sentShares.map((share: Share) => {
+            const file = fileMap.get(share.cid) as FileMetadata | undefined;
             return {
                 ...share,
                 filename: file?.filename,
@@ -742,7 +769,7 @@ apiRouter.post('/items/delete', async (req, res) => {
         const finalFolderIdsToDelete = Array.from(foldersToDeleteIds).map(id => new ObjectId(id));
 
         const filesToDeleteResult = await filesCollection.find({ _id: { $in: finalFileIdsToDelete } }).toArray();
-        let totalSizeDeleted = filesToDeleteResult.reduce((sum, file) => sum + file.size, 0);
+    let totalSizeDeleted = (filesToDeleteResult as FileMetadata[]).reduce((sum: number, file: FileMetadata) => sum + file.size, 0);
 
         const cidsToDelete = filesToDeleteResult.map((f: FileMetadata) => f.cid);
 

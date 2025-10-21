@@ -42,3 +42,16 @@ next-env.d.ts
 backend/dist
 backend/node_modules
 backend/.env
+# OrbitDB / IPFS runtime
+/backend/orbitdb/
+/backend/orbitdb-migration/
+/orbitdb-test/
+# Runtime logs and PID files
+/backend/backend-orbit.log
+/frontend-dev.log
+*.pid
+# Ignore local deployment artifacts
+/backend/dist-scripts/
+# Editor/tmp files
+*.swp
+.DS_Store
