@@ -63,7 +63,7 @@ export interface FilesAndStorageInfo {
 }
 
 export interface User {
-  _id?: any; // Allow for MongoDB's ObjectId
+  _id?: any; // OrbitDB stores use string ids; keep flexible for interoperability
   address: string;
   walletName: string;
   storageUsed: number;

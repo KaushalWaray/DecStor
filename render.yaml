@@ -34,8 +34,6 @@ services:
     startCommand: 'npm start'
     healthCheckPath: /api # Check if the backend is alive
     envVars:
-      - key: MONGO_URI
-        sync: false # Set this in the Render dashboard, don't sync from file
       - key: SERVICE_WALLET_MNEMONIC
         sync: false # Set this in the Render dashboard
       - key: PINATA_JWT

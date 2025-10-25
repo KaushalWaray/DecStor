@@ -23,4 +23,5 @@ export const UPGRADE_COST_ALGOS = 0.1;
 // This key is exposed on the frontend and is NOT secure.
 // In a production environment, this key should be moved to a backend server
 // and all Pinata API calls should be proxied through that server.
+// Keep this as a placeholder in the frontend; runtime backend reads PINATA_JWT from environment.
 export const PINATA_JWT = "PASTE_YOUR_PINATA_JWT_HERE";

@@ -1,84 +1,79 @@
-
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import algosdk from 'algosdk';
-import { Collection, Db, MongoClient, ObjectId, WithId } from 'mongodb';
-// @ts-nocheck
 import { initOrbitDB, getCollection } from './orbitdb.js';
-import speakeasy from 'speakeasy';
 import crypto from 'crypto';
 import multer from 'multer';
-import { Readable } from 'stream';
-
+import speakeasy from 'speakeasy';
 
 // --- SELF-CONTAINED TYPE DEFINITIONS ---
 export interface FileMetadata {
-  _id: ObjectId;
-  filename: string;
-  cid: string;
-  size: number;
-  fileType: string;
-  owner: string;
-  createdAt: string;
-  path: string; 
+    _id: string;
+    filename: string;
+    cid: string;
+    size: number;
+    fileType: string;
+    owner: string;
+    createdAt: string;
+    path: string;
 }
 
 export interface Folder {
-    _id: ObjectId;
+    _id: string;
     name: string;
     owner: string;
-    path: string; 
+    path: string;
     createdAt: string;
     isLocked?: boolean;
 }
 
 export interface Share {
-  _id?: ObjectId;
-  cid: string;
-  senderAddress: string;
-  recipientAddress: string;
-  createdAt: string;
+    _id?: string;
+    cid: string;
+    senderAddress: string;
+    recipientAddress: string;
+    createdAt: string;
 }
 
 export interface User {
-  _id: ObjectId;
-  address: string;
-  walletName: string;
-  storageUsed: number;
-  storageTier: 'free' | 'pro';
-  createdAt: string;
-  updatedAt: string;
-  lastLogin: string;
-  twoFactorEnabled: boolean;
-  twoFactorSecret?: string;
-  twoFactorVerified: boolean;
+    _id: string;
+    address: string;
+    walletName: string;
+    storageUsed: number;
+    storageTier: 'free' | 'pro';
+    createdAt: string;
+    updatedAt: string;
+    lastLogin: string;
+    twoFactorEnabled: boolean;
+    twoFactorSecret?: string;
+    twoFactorVerified: boolean;
 }
 
 export interface Activity {
-  _id: ObjectId;
-  type: 'UPLOAD' | 'SHARE' | 'DELETE' | 'SEND_ALGO' | 'RECEIVE_ALGO';
-  owner: string;
-  timestamp: string;
-  details: {
-    filename?: string;
-    folderName?: string;
-    cid?: string;
-    recipient?: string;
-    itemCount?: number;
-    amount?: number;
-    sender?: string;
-    senderAddress?: string; // Explicitly adding for consistency
-  };
-  isRead: boolean;
+    _id: string;
+    type: 'UPLOAD' | 'SHARE' | 'DELETE' | 'SEND_ALGO' | 'RECEIVE_ALGO';
+    owner: string;
+    timestamp: string;
+    details: {
+        filename?: string;
+        folderName?: string;
+        cid?: string;
+        recipient?: string;
+        itemCount?: number;
+        amount?: number;
+        sender?: string;
+        senderAddress?: string;
+    };
+    isRead: boolean;
 }
 
 export interface Contact {
-  _id: ObjectId;
-  owner: string;
-  name: string;
-  address: string;
-  createdAt: string;
+    _id: string;
+    owner: string;
+    name: string;
+    address: string;
+    createdAt: string;
 }
 // --- END OF TYPE DEFINITIONS ---
 
@@ -87,14 +82,10 @@ export interface Contact {
 const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
 const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 const PORT = process.env.PORT || 3001;
-const MONGO_URI = process.env.MONGO_URI;
-const USE_ORBITDB = process.env.USE_ORBITDB === 'true';
-const DB_NAME = 'DecStor';
 const PINATA_JWT = process.env.PINATA_JWT;
 
 
-// --- DATABASE CONNECTION ---
-let db: Db | null = null;
+// --- DATABASE CONNECTION (OrbitDB-only) ---
 let usersCollection: any;
 let filesCollection: any;
 let sharesCollection: any;
@@ -102,52 +93,25 @@ let foldersCollection: any;
 let activitiesCollection: any;
 let contactsCollection: any;
 
-const mongoClient = MONGO_URI ? new MongoClient(MONGO_URI) : null;
-
 async function connectToDatabase() {
     try {
-        if (USE_ORBITDB) {
-            console.log('[Backend] Starting OrbitDB mode...');
-            await initOrbitDB({ repo: './orbitdb' });
+        console.log('[Backend] Initializing OrbitDB (permanent mode)...');
+        await initOrbitDB({ repo: './orbitdb' });
 
-            usersCollection = await getCollection('Wallets');
-            filesCollection = await getCollection('files');
-            sharesCollection = await getCollection('shares');
-            foldersCollection = await getCollection('folders');
-            activitiesCollection = await getCollection('activities');
-            contactsCollection = await getCollection('contacts');
+        usersCollection = await getCollection('Wallets');
+        filesCollection = await getCollection('files');
+        sharesCollection = await getCollection('shares');
+        foldersCollection = await getCollection('folders');
+        activitiesCollection = await getCollection('activities');
+        contactsCollection = await getCollection('contacts');
 
-            // createIndex is a compatibility stub in our wrapper
-            await usersCollection.createIndex?.({ address: 1 }, { unique: true });
-            await contactsCollection.createIndex?.({ owner: 1 });
+        // createIndex is a compatibility stub in our wrapper
+        await usersCollection.createIndex?.({ address: 1 }, { unique: true });
+        await contactsCollection.createIndex?.({ owner: 1 });
 
-            console.log('[Backend] OrbitDB stores initialized.');
-            return;
-        }
-
-        if (!mongoClient) {
-            console.error('\n[Backend] FATAL: MONGO_URI is not set in the .env file and USE_ORBITDB is not enabled.');
-            console.error('Please add your MongoDB connection string to backend/.env or enable USE_ORBITDB=true');
-            process.exit(1);
-        }
-
-        await mongoClient.connect();
-        db = mongoClient.db(DB_NAME);
-        
-        usersCollection = db.collection<User>('Wallets');
-        filesCollection = db.collection<FileMetadata>('files');
-        sharesCollection = db.collection<Share>('shares');
-        foldersCollection = db.collection<Folder>('folders');
-        activitiesCollection = db.collection<Activity>('activities');
-        contactsCollection = db.collection<Contact>('contacts');
-
-        // Create index on address for fast lookups
-        await usersCollection.createIndex({ address: 1 }, { unique: true });
-        await contactsCollection.createIndex({ owner: 1 });
-
-        console.log(`[Backend] Successfully connected to MongoDB database: ${db.databaseName}`);
+        console.log('[Backend] OrbitDB stores initialized.');
     } catch (error) {
-        console.error('[Backend] CRITICAL: Failed to connect to the database!', error);
+        console.error('[Backend] CRITICAL: Failed to initialize OrbitDB!', error);
         process.exit(1);
     }
 }
@@ -201,18 +165,9 @@ const findOrCreateUser = async (address: string, walletName?: string): Promise<U
     const now = new Date().toISOString();
 
     if (user) {
-        // --- Existing User Logic ---
-        let totalSize = 0;
-        if (USE_ORBITDB) {
-            const ownerFiles = await filesCollection.find({ owner: address }).toArray();
-            totalSize = (ownerFiles as FileMetadata[]).reduce((s: number, f: FileMetadata) => s + (f.size || 0), 0);
-        } else {
-            const aggregationResult = await filesCollection.aggregate([
-                { $match: { owner: address } },
-                { $group: { _id: null, totalSize: { $sum: "$size" } } }
-            ]).toArray();
-            totalSize = aggregationResult.length > 0 ? aggregationResult[0].totalSize : 0;
-        }
+        // --- Existing User Logic (OrbitDB) ---
+        const ownerFiles = await filesCollection.find({ owner: address }).toArray();
+        const totalSize = (ownerFiles as FileMetadata[]).reduce((s: number, f: FileMetadata) => s + (f.size || 0), 0);
 
         const updates: Partial<User> = {
             updatedAt: now,
@@ -223,18 +178,12 @@ const findOrCreateUser = async (address: string, walletName?: string): Promise<U
             updates.storageUsed = totalSize;
             console.log(`[Backend] Recalculating storage for ${address.substring(0,10)}... Old: ${user.storageUsed}, New: ${totalSize}`);
         }
-        
-        await usersCollection.updateOne(
-            { address }, 
-            { $set: updates },
-        );
-        
-        const updatedUser = await usersCollection.findOne({ address });
-        if (!updatedUser) {
-             throw new Error("Failed to update and retrieve user.");
-        }
-        user = updatedUser;
 
+        await usersCollection.updateOne({ address }, { $set: updates });
+
+        const updatedUser = await usersCollection.findOne({ address });
+        if (!updatedUser) throw new Error('Failed to update and retrieve user.');
+        user = updatedUser;
     } else {
         // --- New User Logic ---
         const defaultName = walletName || `Wallet ${address.substring(address.length - 4)}`;
@@ -253,16 +202,11 @@ const findOrCreateUser = async (address: string, walletName?: string): Promise<U
         console.log(`[Backend] Created new user ${address.substring(0,10)}... with name "${defaultName}" and free tier.`);
 
         const createdUser = await usersCollection.findOne({ _id: insertResult.insertedId });
-        if (!createdUser) {
-            throw new Error("Failed to create and retrieve new user.");
-        }
+        if (!createdUser) throw new Error('Failed to create and retrieve new user.');
         user = createdUser;
     }
-        
-    return {
-        ...user,
-        storageLimit: getStorageLimit(user.storageTier),
-    };
+
+    return { ...user, storageLimit: getStorageLimit(user.storageTier) };
 };
 
 
@@ -284,7 +228,7 @@ const apiRouter = express.Router();
 apiRouter.get('/', (req, res) => {
     res.status(200).json({ 
         message: 'Backend is running and connected!',
-        database: db ? 'Connected' : 'Disconnected'
+        database: usersCollection ? 'OrbitDB' : 'Starting'
     });
 });
 
@@ -620,7 +564,7 @@ apiRouter.put('/folders/:folderId/rename', async (req, res) => {
             return res.status(400).json({ error: 'Folder ID, owner address, and new name are required.' });
         }
 
-        const folderToRename = await foldersCollection.findOne({ _id: new ObjectId(folderId), owner: ownerAddress });
+    const folderToRename = await foldersCollection.findOne({ _id: folderId, owner: ownerAddress });
         if (!folderToRename) {
             return res.status(404).json({ error: 'Folder not found or you do not have permission to rename it.' });
         }
@@ -633,15 +577,18 @@ apiRouter.put('/folders/:folderId/rename', async (req, res) => {
         const oldPathPrefix = `${folderToRename.path}${folderToRename.name}/`;
         const newPathPrefix = `${folderToRename.path}${newName}/`;
 
-        await filesCollection.updateMany(
-            { owner: ownerAddress, path: { $regex: `^${oldPathPrefix}` } },
-            [{ $set: { path: { $replaceOne: { input: "$path", find: oldPathPrefix, replacement: newPathPrefix } } } }]
-        );
-        
-        await foldersCollection.updateMany(
-            { owner: ownerAddress, path: { $regex: `^${oldPathPrefix}` } },
-            [{ $set: { path: { $replaceOne: { input: "$path", find: oldPathPrefix, replacement: newPathPrefix } } } }]
-        );
+        // OrbitDB: perform path replacements in-app since update pipelines are not supported
+        const filesToUpdate = await filesCollection.find({ owner: ownerAddress, path: { $regex: `^${oldPathPrefix}` } }).toArray();
+        for (const f of filesToUpdate) {
+            const updatedPath = f.path.replace(oldPathPrefix, newPathPrefix);
+            await filesCollection.updateOne({ _id: f._id }, { $set: { path: updatedPath } });
+        }
+
+        const foldersToUpdate = await foldersCollection.find({ owner: ownerAddress, path: { $regex: `^${oldPathPrefix}` } }).toArray();
+        for (const fol of foldersToUpdate) {
+            const updatedPath = fol.path.replace(oldPathPrefix, newPathPrefix);
+            await foldersCollection.updateOne({ _id: fol._id }, { $set: { path: updatedPath } });
+        }
 
         await foldersCollection.updateOne({ _id: folderToRename._id }, { $set: { name: newName } });
 
@@ -664,7 +611,7 @@ apiRouter.put('/files/:fileId/rename', async (req, res) => {
             return res.status(400).json({ error: 'File ID, owner address, and new name are required.' });
         }
 
-        const fileToRename = await filesCollection.findOne({ _id: new ObjectId(fileId), owner: ownerAddress });
+    const fileToRename = await filesCollection.findOne({ _id: fileId, owner: ownerAddress });
         if (!fileToRename) {
             return res.status(404).json({ error: 'File not found or you do not have permission to rename it.' });
         }
@@ -693,8 +640,8 @@ apiRouter.put('/items/move', async (req, res) => {
             return res.status(400).json({ error: 'Owner, item IDs, item types, and new path are required.' });
         }
         
-        const fileIds = itemIds.filter((id: string, i: number) => itemTypes[i] === 'file').map((id: string) => new ObjectId(id));
-        const folderIds = itemIds.filter((id: string, i: number) => itemTypes[i] === 'folder').map((id: string) => new ObjectId(id));
+    const fileIds = itemIds.filter((id: string, i: number) => itemTypes[i] === 'file').map((id: string) => id);
+    const folderIds = itemIds.filter((id: string, i: number) => itemTypes[i] === 'folder').map((id: string) => id);
 
         await filesCollection.updateMany({ _id: { $in: fileIds } }, { $set: { path: newPath } });
 
@@ -705,15 +652,17 @@ apiRouter.put('/items/move', async (req, res) => {
             const newName = folderToMove.name;
             const newPathPrefix = `${newPath}${newName}/`;
             
-            await filesCollection.updateMany(
-                { owner: ownerAddress, path: { $regex: `^${oldPathPrefix}` } },
-                [{ $set: { path: { $replaceOne: { input: "$path", find: oldPathPrefix, replacement: newPathPrefix } } } }]
-            );
+            const filesToUpdate2 = await filesCollection.find({ owner: ownerAddress, path: { $regex: `^${oldPathPrefix}` } }).toArray();
+            for (const f of filesToUpdate2) {
+                const updatedPath = f.path.replace(oldPathPrefix, newPathPrefix);
+                await filesCollection.updateOne({ _id: f._id }, { $set: { path: updatedPath } });
+            }
 
-            await foldersCollection.updateMany(
-                { owner: ownerAddress, path: { $regex: `^${oldPathPrefix}` } },
-                [{ $set: { path: { $replaceOne: { input: "$path", find: oldPathPrefix, replacement: newPathPrefix } } } }]
-            );
+            const foldersToUpdate2 = await foldersCollection.find({ owner: ownerAddress, path: { $regex: `^${oldPathPrefix}` } }).toArray();
+            for (const fol of foldersToUpdate2) {
+                const updatedPath = fol.path.replace(oldPathPrefix, newPathPrefix);
+                await foldersCollection.updateOne({ _id: fol._id }, { $set: { path: updatedPath } });
+            }
             
             await foldersCollection.updateOne({ _id: folderToMove._id }, { $set: { path: newPath } });
         }
@@ -735,7 +684,7 @@ apiRouter.post('/items/delete', async (req, res) => {
             return res.status(400).json({ error: 'Owner and item IDs are required.' });
         }
 
-        const objectItemIds = itemIds.map((id:string) => new ObjectId(id));
+    const objectItemIds = itemIds.map((id:string) => id);
 
         const filesToDeleteIds = new Set<string>();
         const foldersToDeleteIds = new Set<string>();
@@ -743,8 +692,8 @@ apiRouter.post('/items/delete', async (req, res) => {
         const initialFiles = await filesCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
         const initialFolders = await foldersCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
 
-        initialFiles.forEach((f: FileMetadata) => filesToDeleteIds.add(f._id.toString()));
-        initialFolders.forEach((f: Folder) => foldersToDeleteIds.add(f._id.toString()));
+    initialFiles.forEach((f: FileMetadata) => filesToDeleteIds.add(f._id));
+    initialFolders.forEach((f: Folder) => foldersToDeleteIds.add(f._id));
 
         const foldersToScan = [...initialFolders];
         while(foldersToScan.length > 0) {
@@ -755,26 +704,26 @@ apiRouter.post('/items/delete', async (req, res) => {
             
             const subFolders = await foldersCollection.find({ path: currentPath, owner: ownerAddress }).toArray();
             for(const sub of subFolders) {
-                if (!foldersToDeleteIds.has(sub._id.toString())) {
-                    foldersToDeleteIds.add(sub._id.toString());
+                if (!foldersToDeleteIds.has(sub._id)) {
+                    foldersToDeleteIds.add(sub._id);
                     foldersToScan.push(sub);
                 }
             }
 
             const filesInFolder = await filesCollection.find({ path: { $regex: `^${currentPath}` }, owner: ownerAddress }).toArray();
-            filesInFolder.forEach((file: FileMetadata) => filesToDeleteIds.add(file._id.toString()));
+            filesInFolder.forEach((file: FileMetadata) => filesToDeleteIds.add(file._id));
         }
         
-        const finalFileIdsToDelete = Array.from(filesToDeleteIds).map(id => new ObjectId(id));
-        const finalFolderIdsToDelete = Array.from(foldersToDeleteIds).map(id => new ObjectId(id));
+    const finalFileIdsToDelete = Array.from(filesToDeleteIds);
+    const finalFolderIdsToDelete = Array.from(foldersToDeleteIds);
 
-        const filesToDeleteResult = await filesCollection.find({ _id: { $in: finalFileIdsToDelete } }).toArray();
+    const filesToDeleteResult = await filesCollection.find({ _id: { $in: finalFileIdsToDelete } }).toArray();
     let totalSizeDeleted = (filesToDeleteResult as FileMetadata[]).reduce((sum: number, file: FileMetadata) => sum + file.size, 0);
 
         const cidsToDelete = filesToDeleteResult.map((f: FileMetadata) => f.cid);
 
-        await filesCollection.deleteMany({ _id: { $in: finalFileIdsToDelete } });
-        await foldersCollection.deleteMany({ _id: { $in: finalFolderIdsToDelete } });
+    await filesCollection.deleteMany({ _id: { $in: finalFileIdsToDelete } });
+    await foldersCollection.deleteMany({ _id: { $in: finalFolderIdsToDelete } });
         await sharesCollection.deleteMany({ cid: { $in: cidsToDelete } });
         
         await usersCollection.updateOne({ address: ownerAddress }, { $inc: { storageUsed: -totalSizeDeleted } });
@@ -893,7 +842,7 @@ apiRouter.put('/contacts/:contactId', async (req, res) => {
         }
 
         const result = await contactsCollection.updateOne(
-            { _id: new ObjectId(contactId), owner: owner },
+            { _id: contactId, owner: owner },
             { $set: { name, address } }
         );
 
@@ -919,7 +868,7 @@ apiRouter.delete('/contacts/:contactId', async (req, res) => {
              return res.status(400).json({ error: 'Owner is required for deletion.' });
         }
 
-        const result = await contactsCollection.deleteOne({ _id: new ObjectId(contactId), owner: owner });
+    const result = await contactsCollection.deleteOne({ _id: contactId, owner: owner });
 
         if (result.deletedCount === 0) {
             return res.status(404).json({ error: 'Contact not found or you do not have permission to delete it.' });
