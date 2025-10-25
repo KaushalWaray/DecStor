@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { File, Share2, Download, MoreVertical, Info, Trash2, LoaderCircle, ArrowRight, Edit, Send, Play } from "lucide-react";
 import type { FileMetadata } from "@/types";
 import { formatBytes, truncateAddress } from "@/lib/utils";
-import { IPFS_GATEWAY_URL } from "@/lib/constants";
+import { IPFS_GATEWAY_URL, BACKEND_URL } from "@/lib/constants";
 import { decryptFile } from "@/lib/crypto";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -38,11 +38,24 @@ export default function FileCard({ file, pin, isOwner, onSend, onDetails, onDele
     setIsDownloading(true);
     toast({ title: "Downloading & Decrypting...", description: "Please wait while we prepare your file." });
     try {
-      const fileUrl = `${IPFS_GATEWAY_URL}/${file.cid}`;
-      const response = await fetch(fileUrl);
+      // Normalize CID in case it contains ipfs:// or /ipfs/ prefixes
+      const normalizeCid = (cid: string) => cid.replace(/^ipfs:\/\//, '').replace(/^\/?ipfs\/?/, '');
+      const cidOnly = normalizeCid(file.cid || '');
+
+      const fileUrl = `${IPFS_GATEWAY_URL}/${cidOnly}`;
+      let response = await fetch(fileUrl);
+
+      // If direct gateway fetch failed (404/CORS/etc), fall back to backend proxy which avoids CORS
       if (!response.ok) {
-        throw new Error(`Failed to fetch from IPFS: ${response.statusText}`);
+        console.warn(`[FileCard] Gateway fetch failed (${response.status}). Trying backend proxy...`);
+        const proxyUrl = `${BACKEND_URL}/files/download/${encodeURIComponent(cidOnly)}`;
+        response = await fetch(proxyUrl);
       }
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch from IPFS: ${response.status} ${response.statusText}`);
+      }
+
       const encryptedBlob = await response.blob();
       
       const decryptedFile = await decryptFile(encryptedBlob, pin);

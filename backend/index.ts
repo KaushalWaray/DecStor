@@ -83,6 +83,15 @@ const FREE_TIER_LIMIT = 1 * 1024 * 1024; // 1 MB
 const PRO_TIER_LIMIT = 100 * 1024 * 1024; // 100 MB
 const PORT = process.env.PORT || 3001;
 const PINATA_JWT = process.env.PINATA_JWT;
+const IPFS_GATEWAY_URL = process.env.IPFS_GATEWAY_URL || 'https://olive-fantastic-louse-905.mypinata.cloud/ipfs';
+// Useful public gateways to try as fallbacks when a custom gateway is missing the CID
+const COMMON_IPFS_GATEWAYS = [
+    IPFS_GATEWAY_URL,
+    'https://ipfs.io/ipfs',
+    'https://cloudflare-ipfs.com/ipfs',
+    'https://gateway.pinata.cloud/ipfs',
+    'https://dweb.link/ipfs'
+];
 
 
 // --- DATABASE CONNECTION (OrbitDB-only) ---
@@ -379,6 +388,57 @@ apiRouter.post('/files/metadata', async (req, res) => {
     } catch (error) {
         console.error('[Backend] Error saving metadata:', error);
         res.status(500).json({ error: 'Internal server error while saving metadata.' });
+    }
+});
+
+// Download proxy: fetch a file from the configured IPFS gateway and stream it back to the client.
+// This avoids CORS issues when the browser cannot directly reach the gateway.
+apiRouter.get('/files/download/:cid', async (req, res) => {
+    try {
+        const { cid } = req.params;
+        if (!cid) return res.status(400).json({ error: 'CID is required.' });
+
+        // Normalize CID (strip any ipfs:// or /ipfs/ prefixes)
+        const normalizeCid = (c: string) => c.replace(/^ipfs:\/\//, '').replace(/^\/?ipfs\/?/, '');
+        const cidOnly = normalizeCid(cid);
+
+        let lastError: any = null;
+
+        for (const gatewayBase of COMMON_IPFS_GATEWAYS) {
+            const fileUrl = `${gatewayBase}/${cidOnly}`;
+            console.log(`[Backend] Trying gateway ${fileUrl}`);
+            try {
+                const ipfsRes = await fetch(fileUrl);
+                if (!ipfsRes.ok) {
+                    const text = await ipfsRes.text().catch(() => '<no-body>');
+                    console.warn(`[Backend] Gateway ${gatewayBase} returned ${ipfsRes.status}: ${text}`);
+                    lastError = { gateway: gatewayBase, status: ipfsRes.status, body: text };
+                    continue;
+                }
+
+                const contentType = ipfsRes.headers.get('content-type') || 'application/octet-stream';
+                res.setHeader('Content-Type', contentType);
+
+                const body = ipfsRes.body as any;
+                if (body && typeof body.pipe === 'function') {
+                    // Successful: stream directly and return
+                    return body.pipe(res);
+                } else {
+                    const buffer = Buffer.from(await ipfsRes.arrayBuffer());
+                    return res.send(buffer);
+                }
+            } catch (err) {
+                console.warn(`[Backend] Error contacting gateway ${gatewayBase}:`, String(err));
+                lastError = err;
+                continue;
+            }
+        }
+
+        console.error('[Backend] All gateways failed for CID', cidOnly, lastError);
+        return res.status(502).json({ error: 'All IPFS gateways failed to return the content.', details: lastError });
+    } catch (error) {
+        console.error('[Backend] Error proxying IPFS download:', error);
+        res.status(500).json({ error: 'Failed to fetch file from IPFS.' });
     }
 });
 
