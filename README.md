@@ -118,6 +118,15 @@ export PINATA_JWT="<your_pinata_jwt_here>"
 
 If you don't have a Pinata JWT you can leave this blank but file upload proxying will fail until a valid JWT is provided.
 
+Also export the service wallet mnemonic the backend requires. The backend will exit if `SERVICE_WALLET_MNEMONIC` is not set — create a .env file in `backend/` or export it in your shell before starting.
+
+```bash
+# 25-word Algorand mnemonic (example only — DO NOT use this in production)
+export SERVICE_WALLET_MNEMONIC="your 25 word mnemonic here"
+```
+
+If you don't have a mnemonic yet, generate one using your Algorand tooling or create a wallet in the app UI (the backend will prompt and exit if not set).
+
 Security & privacy reminders (short):
 - The backend creates the OrbitDB docstores as single-writer stores (write access is the backend identity). That means the backend is the only component that writes to OrbitDB; clients call API endpoints and the backend enforces access control.
 - OrbitDB/docstores are readable by any peer that can access/replicate the store. If you need file privacy, do not rely on OrbitDB read ACLs — instead encrypt file contents before uploading or use authenticated streaming and a private pinning service.

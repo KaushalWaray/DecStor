@@ -24,6 +24,14 @@ export PINATA_JWT="<your_pinata_jwt_here>"
 
 If you don't have a Pinata JWT you can leave this blank but file upload proxying will fail until a valid JWT is provided.
 
+Additionally, the backend requires a service wallet mnemonic to run. Set `SERVICE_WALLET_MNEMONIC` in `backend/.env` or export it in your shell before starting the service. The backend will exit if this mnemonic is not provided.
+
+```bash
+export SERVICE_WALLET_MNEMONIC="your 25 word mnemonic here"
+```
+
+Use a secure mnemonic for production and never commit it to source control.
+
 Notes:
 - OrbitDB stores are created under `backend/orbitdb` by default. Use the `initOrbitDB({ repo })` option to choose a different path.
 - The OrbitDB wrapper aims to be Mongo-compatible for the common operations used in DecStor. It supports:
