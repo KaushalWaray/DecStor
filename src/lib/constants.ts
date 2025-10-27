@@ -2,7 +2,8 @@
 export const ALGOD_SERVER = "https://testnet-api.algonode.cloud";
 export const ALGOD_TOKEN = ""; // Empty token for public node
 export const ALGOD_PORT = 443;
-export const MAILBOX_APP_ID = 745160970; // IMPORTANT: This is your deployed smart contract App ID
+export const MAILBOX_APP_ID = 748486979; // IMPORTANT: This is your deployed smart contract App ID (updated)
+export const MAILBOX_APP_VERSION = "v1"; // Version tag used by the on-chain contract (first app arg)
 
 // Use the deployed backend URL in production, but the local proxy for development
 export const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '/api';

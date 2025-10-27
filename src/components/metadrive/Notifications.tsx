@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getNotifications, markNotificationsAsRead } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { LoaderCircle, RefreshCw, Upload, Share2, Trash2, History, Bell, BellOff } from 'lucide-react';
+import { LoaderCircle, RefreshCw, Upload, Share2, Trash2, History, Bell, BellOff, ArrowUp, ArrowDown } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { truncateAddress } from '@/lib/utils';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,8 @@ const ICONS: { [key in Activity['type']]: React.ElementType } = {
     UPLOAD: Upload,
     SHARE: Share2,
     DELETE: Trash2,
+    SEND_ALGO: ArrowUp,
+    RECEIVE_ALGO: ArrowDown,
 };
 
 const getActionText = (activity: Activity) => {

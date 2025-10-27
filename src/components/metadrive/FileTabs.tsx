@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import MyVault from "./MyVault";
 import Inbox from "./Inbox";
-import type { AlgorandAccount, User } from "@/types";
+import type { AlgorandAccount, User, FileMetadata } from "@/types";
 import ActivityLog from "./ActivityLog";
 import { getNotifications } from '@/lib/api';
 import { Bell, BookUser, HardDrive, Inbox as InboxIcon, Settings } from 'lucide-react';

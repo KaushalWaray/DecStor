@@ -2,6 +2,10 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import algosdk from 'algosdk';
+const ALGOD_SERVER = process.env.ALGOD_SERVER || 'https://testnet-api.algonode.cloud';
+const ALGOD_PORT = process.env.ALGOD_PORT ? Number(process.env.ALGOD_PORT) : 443;
+const ALGOD_TOKEN = process.env.ALGOD_TOKEN || '';
+const algodClient = new algosdk.Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
 import { initOrbitDB, getCollection } from './orbitdb.js';
 import crypto from 'crypto';
 import multer from 'multer';
@@ -16,6 +20,7 @@ const PINATA_JWT = process.env.PINATA_JWT;
 let usersCollection;
 let filesCollection;
 let sharesCollection;
+let bulkCommitsCollection;
 let foldersCollection;
 let activitiesCollection;
 let contactsCollection;
@@ -26,6 +31,7 @@ async function connectToDatabase() {
         usersCollection = await getCollection('Wallets');
         filesCollection = await getCollection('files');
         sharesCollection = await getCollection('shares');
+        bulkCommitsCollection = await getCollection('bulkCommits');
         foldersCollection = await getCollection('folders');
         activitiesCollection = await getCollection('activities');
         contactsCollection = await getCollection('contacts');
@@ -196,6 +202,44 @@ apiRouter.post('/users/find-or-create', async (req, res) => {
     catch (error) {
         console.error('[Backend] Error finding or creating user:', error);
         res.status(500).json({ error: 'Internal server error while finding or creating user.' });
+    }
+});
+// NEW: Set or update notification email for a user (stores email and marks as unverified)
+apiRouter.post('/users/:address/email', async (req, res) => {
+    try {
+        const { address } = req.params;
+        const { email } = req.body;
+        if (!address || !email) {
+            return res.status(400).json({ error: 'Address and email are required.' });
+        }
+        // Basic email format validation
+        if (!/^\S+@\S+\.\S+$/.test(email)) {
+            return res.status(400).json({ error: 'Invalid email format.' });
+        }
+        const result = await usersCollection.updateOne({ address }, { $set: { email, emailVerified: false, updatedAt: new Date().toISOString() } });
+        if (result.matchedCount === 0) {
+            // If user doesn't exist, create one with the provided email
+            const now = new Date().toISOString();
+            const newUser = {
+                address,
+                walletName: `Wallet ${address.substring(address.length - 4)}`,
+                storageUsed: 0,
+                storageTier: 'free',
+                createdAt: now,
+                updatedAt: now,
+                lastLogin: now,
+                twoFactorEnabled: false,
+                twoFactorVerified: false,
+                email,
+            };
+            await usersCollection.insertOne(newUser);
+        }
+        console.log(`[Backend] Set notification email for ${address.substring(0, 10)}...`);
+        res.status(200).json({ message: 'Notification email saved. Please check your inbox for verification steps.' });
+    }
+    catch (error) {
+        console.error('[Backend] Error setting notification email:', error);
+        res.status(500).json({ error: 'Internal server error while setting notification email.' });
     }
 });
 // NEW: Rename a wallet
@@ -370,6 +414,69 @@ apiRouter.post('/payment/confirm', async (req, res) => {
     catch (error) {
         console.error('[Backend] Error confirming payment:', error);
         res.status(500).json({ error: 'Internal server error while confirming payment.' });
+    }
+});
+// NEW: Accept a bulk merkle-root commit from watcher or client
+// Body: { merkleRoot: string, sender: string, count: number, cids?: string[], recipientAddress?: string }
+apiRouter.post('/bulk/commit', async (req, res) => {
+    try {
+        const { merkleRoot, sender, count, cids, recipientAddress } = req.body;
+        if (!merkleRoot || !sender || !count) {
+            return res.status(400).json({ error: 'merkleRoot, sender, and count are required.' });
+        }
+        // Avoid duplicate processing: check if we've already recorded this merkleRoot
+        const existing = await bulkCommitsCollection.findOne({ merkleRoot });
+        if (existing) {
+            return res.status(200).json({ message: 'Merkle root already recorded.', merkleRoot });
+        }
+        // Verify the merkleRoot appears on-chain (unless SKIP_ONCHAIN_VERIFICATION=1)
+        const verification = await merkleRootExistsOnChain(merkleRoot, sender);
+        if (!verification.found) {
+            return res.status(400).json({ error: 'Merkle root not found on-chain in recent rounds. Provide txid or retry later.', details: verification.error || undefined });
+        }
+        const record = { merkleRoot, sender, count, createdAt: new Date().toISOString(), processed: !!(cids && cids.length), onchain: { round: verification.round, tx: verification.tx } };
+        const insertRes = await bulkCommitsCollection.insertOne(record);
+        // If cids are provided, create share records immediately (recipientAddress required)
+        const createdShares = [];
+        if (Array.isArray(cids) && cids.length > 0) {
+            if (!recipientAddress) {
+                return res.status(400).json({ error: 'recipientAddress is required when cids are provided.' });
+            }
+            for (const cid of cids) {
+                const file = await filesCollection.findOne({ cid });
+                if (!file)
+                    continue; // skip unknown metadata
+                const existingShare = await sharesCollection.findOne({ cid, recipientAddress });
+                if (existingShare)
+                    continue;
+                const newShare = { cid, senderAddress: file.owner, recipientAddress, createdAt: new Date().toISOString() };
+                await sharesCollection.insertOne(newShare);
+                createdShares.push(newShare);
+                await createActivity(file.owner, 'SHARE', { filename: file.filename, cid, recipient: recipientAddress }, true);
+                await createActivity(recipientAddress, 'SHARE', { filename: file.filename, cid, recipient: 'You' }, false);
+            }
+        }
+        res.status(201).json({ message: 'Bulk commit recorded.', merkleRoot, createdShares, onchain: record.onchain });
+    }
+    catch (error) {
+        console.error('[Backend] Error handling bulk commit:', error);
+        res.status(500).json({ error: 'Internal server error while recording bulk commit.' });
+    }
+});
+// GET bulk commit by merkleRoot for inspection
+apiRouter.get('/bulk/commit/:merkleRoot', async (req, res) => {
+    try {
+        const { merkleRoot } = req.params;
+        if (!merkleRoot)
+            return res.status(400).json({ error: 'merkleRoot parameter is required.' });
+        const record = await bulkCommitsCollection.findOne({ merkleRoot });
+        if (!record)
+            return res.status(404).json({ error: 'Bulk commit not found.' });
+        res.status(200).json({ commit: record });
+    }
+    catch (e) {
+        console.error('[Backend] Error fetching bulk commit:', e);
+        res.status(500).json({ error: 'Internal server error.' });
     }
 });
 // 7. Create a new folder
@@ -746,6 +853,73 @@ apiRouter.post('/2fa/disable', async (req, res) => {
 });
 // Mount the API router at the /api prefix
 app.use('/api', apiRouter);
+// Helper: decode base64 log
+function decodeLog(base64) {
+    try {
+        return Buffer.from(base64, 'base64').toString();
+    }
+    catch (e) {
+        return String(base64);
+    }
+}
+// Verify that a merkleRoot appears in recent on-chain application logs
+async function merkleRootExistsOnChain(merkleRoot, sender) {
+    // Allow skipping verification in local/dev by env var
+    if (process.env.SKIP_ONCHAIN_VERIFICATION === '1')
+        return { found: true };
+    try {
+        const status = await algodClient.status().do();
+        const lastRound = status['last-round'];
+        const lookback = Number(process.env.ONCHAIN_LOOKBACK_ROUNDS || '50');
+        const start = Math.max(1, lastRound - lookback);
+        for (let r = lastRound; r >= start; r--) {
+            try {
+                const block = await algodClient.block(r).do();
+                const txns = block?.block?.tx || block?.block?.txns || block?.block?.txs || block?.block?.transactions || [];
+                if (!Array.isArray(txns) || txns.length === 0)
+                    continue;
+                for (const tx of txns) {
+                    // Only consider application transactions
+                    const isAppCall = (tx?.txn?.txn?.type === 'appl') || (tx['tx-type'] === 'appl') || (tx?.tx?.txn?.type === 'appl');
+                    if (!isAppCall)
+                        continue;
+                    // Gather logs from possible shapes
+                    const logs = [];
+                    if (tx['logs'])
+                        logs.push(...tx['logs']);
+                    if (tx['transaction']?.logs)
+                        logs.push(...tx['transaction'].logs);
+                    if (tx['application-transaction']?.['logs'])
+                        logs.push(...tx['application-transaction']['logs']);
+                    for (const l of logs) {
+                        const s = decodeLog(l);
+                        if (s && s.includes('|bulk|') && s.includes(merkleRoot)) {
+                            // Optionally ensure sender matches
+                            let txSender;
+                            try {
+                                txSender = tx.tx?.txn?.snd ? algosdk.encodeAddress(tx.tx.txn.snd) : (tx['sender'] || tx.from || undefined);
+                            }
+                            catch (e) {
+                                txSender = undefined;
+                            }
+                            if (!sender || sender === txSender || s.includes(sender)) {
+                                return { found: true, round: r, tx: tx.tx?.id || tx.id || tx.txid || tx.hash };
+                            }
+                        }
+                    }
+                }
+            }
+            catch (e) {
+                // ignore per-round errors
+            }
+        }
+        return { found: false };
+    }
+    catch (e) {
+        console.error('[Backend] Error checking on-chain logs for merkleRoot:', e);
+        return { found: false, error: String(e) };
+    }
+}
 // --- SERVER STARTUP ---
 const startServer = async () => {
     await connectToDatabase();

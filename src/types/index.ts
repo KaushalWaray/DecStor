@@ -74,6 +74,9 @@ export interface User {
   twoFactorEnabled: boolean;
   twoFactorSecret?: string;
   twoFactorVerified: boolean;
+  // Optional email fields for notification preferences
+  email?: string;
+  emailVerified?: boolean;
 }
 
 export interface Activity {

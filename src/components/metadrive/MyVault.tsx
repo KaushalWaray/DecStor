@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { AlgorandAccount, FileMetadata, Folder, StorageInfo } from '@/types';
 import { getFilesByOwner, confirmPayment, getStorageServiceAddress, createFolder as apiCreateFolder, renameFolder as apiRenameFolder, renameFile as apiRenameFile, moveItems as apiMoveItems, deleteItems as apiDeleteItems } from '@/lib/api';
+import { getMailboxAppGlobals } from '@/lib/algorand';
 import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
 import FileGrid from './FileGrid';
@@ -81,6 +82,10 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
 
   // New state for multi-select and view
   const [selectedItems, setSelectedItems] = useState<(FileMetadata | Folder)[]>([]);
+  const [isBulkShareModalOpen, setIsBulkShareModalOpen] = useState(false);
+  const [isBulkMode, setIsBulkMode] = useState(false);
+  const [bulkFiles, setBulkFiles] = useState<FileMetadata[]>([]);
+  const [bulkAmount, setBulkAmount] = useState<number | null>(null);
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [fileTypeFilter, setFileTypeFilter] = useState<FileTypeFilter>('all');
 
@@ -195,21 +200,89 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
     setIsMediaPreviewModalOpen(true);
   };
 
-  const handleInitiateSend = (recipient: string) => {
+  const handleInitiateSend = async (recipient: string) => {
     setSendRecipient(recipient);
     setIsSendModalOpen(false); // Close first modal
+    // If bulk mode, compute amount (fee * count) to display on approval
+    if (isBulkMode && bulkFiles.length > 0) {
+      try {
+        const globals = await getMailboxAppGlobals();
+        const feeMicro = globals.feeMicro || 0;
+        const totalMicro = BigInt(feeMicro) * BigInt(bulkFiles.length);
+        setBulkAmount(Number(totalMicro) / 1_000_000);
+      } catch (e) {
+        console.warn('Failed to fetch mailbox globals for bulk amount', e);
+        setBulkAmount(null);
+      }
+    }
     setIsApproveSendFileModalOpen(true); // Open confirmation modal
   };
+
+  const handleOpenBulkShare = () => {
+    // Only include files (not folders)
+    const files = selectedItems.filter((i) => 'cid' in i) as FileMetadata[];
+    if (files.length === 0) {
+      toast({ variant: 'destructive', title: 'No files selected', description: 'Select one or more files to bulk share.' });
+      return;
+    }
+    // create a synthetic file object so the existing SendFileModal UI is reused
+    const synthetic: FileMetadata = {
+      _id: `bulk-${Date.now()}`,
+      filename: `Bulk share (${files.length} files)`,
+      cid: '',
+      size: 0,
+      fileType: 'application/octet-stream',
+      owner: account.addr,
+      createdAt: new Date().toISOString(),
+      path: currentPath,
+    };
+    setBulkFiles(files);
+    setSelectedFile(synthetic);
+    setIsBulkMode(true);
+    setIsSendModalOpen(true);
+  };
+
+  
 
   const handleConfirmSend = async () => {
     if (!selectedFile || !sendRecipient) return;
     setIsSending(true);
-    const success = await onConfirmSendFile(selectedFile, sendRecipient);
-    setIsSending(false);
-    if (success) {
-      setIsApproveSendFileModalOpen(false);
-      setSelectedFile(null);
-      setSendRecipient('');
+    try {
+      if (isBulkMode) {
+        // perform bulk share: compute merkle-like root and submit grouped tx
+        const cids = bulkFiles.map(f => f.cid);
+        // compute SHA256 hex (use browser subtle crypto)
+        const enc = new TextEncoder();
+        const data = enc.encode(cids.join('|'));
+        const hashBuf = await crypto.subtle.digest('SHA-256', data);
+        const hex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+        // call client bulkShare and then post mapping to backend
+        const alg = await import('@/lib/algorand');
+        const { txId } = await alg.bulkShare(account, hex, bulkFiles.length);
+        // post mapping
+        await alg.postBulkCommit(hex, cids, sendRecipient);
+
+        toast({ title: 'Bulk share submitted', description: `Transaction ${txId} confirmed and backend updated.` });
+
+        // cleanup
+        setIsApproveSendFileModalOpen(false);
+        setSelectedFile(null);
+        setSendRecipient('');
+        setSelectedItems([]);
+        setIsBulkMode(false);
+      } else {
+        const success = await onConfirmSendFile(selectedFile, sendRecipient);
+        if (success) {
+          setIsApproveSendFileModalOpen(false);
+          setSelectedFile(null);
+          setSendRecipient('');
+        }
+      }
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error?.message || String(error) });
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -457,6 +530,7 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
         selectedItemCount={selectedItems.length}
         onMove={() => handleOpenMoveModal(selectedItems)}
         onDelete={handleBulkDelete}
+        onBulkShare={handleOpenBulkShare}
         onClear={() => setSelectedItems([])}
       />
 
@@ -470,6 +544,7 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
             file={selectedFile}
             account={account}
             />
+            {/* Bulk share uses the existing SendFileModal + ApproveTransactionModal UI path (no separate modal) */}
             <FileDetailsModal
                 isOpen={isDetailsModalOpen}
                 onOpenChange={setIsDetailsModalOpen}
@@ -482,9 +557,10 @@ export default function MyVault({ account, pin, onConfirmSendFile }: MyVaultProp
                 isLoading={isSending}
                 title="Approve File Send"
                 description="You are about to create an on-chain record of a file send. Please review the details carefully."
-                actionText={`Send ${selectedFile.filename}`}
-                recipientAddress={sendRecipient}
-                file={selectedFile}
+           actionText={`Send ${selectedFile.filename}`}
+           recipientAddress={sendRecipient}
+           file={selectedFile}
+           amount={isBulkMode ? bulkAmount ?? undefined : undefined}
             />
         </>
       )}

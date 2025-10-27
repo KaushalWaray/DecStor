@@ -48,6 +48,9 @@ export interface User {
     twoFactorEnabled: boolean;
     twoFactorSecret?: string;
     twoFactorVerified: boolean;
+    // Optional email fields for notifications
+    email?: string;
+    emailVerified?: boolean;
 }
 
 export interface Activity {
@@ -89,6 +92,7 @@ const PINATA_JWT = process.env.PINATA_JWT;
 let usersCollection: any;
 let filesCollection: any;
 let sharesCollection: any;
+let bulkCommitsCollection: any;
 let foldersCollection: any;
 let activitiesCollection: any;
 let contactsCollection: any;
@@ -101,6 +105,7 @@ async function connectToDatabase() {
         usersCollection = await getCollection('Wallets');
         filesCollection = await getCollection('files');
         sharesCollection = await getCollection('shares');
+    bulkCommitsCollection = await getCollection('bulkCommits');
         foldersCollection = await getCollection('folders');
         activitiesCollection = await getCollection('activities');
         contactsCollection = await getCollection('contacts');
@@ -302,6 +307,51 @@ apiRouter.post('/users/find-or-create', async (req, res) => {
     } catch (error) {
         console.error('[Backend] Error finding or creating user:', error);
         res.status(500).json({ error: 'Internal server error while finding or creating user.' });
+    }
+});
+
+// NEW: Set or update notification email for a user (stores email and marks as unverified)
+apiRouter.post('/users/:address/email', async (req, res) => {
+    try {
+        const { address } = req.params;
+        const { email } = req.body;
+        if (!address || !email) {
+            return res.status(400).json({ error: 'Address and email are required.' });
+        }
+
+        // Basic email format validation
+        if (!/^\S+@\S+\.\S+$/.test(email)) {
+            return res.status(400).json({ error: 'Invalid email format.' });
+        }
+
+        const result = await usersCollection.updateOne(
+            { address },
+            { $set: { email, emailVerified: false, updatedAt: new Date().toISOString() } }
+        );
+
+        if (result.matchedCount === 0) {
+            // If user doesn't exist, create one with the provided email
+            const now = new Date().toISOString();
+            const newUser: Omit<User, '_id'> = {
+                address,
+                walletName: `Wallet ${address.substring(address.length - 4)}`,
+                storageUsed: 0,
+                storageTier: 'free',
+                createdAt: now,
+                updatedAt: now,
+                lastLogin: now,
+                twoFactorEnabled: false,
+                twoFactorVerified: false,
+                email,
+            };
+            await usersCollection.insertOne(newUser as User);
+        }
+
+        console.log(`[Backend] Set notification email for ${address.substring(0,10)}...`);
+        res.status(200).json({ message: 'Notification email saved. Please check your inbox for verification steps.' });
+    } catch (error) {
+        console.error('[Backend] Error setting notification email:', error);
+        res.status(500).json({ error: 'Internal server error while setting notification email.' });
     }
 });
 
@@ -517,6 +567,54 @@ apiRouter.post('/payment/confirm', async (req, res) => {
     } catch (error) {
         console.error('[Backend] Error confirming payment:', error);
         res.status(500).json({ error: 'Internal server error while confirming payment.' });
+    }
+});
+
+
+// NEW: Accept a bulk merkle-root commit from watcher or client
+// Body: { merkleRoot: string, sender: string, count: number, cids?: string[], recipientAddress?: string }
+apiRouter.post('/bulk/commit', async (req, res) => {
+    try {
+        const { merkleRoot, sender, count, cids, recipientAddress } = req.body;
+        if (!merkleRoot || !sender || !count) {
+            return res.status(400).json({ error: 'merkleRoot, sender, and count are required.' });
+        }
+
+        // Avoid duplicate processing: check if we've already recorded this merkleRoot
+        const existing = await bulkCommitsCollection.findOne({ merkleRoot });
+        if (existing) {
+            return res.status(200).json({ message: 'Merkle root already recorded.', merkleRoot });
+        }
+
+        const record = { merkleRoot, sender, count, createdAt: new Date().toISOString(), processed: !!(cids && cids.length) };
+        const insertRes = await bulkCommitsCollection.insertOne(record);
+
+        // If cids are provided, create share records immediately (recipientAddress required)
+        const createdShares: any[] = [];
+        if (Array.isArray(cids) && cids.length > 0) {
+            if (!recipientAddress) {
+                return res.status(400).json({ error: 'recipientAddress is required when cids are provided.' });
+            }
+
+            for (const cid of cids) {
+                const file = await filesCollection.findOne({ cid });
+                if (!file) continue; // skip unknown metadata
+
+                const existingShare = await sharesCollection.findOne({ cid, recipientAddress });
+                if (existingShare) continue;
+
+                const newShare = { cid, senderAddress: file.owner, recipientAddress, createdAt: new Date().toISOString() };
+                await sharesCollection.insertOne(newShare);
+                createdShares.push(newShare);
+                await createActivity(file.owner, 'SHARE', { filename: file.filename, cid, recipient: recipientAddress }, true);
+                await createActivity(recipientAddress, 'SHARE', { filename: file.filename, cid, recipient: 'You' }, false);
+            }
+        }
+
+        res.status(201).json({ message: 'Bulk commit recorded.', merkleRoot, createdShares });
+    } catch (error) {
+        console.error('[Backend] Error handling bulk commit:', error);
+        res.status(500).json({ error: 'Internal server error while recording bulk commit.' });
     }
 });
 

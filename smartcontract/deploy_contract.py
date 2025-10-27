@@ -2,13 +2,13 @@
 import os
 import base64
 from algosdk.v2client import algod
-from algosdk import mnemonic, transaction
+from algosdk import mnemonic, transaction, account
 
 # --- User Configuration ---
 # IMPORTANT: Never commit mnemonic to a public repository.
 # Replace with your 25-word mnemonic phrase.
 # You can get a new one for testing from https://testnet.algorand.network/dispenser
-SENDER_MNEMONIC = "PASTE_YOUR_25_WORD_MNEMONIC_PHRASE_HERE"
+SENDER_MNEMONIC = os.environ.get("SENDER_MNEMONIC", "PASTE_YOUR_25_WORD_MNEMONIC_PHRASE_HERE")
 
 # --- Algorand Node Configuration ---
 # Using Algonode for TestNet access
@@ -27,7 +27,8 @@ def compile_program(client, source_code):
 
 def create_application(client, private_key, approval_program_source, clear_program_source):
     """Deploys the smart contract to the Algorand network."""
-    sender = mnemonic.to_public_key(SENDER_MNEMONIC)
+    # derive sender address from private key
+    sender = account.address_from_private_key(private_key)
     
     # Get suggested transaction parameters
     params = client.suggested_params()
@@ -41,10 +42,11 @@ def create_application(client, private_key, approval_program_source, clear_progr
     approval_program_compiled = compile_program(client, approval_source)
     clear_program_compiled = compile_program(client, clear_source)
 
-    # Define contract schema. 
-    # Our contract is now stateless, so we use empty schemas.
-    global_schema = transaction.StateSchema(num_uints=0, num_byte_slices=0)
-    local_schema = transaction.StateSchema(num_uints=0, num_byte_slices=0) 
+    # Define contract schema. Our contract uses a small global state:
+    #   - G_FEE (uint64)
+    #   - G_CREATOR, G_VERSION, G_SERVICE (byte slices)
+    global_schema = transaction.StateSchema(num_uints=1, num_byte_slices=3)
+    local_schema = transaction.StateSchema(num_uints=0, num_byte_slices=0)
     
     # Create the unsigned transaction
     txn = transaction.ApplicationCreateTxn(
@@ -82,7 +84,7 @@ def create_application(client, private_key, approval_program_source, clear_progr
 
 if __name__ == "__main__":
     if SENDER_MNEMONIC == "PASTE_YOUR_25_WORD_MNEMONIC_PHRASE_HERE":
-        print("\nERROR: Please update the SENDER_MNEMONIC in smartcontract/deploy_contract.py before running.")
+        print("\nERROR: Please set the SENDER_MNEMONIC environment variable before running.\nExample: export SENDER_MNEMONIC=\"your 25 word mnemonic here\"")
     else:
         # Initialize Algod client
         algod_client = algod.AlgodClient(ALGOD_TOKEN, ALGOD_ADDRESS)

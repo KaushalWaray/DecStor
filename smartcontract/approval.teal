@@ -1,0 +1,310 @@
+#pragma version 6
+txn ApplicationID
+int 0
+==
+bnz main_l25
+txn OnCompletion
+int OptIn
+==
+bnz main_l24
+txn OnCompletion
+int CloseOut
+==
+bnz main_l23
+txn OnCompletion
+int UpdateApplication
+==
+bnz main_l22
+txn OnCompletion
+int DeleteApplication
+==
+bnz main_l21
+txn OnCompletion
+int NoOp
+==
+bnz main_l7
+err
+main_l7:
+txn NumAppArgs
+int 2
+>=
+assert
+txna ApplicationArgs 1
+byte "share"
+==
+bnz main_l17
+txna ApplicationArgs 1
+byte "bulk"
+==
+bnz main_l16
+txna ApplicationArgs 1
+byte "set_config"
+==
+bnz main_l11
+err
+main_l11:
+txn RekeyTo
+global ZeroAddress
+==
+assert
+txn Sender
+byte "Creator"
+app_global_get
+==
+assert
+txn NumAppArgs
+int 2
+>
+bnz main_l15
+main_l12:
+txn NumAppArgs
+int 3
+>
+bnz main_l14
+main_l13:
+int 1
+return
+main_l14:
+byte "Service"
+txna ApplicationArgs 3
+app_global_put
+b main_l13
+main_l15:
+byte "Fee"
+txna ApplicationArgs 2
+btoi
+app_global_put
+b main_l12
+main_l16:
+txn RekeyTo
+global ZeroAddress
+==
+assert
+txna ApplicationArgs 0
+byte "Version"
+app_global_get
+==
+assert
+txna ApplicationArgs 1
+byte "bulk"
+==
+assert
+txn NumAppArgs
+int 4
+==
+assert
+global GroupSize
+int 1
+>
+assert
+txn GroupIndex
+int 0
+>
+assert
+txn GroupIndex
+int 1
+-
+gtxns TypeEnum
+int pay
+==
+assert
+txn GroupIndex
+int 1
+-
+gtxns Sender
+txn Sender
+==
+assert
+txn GroupIndex
+int 1
+-
+gtxns Receiver
+byte "Service"
+app_global_get
+==
+assert
+txn GroupIndex
+int 1
+-
+gtxns Amount
+byte "Fee"
+app_global_get
+txna ApplicationArgs 3
+btoi
+*
+>=
+assert
+byte "Version"
+app_global_get
+byte "|bulk|"
+concat
+txna ApplicationArgs 2
+concat
+byte "|from|"
+concat
+txn Sender
+concat
+byte "|count|"
+concat
+txna ApplicationArgs 3
+btoi
+itob
+concat
+log
+int 1
+return
+main_l17:
+txn RekeyTo
+global ZeroAddress
+==
+assert
+txna ApplicationArgs 0
+byte "Version"
+app_global_get
+==
+assert
+txna ApplicationArgs 1
+byte "share"
+==
+assert
+txn NumAppArgs
+int 3
+>=
+assert
+global GroupSize
+int 1
+>
+assert
+txn GroupIndex
+int 0
+>
+assert
+txn GroupIndex
+int 1
+-
+gtxns TypeEnum
+int pay
+==
+assert
+txn GroupIndex
+int 1
+-
+gtxns Sender
+txn Sender
+==
+assert
+txn GroupIndex
+int 1
+-
+gtxns Receiver
+byte "Service"
+app_global_get
+==
+assert
+txn GroupIndex
+int 1
+-
+gtxns Amount
+byte "Fee"
+app_global_get
+>=
+assert
+byte "Version"
+app_global_get
+byte "|share|"
+concat
+txna ApplicationArgs 2
+concat
+byte "|from|"
+concat
+txn Sender
+concat
+byte "|to|"
+concat
+txn NumAppArgs
+int 3
+>
+bnz main_l20
+byte ""
+main_l19:
+concat
+log
+int 1
+return
+main_l20:
+txna ApplicationArgs 3
+b main_l19
+main_l21:
+txn RekeyTo
+global ZeroAddress
+==
+assert
+txn Sender
+byte "Creator"
+app_global_get
+==
+assert
+int 1
+return
+main_l22:
+txn RekeyTo
+global ZeroAddress
+==
+assert
+txn Sender
+byte "Creator"
+app_global_get
+==
+assert
+int 1
+return
+main_l23:
+int 1
+return
+main_l24:
+int 0
+return
+main_l25:
+txn RekeyTo
+global ZeroAddress
+==
+assert
+byte "Creator"
+txn Sender
+app_global_put
+byte "Version"
+txn NumAppArgs
+int 0
+>
+bnz main_l34
+byte "v1"
+main_l27:
+app_global_put
+byte "Fee"
+txn NumAppArgs
+int 1
+>
+bnz main_l33
+int 1000
+main_l29:
+app_global_put
+byte "Service"
+txn NumAppArgs
+int 2
+>
+bnz main_l32
+txn Sender
+main_l31:
+app_global_put
+int 1
+return
+main_l32:
+txna ApplicationArgs 2
+b main_l31
+main_l33:
+txna ApplicationArgs 1
+btoi
+b main_l29
+main_l34:
+txna ApplicationArgs 0
+b main_l27
