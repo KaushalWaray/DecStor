@@ -143,6 +143,141 @@ This command will compile the backend's TypeScript code and start the server. Yo
 ✅ Backend service listening at http://localhost:3001
 ```
 
+## Quick start (step-by-step)
+
+Follow these steps to get the project running locally on Windows (PowerShell). These instructions install dependencies, set the required environment variables, and start both frontend and backend.
+
+1. Install root (frontend) dependencies
+
+```powershell
+# From project root
+npm install
+```
+
+2. Install backend dependencies
+
+```powershell
+cd backend
+npm install
+```
+
+3. Set required environment variables
+
+You must provide a service wallet mnemonic for backend operations and (optionally) a Pinata JWT if you want server-side pinning. Examples below show PowerShell commands — replace placeholder values with your real secrets.
+
+```powershell
+# In PowerShell (temporary for current session)
+$env:SERVICE_WALLET_MNEMONIC = "your 25 word algorand mnemonic here"
+$env:PINATA_JWT = "your_pinata_jwt_here"
+
+# Optionally, point the frontend to a backend URL in production
+$env:NEXT_PUBLIC_BACKEND_URL = "http://localhost:3001"
+```
+
+You can also create a `.env` file in the `backend/` folder with these values (the backend uses `dotenv`):
+
+```
+SERVICE_WALLET_MNEMONIC="your 25 word algorand mnemonic here"
+PINATA_JWT="your_pinata_jwt_here"
+```
+
+4. Start the backend
+
+```powershell
+cd backend
+npm run dev
+```
+
+5. Start the frontend (from project root)
+
+```powershell
+cd ..\
+npm run dev
+```
+
+Open `http://localhost:3000` in your browser. In development the Next.js app proxies `/api` to the backend at `http://127.0.0.1:3001`.
+
+---
+
+## What is decentralization? (simple language)
+
+Decentralization means data or services are not controlled by a single company or server. Instead, many independent nodes or computers can store or serve data. That makes systems harder to censor, removes a single point of failure, and gives users more control over their data.
+
+## The problem this project solves
+
+Centralized cloud storage ties your files to one company. If that provider goes down, loses data, or changes rules, you can lose access or control. DecStor solves this by:
+
+- Storing file content on IPFS (a peer-to-peer content-addressed network).
+- Keeping only metadata and access controls in a backend that can be audited.
+- Recording sharing actions on Algorand so there is an immutable proof that a file was shared.
+
+In short: it reduces trust in a single provider, gives users cryptographic proof of shares, and enables more resilient storage.
+
+## What this project is (short)
+
+DecStor is a web app (Next.js frontend + Express backend) that lets users upload files to IPFS (pinning via Pinata), manage them in a vault, share them securely with Algorand transactions, and keep metadata in OrbitDB. Wallet mnemonics are encrypted client-side using a PIN.
+
+## Features (detailed)
+
+- Wallet management
+    - Create new Algorand accounts or import existing ones using a 25-word mnemonic.
+    - Mnemonics are encrypted in the browser using PBKDF2 + AES-GCM and a user PIN.
+
+- File uploads and pinning
+    - Files are uploaded from the browser and proxied through the backend to Pinata (IPFS pinning).
+    - File metadata (filename, CID, size, owner, path) is stored in OrbitDB docstores.
+
+- File download and preview
+    - Files are fetched from IPFS via a backend proxy (to avoid CORS and custom-gateway restrictions), decrypted locally with the user's PIN, and saved to disk.
+    - Audio and video files can be previewed in-browser after decryption.
+
+- Secure sharing and proofs
+    - Sharing creates an on-chain proof of share by calling a mailbox smart contract on Algorand (app call).
+    - Single-file and bulk sharing flows (bulk uses Merkle commits and a watcher that posts commits to the backend).
+
+- Storage tiers and payments
+    - Users can pay ALGO to a service wallet to upgrade storage tiers (backend confirms payment and upgrades the user's tier).
+
+- Activity, contacts, and 2FA
+    - Activity / notification logs track uploads, shares, and payments.
+    - Simple contacts management and optional TOTP-based 2FA.
+
+## How it works — functionality and flow (simple)
+
+1. Wallet creation/import
+     - User creates or imports an Algorand wallet. The app encrypts the wallet mnemonic with the user's PIN and stores it in localStorage.
+
+2. Uploading a file
+     - User chooses a file and uploads it via the frontend.
+     - Frontend sends the file to the backend (`/api/files/upload`). The backend proxies this to Pinata to pin the file on IPFS and returns the CID.
+     - Frontend or backend saves file metadata (CID, owner, path) in OrbitDB through the backend API (`/api/files/metadata`).
+
+3. Downloading / previewing
+     - When the user downloads or previews a file, the frontend calls `/api/files/proxy/:cid` on the backend.
+     - The backend fetches the CID from public gateways (server-side), returns the bytes to the browser, and the frontend decrypts the blob with the user's PIN and saves or previews it.
+
+4. Sharing a file
+     - To share, the frontend makes an Algorand app call transaction (grouped payment + app call) using the user's unlocked key.
+     - The transaction creates an on-chain proof that the file identified by CID was shared with a recipient address.
+     - The frontend then notifies the backend to record the share in the `shares` collection of OrbitDB. Activities are created for both sender and recipient.
+
+5. Bulk sharing and watcher
+     - For bulk operations, the app creates a Merkle root of many CIDs and submits it on-chain.
+     - A separate watcher process scans Algorand for bulk events and posts commits to the backend (`/api/bulk/commit`) so shares can be recorded.
+
+6. Storage upgrade
+     - A user pays ALGO to the service wallet to upgrade storage; after the payment is confirmed (backend endpoint `/api/payment/confirm`) the user's storage tier is upgraded.
+
+## Notes and best practices
+
+- Pinning: IPFS content availability depends on nodes that pin the CID. Use Pinata or another pinning service to keep your content available.
+- Security: Never commit real mnemonics or JWTs to git. Use environment variables or secure secret storage.
+- Production: In production, set `NEXT_PUBLIC_BACKEND_URL` to your backend URL and ensure the backend `SERVICE_WALLET_MNEMONIC` and `PINATA_JWT` are set on the server.
+
+---
+
+If you'd like, I can also add a short troubleshooting section (common errors and fixes) or add the example PowerShell scripts to set env variables permanently on Windows.
+
 The Next.js frontend is configured to proxy requests from `/api` to this backend service, so both components can communicate seamlessly.
 
 ### 3. (Optional) Deploy the Smart Contract
