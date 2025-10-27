@@ -2,10 +2,6 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import algosdk from 'algosdk';
-const ALGOD_SERVER = process.env.ALGOD_SERVER || 'https://testnet-api.algonode.cloud';
-const ALGOD_PORT = process.env.ALGOD_PORT ? Number(process.env.ALGOD_PORT) : 443;
-const ALGOD_TOKEN = process.env.ALGOD_TOKEN || '';
-const algodClient = new algosdk.Algodv2(ALGOD_TOKEN, ALGOD_SERVER, ALGOD_PORT);
 import { initOrbitDB, getCollection } from './orbitdb.js';
 import crypto from 'crypto';
 import multer from 'multer';
@@ -184,6 +180,51 @@ apiRouter.post('/files/upload', upload.single('file'), async (req, res) => {
     catch (error) {
         console.error('[Backend] Error proxying file upload to Pinata:', error);
         res.status(500).json({ error: error.message || 'Internal server error during file upload.' });
+    }
+});
+// NEW: Proxy endpoint to fetch IPFS content server-side and stream/return it to clients.
+// This avoids browser CORS restrictions and owner-restricted custom Pinata gateways.
+apiRouter.get('/files/proxy/:cid', async (req, res) => {
+    try {
+        const { cid } = req.params;
+        if (!cid)
+            return res.status(400).json({ error: 'CID required' });
+        // Try a list of gateways server-side (no CORS). Order: public ipfs.io, cloudflare, pinata gateway.
+        const gateways = [
+            'https://ipfs.io/ipfs',
+            'https://cloudflare-ipfs.com/ipfs',
+            'https://gateway.pinata.cloud/ipfs',
+        ];
+        let lastErr = null;
+        for (const gw of gateways) {
+            const url = `${gw}/${cid}`;
+            try {
+                const r = await fetch(url);
+                if (r.ok) {
+                    // Stream response body (buffered to simplify compatibility)
+                    const arrayBuf = await r.arrayBuffer();
+                    const buffer = Buffer.from(arrayBuf);
+                    const contentType = r.headers.get('content-type') || 'application/octet-stream';
+                    const contentLength = buffer.length;
+                    res.setHeader('Content-Type', contentType);
+                    res.setHeader('Content-Length', String(contentLength));
+                    // Suggest filename not required here; browser will use downstream anchor download name
+                    return res.status(200).send(buffer);
+                }
+                else {
+                    lastErr = `Gateway ${gw} returned ${r.status} ${r.statusText}`;
+                }
+            }
+            catch (err) {
+                lastErr = err;
+            }
+        }
+        console.error('[Backend] All gateways failed for CID', cid, lastErr);
+        return res.status(502).json({ error: 'Failed to fetch CID from IPFS via known gateways.', details: String(lastErr) });
+    }
+    catch (error) {
+        console.error('[Backend] Proxy error fetching IPFS content:', error);
+        return res.status(500).json({ error: error.message || 'Internal server error' });
     }
 });
 apiRouter.get('/service-address', (req, res) => {
@@ -429,12 +470,7 @@ apiRouter.post('/bulk/commit', async (req, res) => {
         if (existing) {
             return res.status(200).json({ message: 'Merkle root already recorded.', merkleRoot });
         }
-        // Verify the merkleRoot appears on-chain (unless SKIP_ONCHAIN_VERIFICATION=1)
-        const verification = await merkleRootExistsOnChain(merkleRoot, sender);
-        if (!verification.found) {
-            return res.status(400).json({ error: 'Merkle root not found on-chain in recent rounds. Provide txid or retry later.', details: verification.error || undefined });
-        }
-        const record = { merkleRoot, sender, count, createdAt: new Date().toISOString(), processed: !!(cids && cids.length), onchain: { round: verification.round, tx: verification.tx } };
+        const record = { merkleRoot, sender, count, createdAt: new Date().toISOString(), processed: !!(cids && cids.length) };
         const insertRes = await bulkCommitsCollection.insertOne(record);
         // If cids are provided, create share records immediately (recipientAddress required)
         const createdShares = [];
@@ -456,27 +492,11 @@ apiRouter.post('/bulk/commit', async (req, res) => {
                 await createActivity(recipientAddress, 'SHARE', { filename: file.filename, cid, recipient: 'You' }, false);
             }
         }
-        res.status(201).json({ message: 'Bulk commit recorded.', merkleRoot, createdShares, onchain: record.onchain });
+        res.status(201).json({ message: 'Bulk commit recorded.', merkleRoot, createdShares });
     }
     catch (error) {
         console.error('[Backend] Error handling bulk commit:', error);
         res.status(500).json({ error: 'Internal server error while recording bulk commit.' });
-    }
-});
-// GET bulk commit by merkleRoot for inspection
-apiRouter.get('/bulk/commit/:merkleRoot', async (req, res) => {
-    try {
-        const { merkleRoot } = req.params;
-        if (!merkleRoot)
-            return res.status(400).json({ error: 'merkleRoot parameter is required.' });
-        const record = await bulkCommitsCollection.findOne({ merkleRoot });
-        if (!record)
-            return res.status(404).json({ error: 'Bulk commit not found.' });
-        res.status(200).json({ commit: record });
-    }
-    catch (e) {
-        console.error('[Backend] Error fetching bulk commit:', e);
-        res.status(500).json({ error: 'Internal server error.' });
     }
 });
 // 7. Create a new folder
@@ -853,73 +873,6 @@ apiRouter.post('/2fa/disable', async (req, res) => {
 });
 // Mount the API router at the /api prefix
 app.use('/api', apiRouter);
-// Helper: decode base64 log
-function decodeLog(base64) {
-    try {
-        return Buffer.from(base64, 'base64').toString();
-    }
-    catch (e) {
-        return String(base64);
-    }
-}
-// Verify that a merkleRoot appears in recent on-chain application logs
-async function merkleRootExistsOnChain(merkleRoot, sender) {
-    // Allow skipping verification in local/dev by env var
-    if (process.env.SKIP_ONCHAIN_VERIFICATION === '1')
-        return { found: true };
-    try {
-        const status = await algodClient.status().do();
-        const lastRound = status['last-round'];
-        const lookback = Number(process.env.ONCHAIN_LOOKBACK_ROUNDS || '50');
-        const start = Math.max(1, lastRound - lookback);
-        for (let r = lastRound; r >= start; r--) {
-            try {
-                const block = await algodClient.block(r).do();
-                const txns = block?.block?.tx || block?.block?.txns || block?.block?.txs || block?.block?.transactions || [];
-                if (!Array.isArray(txns) || txns.length === 0)
-                    continue;
-                for (const tx of txns) {
-                    // Only consider application transactions
-                    const isAppCall = (tx?.txn?.txn?.type === 'appl') || (tx['tx-type'] === 'appl') || (tx?.tx?.txn?.type === 'appl');
-                    if (!isAppCall)
-                        continue;
-                    // Gather logs from possible shapes
-                    const logs = [];
-                    if (tx['logs'])
-                        logs.push(...tx['logs']);
-                    if (tx['transaction']?.logs)
-                        logs.push(...tx['transaction'].logs);
-                    if (tx['application-transaction']?.['logs'])
-                        logs.push(...tx['application-transaction']['logs']);
-                    for (const l of logs) {
-                        const s = decodeLog(l);
-                        if (s && s.includes('|bulk|') && s.includes(merkleRoot)) {
-                            // Optionally ensure sender matches
-                            let txSender;
-                            try {
-                                txSender = tx.tx?.txn?.snd ? algosdk.encodeAddress(tx.tx.txn.snd) : (tx['sender'] || tx.from || undefined);
-                            }
-                            catch (e) {
-                                txSender = undefined;
-                            }
-                            if (!sender || sender === txSender || s.includes(sender)) {
-                                return { found: true, round: r, tx: tx.tx?.id || tx.id || tx.txid || tx.hash };
-                            }
-                        }
-                    }
-                }
-            }
-            catch (e) {
-                // ignore per-round errors
-            }
-        }
-        return { found: false };
-    }
-    catch (e) {
-        console.error('[Backend] Error checking on-chain logs for merkleRoot:', e);
-        return { found: false, error: String(e) };
-    }
-}
 // --- SERVER STARTUP ---
 const startServer = async () => {
     await connectToDatabase();

@@ -291,6 +291,52 @@ apiRouter.post('/files/upload', upload.single('file'), async (req, res) => {
     }
 });
 
+// NEW: Proxy endpoint to fetch IPFS content server-side and stream/return it to clients.
+// This avoids browser CORS restrictions and owner-restricted custom Pinata gateways.
+apiRouter.get('/files/proxy/:cid', async (req, res) => {
+    try {
+        const { cid } = req.params;
+        if (!cid) return res.status(400).json({ error: 'CID required' });
+
+        // Try a list of gateways server-side (no CORS). Order: public ipfs.io, cloudflare, pinata gateway.
+        const gateways = [
+            'https://ipfs.io/ipfs',
+            'https://cloudflare-ipfs.com/ipfs',
+            'https://gateway.pinata.cloud/ipfs',
+        ];
+
+        let lastErr: any = null;
+        for (const gw of gateways) {
+            const url = `${gw}/${cid}`;
+            try {
+                const r = await fetch(url);
+                if (r.ok) {
+                    // Stream response body (buffered to simplify compatibility)
+                    const arrayBuf = await r.arrayBuffer();
+                    const buffer = Buffer.from(arrayBuf);
+                    const contentType = r.headers.get('content-type') || 'application/octet-stream';
+                    const contentLength = buffer.length;
+
+                    res.setHeader('Content-Type', contentType);
+                    res.setHeader('Content-Length', String(contentLength));
+                    // Suggest filename not required here; browser will use downstream anchor download name
+                    return res.status(200).send(buffer);
+                } else {
+                    lastErr = `Gateway ${gw} returned ${r.status} ${r.statusText}`;
+                }
+            } catch (err) {
+                lastErr = err;
+            }
+        }
+
+        console.error('[Backend] All gateways failed for CID', cid, lastErr);
+        return res.status(502).json({ error: 'Failed to fetch CID from IPFS via known gateways.', details: String(lastErr) });
+    } catch (error: any) {
+        console.error('[Backend] Proxy error fetching IPFS content:', error);
+        return res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+});
+
 apiRouter.get('/service-address', (req, res) => {
     res.status(200).json({ address: storageServiceAccount.addr });
 });

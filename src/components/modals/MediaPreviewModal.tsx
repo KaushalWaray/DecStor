@@ -41,7 +41,7 @@ export default function MediaPreviewModal({ isOpen, onOpenChange, file, pin }: M
 
         try {
           toast({ title: "Fetching File...", description: "Downloading from IPFS." });
-          const fileUrl = `${IPFS_GATEWAY_URL}/${file.cid}`;
+          const fileUrl = `/api/files/proxy/${file.cid}`;
           const response = await fetch(fileUrl);
           if (!response.ok) {
             throw new Error(`Failed to fetch from IPFS: ${response.statusText}`);

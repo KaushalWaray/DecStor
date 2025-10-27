@@ -62,8 +62,8 @@ export function FileListView({
     setDownloadingFileId(file._id);
     toast({ title: "Downloading & Decrypting...", description: "Please wait while we prepare your file." });
     try {
-      const fileUrl = `${IPFS_GATEWAY_URL}/${file.cid}`;
-      const response = await fetch(fileUrl);
+  const fileUrl = `/api/files/proxy/${file.cid}`;
+  const response = await fetch(fileUrl);
       if (!response.ok) {
         throw new Error(`Failed to fetch from IPFS: ${response.statusText}`);
       }
