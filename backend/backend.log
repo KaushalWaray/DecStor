@@ -1,0 +1,14 @@
+
+> decstor-backend@1.0.0 dev
+> npm run build && node dist/index.js
+
+
+> decstor-backend@1.0.0 build
+> tsc
+
+[Backend] Storage Service Wallet loaded: U2MGLCIIHVMLF5P3M5SBT7ABTNJLYWHGCCAJO7XES2VM2QECLFWGVIK5WI
+[Backend] This address will receive payments for storage upgrades.
+[Backend] Initializing OrbitDB (permanent mode)...
+[Backend] OrbitDB stores initialized.
+[Backend] Running trash purger...
+✅ Backend service listening at http://localhost:3001

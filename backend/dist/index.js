@@ -593,28 +593,41 @@ apiRouter.put('/files/:fileId/rename', async (req, res) => {
 apiRouter.put('/items/move', async (req, res) => {
     try {
         const { ownerAddress, itemIds, itemTypes, newPath } = req.body;
+        console.log('[Backend] /items/move payload:', { ownerAddress, itemIdsLength: Array.isArray(itemIds) ? itemIds.length : 0, itemTypes, newPath });
         if (!ownerAddress || !itemIds || !itemTypes || newPath === undefined) {
             return res.status(400).json({ error: 'Owner, item IDs, item types, and new path are required.' });
         }
         const fileIds = itemIds.filter((id, i) => itemTypes[i] === 'file').map((id) => id);
         const folderIds = itemIds.filter((id, i) => itemTypes[i] === 'folder').map((id) => id);
-        await filesCollection.updateMany({ _id: { $in: fileIds } }, { $set: { path: newPath } });
+        // Normalize newPath
+        const normalizePath = (p) => {
+            if (!p)
+                return '/';
+            return p.endsWith('/') ? p : `${p}/`;
+        };
+        const newPathNorm = normalizePath(newPath);
+        // Update files individually by id to avoid operator-matching issues in the OrbitDB wrapper
+        for (const fid of fileIds) {
+            await filesCollection.updateOne({ _id: fid }, { $set: { path: newPathNorm } });
+        }
         const foldersToMove = await foldersCollection.find({ _id: { $in: folderIds } }).toArray();
+        const escapeForRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         for (const folderToMove of foldersToMove) {
             const oldPathPrefix = `${folderToMove.path}${folderToMove.name}/`;
             const newName = folderToMove.name;
-            const newPathPrefix = `${newPath}${newName}/`;
-            const filesToUpdate2 = await filesCollection.find({ owner: ownerAddress, path: { $regex: `^${oldPathPrefix}` } }).toArray();
+            const newPathPrefix = `${newPathNorm}${newName}/`;
+            const escOld = escapeForRegex(oldPathPrefix);
+            const filesToUpdate2 = await filesCollection.find({ owner: ownerAddress, path: { $regex: `^${escOld}` } }).toArray();
             for (const f of filesToUpdate2) {
                 const updatedPath = f.path.replace(oldPathPrefix, newPathPrefix);
                 await filesCollection.updateOne({ _id: f._id }, { $set: { path: updatedPath } });
             }
-            const foldersToUpdate2 = await foldersCollection.find({ owner: ownerAddress, path: { $regex: `^${oldPathPrefix}` } }).toArray();
+            const foldersToUpdate2 = await foldersCollection.find({ owner: ownerAddress, path: { $regex: `^${escOld}` } }).toArray();
             for (const fol of foldersToUpdate2) {
                 const updatedPath = fol.path.replace(oldPathPrefix, newPathPrefix);
                 await foldersCollection.updateOne({ _id: fol._id }, { $set: { path: updatedPath } });
             }
-            await foldersCollection.updateOne({ _id: folderToMove._id }, { $set: { path: newPath } });
+            await foldersCollection.updateOne({ _id: folderToMove._id }, { $set: { path: newPathNorm } });
         }
         res.status(200).json({ message: 'Items moved successfully.' });
     }
@@ -627,6 +640,7 @@ apiRouter.put('/items/move', async (req, res) => {
 apiRouter.post('/items/delete', async (req, res) => {
     try {
         const { ownerAddress, itemIds } = req.body;
+        console.log('[Backend] /items/delete payload:', { ownerAddress, itemIdsLength: Array.isArray(itemIds) ? itemIds.length : 0 });
         if (!ownerAddress || !itemIds) {
             return res.status(400).json({ error: 'Owner and item IDs are required.' });
         }
@@ -637,6 +651,7 @@ apiRouter.post('/items/delete', async (req, res) => {
         const initialFolders = await foldersCollection.find({ _id: { $in: objectItemIds }, owner: ownerAddress }).toArray();
         initialFiles.forEach((f) => filesToDeleteIds.add(f._id));
         initialFolders.forEach((f) => foldersToDeleteIds.add(f._id));
+        const escapeForRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const foldersToScan = [...initialFolders];
         while (foldersToScan.length > 0) {
             const currentFolder = foldersToScan.pop();
@@ -650,7 +665,8 @@ apiRouter.post('/items/delete', async (req, res) => {
                     foldersToScan.push(sub);
                 }
             }
-            const filesInFolder = await filesCollection.find({ path: { $regex: `^${currentPath}` }, owner: ownerAddress }).toArray();
+            const escCurrent = escapeForRegex(currentPath);
+            const filesInFolder = await filesCollection.find({ path: { $regex: `^${escCurrent}` }, owner: ownerAddress }).toArray();
             filesInFolder.forEach((file) => filesToDeleteIds.add(file._id));
         }
         const finalFileIdsToDelete = Array.from(filesToDeleteIds);
@@ -658,8 +674,13 @@ apiRouter.post('/items/delete', async (req, res) => {
         const filesToDeleteResult = await filesCollection.find({ _id: { $in: finalFileIdsToDelete } }).toArray();
         let totalSizeDeleted = filesToDeleteResult.reduce((sum, file) => sum + file.size, 0);
         const cidsToDelete = filesToDeleteResult.map((f) => f.cid);
-        await filesCollection.deleteMany({ _id: { $in: finalFileIdsToDelete } });
-        await foldersCollection.deleteMany({ _id: { $in: finalFolderIdsToDelete } });
+        // Delete files and folders individually to ensure docstore removal succeeds
+        for (const fid of finalFileIdsToDelete) {
+            await filesCollection.deleteOne({ _id: fid });
+        }
+        for (const folId of finalFolderIdsToDelete) {
+            await foldersCollection.deleteOne({ _id: folId });
+        }
         await sharesCollection.deleteMany({ cid: { $in: cidsToDelete } });
         await usersCollection.updateOne({ address: ownerAddress }, { $inc: { storageUsed: -totalSizeDeleted } });
         await createActivity(ownerAddress, 'DELETE', { itemCount: finalFileIdsToDelete.length + finalFolderIdsToDelete.length }, true);

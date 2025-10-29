@@ -113,16 +113,29 @@ export async function getCollection(name) {
       return { insertedIds };
     },
     updateOne: async (filter, update) => {
-      const all = getAll();
-      const found = all.find((d) => Object.keys(filter).every((k) => d[k] === filter[k]));
-      if (!found) return { matchedCount: 0, modifiedCount: 0 };
-      const updated = { ...found, ...(update.$set || update) };
+      // Use the same matching logic as `find()` so operators like $in and $regex work
+      const runQuery = () => {
+        const all = getAll();
+        if (!filter || Object.keys(filter).length === 0) return all;
+        return all.filter((d) => matchesFilter(d, filter));
+      };
+
+      const matched = runQuery();
+      const first = matched[0];
+      if (!first) return { matchedCount: 0, modifiedCount: 0 };
+      const updated = { ...first, ...(update.$set || update) };
       await db.put(updated);
       return { matchedCount: 1, modifiedCount: 1 };
     },
     updateMany: async (filter, update) => {
-      const all = getAll();
-      const matched = all.filter((d) => Object.keys(filter).every((k) => d[k] === filter[k]));
+      // Use the same runQuery as `find()` to locate matching documents
+      const runQuery = () => {
+        const all = getAll();
+        if (!filter || Object.keys(filter).length === 0) return all;
+        return all.filter((d) => matchesFilter(d, filter));
+      };
+
+      const matched = runQuery();
       for (const doc of matched) {
         const updated = { ...doc, ...(update.$set || update) };
         await db.put(updated);
@@ -130,19 +143,30 @@ export async function getCollection(name) {
       return { matchedCount: matched.length, modifiedCount: matched.length };
     },
     deleteOne: async (filter) => {
-      const all = getAll();
-      const found = all.find((d) => Object.keys(filter).every((k) => d[k] === filter[k]));
-      if (!found) return { deletedCount: 0 };
-      await db.del(found._id);
+      const runQuery = () => {
+        const all = getAll();
+        if (!filter || Object.keys(filter).length === 0) return all;
+        return all.filter((d) => matchesFilter(d, filter));
+      };
+
+      const matched = runQuery();
+      const first = matched[0];
+      if (!first) return { deletedCount: 0 };
+      await db.del(first._id);
       return { deletedCount: 1 };
     },
     deleteMany: async (filter) => {
-      const all = getAll();
-      const toDelete = all.filter((d) => Object.keys(filter).every((k) => d[k] === filter[k]));
-      for (const d of toDelete) {
+      const runQuery = () => {
+        const all = getAll();
+        if (!filter || Object.keys(filter).length === 0) return all;
+        return all.filter((d) => matchesFilter(d, filter));
+      };
+
+      const matched = runQuery();
+      for (const d of matched) {
         await db.del(d._id);
       }
-      return { deletedCount: toDelete.length };
+      return { deletedCount: matched.length };
     },
     createIndex: async () => ({ ok: 1 }),
     aggregateSumByOwner: async (ownerField, sizeField) => {
