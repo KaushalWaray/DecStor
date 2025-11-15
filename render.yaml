@@ -7,6 +7,13 @@ services:
     name: decstor-frontend
     env: nextjs
     plan: free # Can be changed to a paid instance
+
+# OPTIONAL: Example Persistent Disk guidance
+# Render's YAML spec typically requires creating disks in the Render UI and
+# attaching them to services. Below is a commented, example block showing the
+# intent and a recommended mount point and startCommand (already wired above).
+# Keep this block as documentation for reviewers and to copy/paste into the
+# Render UI or to use as a reference when creating a disk resource.
     repo: https://github.com/KaushalWaray/DecStor
     branch: main # Or your default branch
     buildCommand: 'npm install && npm run build'
@@ -25,6 +32,7 @@ services:
   - type: web
     name: decstor-backend
     env: node
+
     plan: free # Can be changed to a paid instance
     repo: https://github.com/KaushalWaray/DecStor
     branch: main # Or your default branch
