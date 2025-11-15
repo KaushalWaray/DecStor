@@ -7,7 +7,7 @@ services:
     name: decstor-frontend
     env: nextjs
     plan: free # Can be changed to a paid instance
-    repo: https://github.com/your-repo/decstor # CHANGE THIS to your repository URL
+    repo: https://github.com/KaushalWaray/DecStor
     branch: main # Or your default branch
     buildCommand: 'npm install && npm run build'
     startCommand: 'npm start'
@@ -26,12 +26,16 @@ services:
     name: decstor-backend
     env: node
     plan: free # Can be changed to a paid instance
-    repo: https://github.com/your-repo/decstor # CHANGE THIS to your repository URL
+    repo: https://github.com/KaushalWaray/DecStor
     branch: main # Or your default branch
     # Tell Render to look for the backend code in the 'backend' directory
     rootDir: backend
     buildCommand: 'npm install && npm run build'
-    startCommand: 'npm start'
+    # Use a startup wrapper that symlinks a mounted persistent disk (if present)
+    # into ./orbitdb so OrbitDB data can persist across deploys when a disk
+    # is attached at the mount path /disk. If no disk is attached the command
+    # still runs and the server will start using ephemeral storage.
+    startCommand: "sh -lc \"mkdir -p /disk/orbitdb && rm -rf ./orbitdb && ln -s /disk/orbitdb ./orbitdb || true && npm start\""
     healthCheckPath: /api # Check if the backend is alive
     envVars:
       - key: SERVICE_WALLET_MNEMONIC
